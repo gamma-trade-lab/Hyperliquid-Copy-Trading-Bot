@@ -1,0 +1,28 @@
+# Node modules
+node_modules/
+
+# Build artifacts
+dist/
+build/
+
+# Environment variables
+.env
+
+# Logs
+logs/
+*.log
+
+# Database files
+db.sqlite
+
+# Temporary files
+*.tmp
+*.swp
+
+# Ignore TypeScript declaration files
+*.d.ts
+
+# Ignore specific files
+*.ts
+!index.ts
+!character.ts
