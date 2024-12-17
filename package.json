@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "description": "",
+  "type": "module",
   "dependencies": {
     "@crossmint/client-sdk-base": "^1.4.4",
     "@jup-ag/api": "^6.0.32",

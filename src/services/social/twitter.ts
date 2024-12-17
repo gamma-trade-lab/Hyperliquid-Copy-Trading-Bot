@@ -2,9 +2,9 @@
 
 import { TwitterApi, TwitterApiTokens, TweetV2, ApiResponseError } from 'twitter-api-v2';
 //import { AIService } from '../ai/groq';
-import { WalletService } from '../blockchain/wallet';
+import { WalletService } from '../../../srcs/services/blockchain/wallet';
 import { MarketAction } from '../../config/constants';
-import { AIService } from '../ai';
+import { AIService } from '../../../srcs/services/ai';
 
 interface TwitterConfig {
   tokens: TwitterApiTokens;

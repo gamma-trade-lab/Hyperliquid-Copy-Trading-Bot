@@ -10,17 +10,12 @@ import {
   ApplicationCommandType,
   ChatInputCommandInteraction
 } from 'discord.js';
-import { AIService } from '../ai';
-import { WalletService } from '../blockchain/wallet';
-import { TokenService } from '../blockchain/token';
 import { PublicKey } from '@solana/web3.js';
 
 interface DiscordConfig {
   token: string;
   guildId: string;
-  aiService: AIService;
-  walletService: WalletService;
-  tokenService: TokenService;
+  
 }
 
 interface CommandHandler {
@@ -31,9 +26,7 @@ interface CommandHandler {
 
 export class DiscordService {
   private client: Client;
-  private aiService: AIService;
-  private walletService: WalletService;
-  private tokenService: TokenService;
+ 
   private commands: Map<string, CommandHandler>;
   private guildId: string;
 

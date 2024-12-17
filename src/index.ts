@@ -4,11 +4,11 @@ import { Client as DiscordClient, Message, TextChannel } from 'discord.js';
 import { PublicKey } from '@solana/web3.js';
 import Groq from "groq-sdk";
 import { CONFIG } from './config/settings';
-import { aiService } from './services/ai'; // Use the correct instance
-import { socialService } from './services/social';
-import { tradingService } from './services/trading';
-import { ContentUtils } from './utils/content';
-import { Parser } from './utils/parser';
+import { aiService } from '../srcs/services/ai'; // Use the correct instance
+import { socialService } from '../srcs/services/social';
+import { tradingService } from '../srcs/services/trading';
+import { ContentUtils } from '../srcs/utils/content';
+import { Parser } from '../srcs/utils/parser';
 import { PostgresDatabaseAdapter } from "@ai16z/adapter-postgres";
 import { SqliteDatabaseAdapter } from "@ai16z/adapter-sqlite";
 import { DirectClientInterface } from "@ai16z/client-direct";

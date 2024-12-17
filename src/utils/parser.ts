@@ -1,7 +1,7 @@
 // src/utils/parser.ts
 
 import { PublicKey } from '@solana/web3.js';
-import { CONFIG } from '../config/settings';
+import { CONFIG } from '../../src/config/settings';
 
 interface ParsedCommand {
    command: string;
