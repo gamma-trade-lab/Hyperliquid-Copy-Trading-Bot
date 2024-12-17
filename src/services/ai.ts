@@ -45,6 +45,12 @@ interface MemeResponse {
 }
 
 export class AIService {
+  generateName() {
+    throw new Error('Method not implemented.');
+  }
+  generateNarrative(template: { name: string; description: string; character: { name: string; personality: string; motto: string; origin: string; }; themes: { title: string; template: string; }[]; }) {
+    throw new Error('Method not implemented.');
+  }
   private groq: Groq;
   private personality: typeof personalityConfig;
   private config: AIServiceConfig;

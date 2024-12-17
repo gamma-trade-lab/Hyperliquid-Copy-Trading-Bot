@@ -44,9 +44,40 @@
     "better-sqlite3": "^11.5.0",
     "readline": "^1.3.0",
     "ws": "^8.18.0",
-    "yargs": "17.7.2"
+    "yargs": "17.7.2",
+    "@coral-xyz/anchor": "^0.30.1",
+    "@fleekxyz/sdk": "^1.4.2",
+    "@rollup/plugin-json": "^6.1.0",
+    "axios": "^1.6.8",
+    "jito-ts": "^4.1.0",
+    "tsx": "^4.16.2",
+    "typescript": "^5.3.3",
+    "undici": "^6.19.2",
+    "@project-serum/serum": "^0.13.65",
+    "@raydium-io/raydium-sdk": "^1.3.1-beta.48",
+    "@solana/spl-name-service": "^0.1.0",
+    "@types/bs58": "^4.0.4",
+    
+    "winston": "^3.11.0"
   },
   "devDependencies": {
-    "@types/natural": "^5.1.5"
+    "@types/natural": "^5.1.5",
+    "@coral-xyz/borsh": "^0.30.1",
+    "@rollup/plugin-commonjs": "^26.0.1",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-replace": "^5.0.7",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/bn.js": "^5.1.5",
+    "@types/node": "^20.14.1",
+    "dotenv": "^16.4.5",
+    "js-sha256": "^0.11.0",
+    "rimraf": "^3.0.2",
+    "rollup": "^4.18.0",
+    "ts-node": "^10.9.2",
+    
+    "nodemon": "^3.0.3",
+    
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.3.3"
   }
 }
