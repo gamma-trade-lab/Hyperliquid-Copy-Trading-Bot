@@ -95,6 +95,14 @@ export class MetricsService {
     }
   }
 
+  async trackTokenCreation(data: { mint: string; metadata: any; signature: string }) {
+    // Implement tracking logic
+  }
+
+  async trackTokenSale(data: { mint: string; amount: number; signature: string; analysis: any }) {
+    // Implement tracking logic
+  }
+
   private initializeMetrics(): PerformanceMetrics {
     return {
       trades: {

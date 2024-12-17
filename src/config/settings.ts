@@ -77,7 +77,11 @@ export const CONFIG = {
             POSTING_INTERVAL: 3600000, // 1 hour in milliseconds
             MAX_TWEET_LENGTH: 280,
             HASHTAGS: ['#Solana', '#Crypto', '#Memecoins', '#Web3'],
-            REPLY_PROBABILITY: 0.8 // 80% chance to reply to mentions
+            REPLY_PROBABILITY: 0.8, // 80% chance to reply to mentions
+            URL: "https://twitter.com/your_twitter_handle"
+        },
+        TELEGRAM: {
+            URL: "https://t.me/your_telegram_channel"
         },
         DISCORD: {
             TOKEN: process.env.DISCORD_TOKEN!,
@@ -108,6 +112,14 @@ export const CONFIG = {
             ENABLED: true,
             WEBHOOK_URL: process.env.ERROR_WEBHOOK_URL
         }
+    },
+
+    WEBSITE_URL: "https://yourwebsite.com",
+
+    PUMP: {
+        INITIAL_LIQUIDITY: 1000,
+        SLIPPAGE_BPS: 50,
+        PRIORITY_FEE: 0.001
     }
 } as const;
 
