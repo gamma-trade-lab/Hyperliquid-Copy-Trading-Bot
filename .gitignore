@@ -19,10 +19,3 @@ db.sqlite
 *.tmp
 *.swp
 
-# Ignore TypeScript declaration files
-*.d.ts
-
-# Ignore specific files
-*.ts
-!index.ts
-!character.ts
