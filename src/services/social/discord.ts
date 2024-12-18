@@ -1,5 +1,3 @@
-// src/services/social/discord.ts
-
 import { 
   Client, 
   GatewayIntentBits, 
@@ -11,11 +9,15 @@ import {
   ChatInputCommandInteraction
 } from 'discord.js';
 import { PublicKey } from '@solana/web3.js';
+import { AIService } from '../ai/types';
+import { WalletService, TokenService } from '../blockchain/types';
 
 interface DiscordConfig {
   token: string;
   guildId: string;
-  
+  aiService: AIService;
+  walletService: WalletService;
+  tokenService: TokenService;
 }
 
 interface CommandHandler {
@@ -26,9 +28,11 @@ interface CommandHandler {
 
 export class DiscordService {
   private client: Client;
- 
   private commands: Map<string, CommandHandler>;
   private guildId: string;
+  private aiService: AIService;
+  private walletService: WalletService;
+  private tokenService: TokenService;
 
   constructor(config: DiscordConfig) {
     this.client = new Client({
@@ -40,10 +44,10 @@ export class DiscordService {
       ]
     });
 
+    this.guildId = config.guildId;
     this.aiService = config.aiService;
     this.walletService = config.walletService;
     this.tokenService = config.tokenService;
-    this.guildId = config.guildId;
     this.commands = new Map();
 
     this.initializeCommands();
@@ -253,12 +257,21 @@ export class DiscordService {
     }
   }
 
-  async sendMessage(channelId: string, content: string): Promise<void> {
+  async sendMessage(channelId: string, content: string | { title: string; description: string; fields: { name: string; value: string; inline: boolean; }[]; }): Promise<void> {
     try {
       const channel = await this.client.channels.fetch(channelId) as TextChannel;
       if (!channel) throw new Error('Channel not found');
 
-      await channel.send(content);
+      if (typeof content === 'string') {
+        await channel.send(content);
+      } else {
+        const embed = new EmbedBuilder()
+          .setTitle(content.title)
+          .setDescription(content.description)
+          .addFields(content.fields);
+
+        await channel.send({ embeds: [embed] });
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       throw error;

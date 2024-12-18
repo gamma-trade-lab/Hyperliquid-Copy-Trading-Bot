@@ -72,6 +72,12 @@ export const CONFIG = {
     // Social Media Settings
     SOCIAL: {
         TWITTER: {
+            tokens: {
+                appKey: 'your-app-key',
+                appSecret: 'your-app-secret',
+                accessToken: 'your-access-token',
+                accessSecret: 'your-access-secret'
+            },
             API_KEY: process.env.TWITTER_API_KEY!,
             USERNAME: process.env.TWITTER_USERNAME || '',
             POSTING_INTERVAL: 3600000, // 1 hour in milliseconds
@@ -85,6 +91,7 @@ export const CONFIG = {
         },
         DISCORD: {
             TOKEN: process.env.DISCORD_TOKEN!,
+            GUILD_ID: 'your-guild-id',
             COMMAND_PREFIX: '!',
             ALLOWED_CHANNELS: (process.env.DISCORD_ALLOWED_CHANNELS ? process.env.DISCORD_ALLOWED_CHANNELS.split(',') : []) as string[],
             ADMIN_ROLES: [], // Add admin role IDs

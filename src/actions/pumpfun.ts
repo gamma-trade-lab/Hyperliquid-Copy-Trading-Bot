@@ -76,7 +76,7 @@ export class PumpFunSDK {
     commitment: Commitment = DEFAULT_COMMITMENT,
     finality: Finality = DEFAULT_FINALITY
   ) {
-    let tokenMetadata = await this.createTokenMetadata(createTokenMetadata);
+    let tokenMetadata = await this.createTokenMetadata(createTokenMetadata) as { metadataUri: string };
 
     let createTx = await this.getCreateInstructions(
       creator.publicKey,
@@ -427,7 +427,7 @@ export class PumpFunSDK {
 
     const response = await fetch("https://pumpfun.site/upload", {
       method: "POST",
-      body: formData,
+      body: formData as any,
       headers: {
         "Content-Type": "multipart/form-data",
       },

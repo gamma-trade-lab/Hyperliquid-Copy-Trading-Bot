@@ -1,10 +1,9 @@
 // src/services/social/twitter.ts
 
 import { TwitterApi, TwitterApiTokens, TweetV2, ApiResponseError } from 'twitter-api-v2';
-//import { AIService } from '../ai/groq';
-import { WalletService } from '../../../srcs/services/blockchain/wallet';
+import { AIService } from '../ai/types';
+import { WalletService } from '../blockchain/types';
 import { MarketAction } from '../../config/constants';
-import { AIService } from '../../../srcs/services/ai';
 
 interface TwitterConfig {
   tokens: TwitterApiTokens;
@@ -22,23 +21,22 @@ export class TwitterService {
   private client: TwitterApi;
   private aiService: AIService;
   private walletService: WalletService;
-  private rateLimits: Map<string, number> = new Map();
-  private lastTweetTime: number = 0;
+  private rateLimits: Map<string, number>;
+  private lastTweetTime: number;
   private readonly MIN_TWEET_INTERVAL = 60000; // 1 minute
 
   constructor(config: TwitterConfig) {
     this.client = new TwitterApi(config.tokens);
     this.aiService = config.aiService;
     this.walletService = config.walletService;
+    this.rateLimits = new Map();
+    this.lastTweetTime = 0;
   }
 
   async initialize(): Promise<void> {
     try {
-      // Verify credentials
       const me = await this.client.v2.me();
       console.log(`Twitter bot initialized as @${me.data.username}`);
-
-      // Start monitoring mentions and relevant keywords
       await this.startStreaming();
     } catch (error) {
       console.error('Failed to initialize Twitter service:', error);
@@ -50,23 +48,29 @@ export class TwitterService {
     try {
       await this.checkRateLimit('tweet');
       
-      // Ensure minimum interval between tweets
       const now = Date.now();
-      if (now - this.lastTweetTime < this.MIN_TWEET_INTERVAL) {
-        await new Promise(resolve => 
-          setTimeout(resolve, this.MIN_TWEET_INTERVAL - (now - this.lastTweetTime))
-        );
+      const timeToWait = this.MIN_TWEET_INTERVAL - (now - this.lastTweetTime);
+      if (timeToWait > 0) {
+        await new Promise(resolve => setTimeout(resolve, timeToWait));
       }
 
-      const mediaIds = options.mediaIds ? options.mediaIds.slice(0, 4) as [string] | [string, string] | [string, string, string] | [string, string, string, string] : undefined;
+      let mediaIds: [string] | [string, string] | [string, string, string] | [string, string, string, string] | undefined = undefined;
+      if (options.mediaIds && options.mediaIds.length > 0) {
+        mediaIds = options.mediaIds.slice(0, 4) as [string] | [string, string] | [string, string, string] | [string, string, string, string];
+      }
 
-      const tweet = await this.client.v2.tweet(content, {
-        reply: options.replyToTweet ? { in_reply_to_tweet_id: options.replyToTweet } : undefined,
-        media: mediaIds ? { media_ids: mediaIds } : undefined,
-        quote_tweet_id: options.quoteTweetId
-      });
+      const tweetData = {
+        text: content,
+        ...(options.replyToTweet && {
+          reply: { in_reply_to_tweet_id: options.replyToTweet }
+        }),
+        ...(mediaIds && { media: { media_ids: mediaIds } }),
+        ...(options.quoteTweetId && { quote_tweet_id: options.quoteTweetId })
+      };
 
+      const tweet = await this.client.v2.tweet(tweetData);
       this.lastTweetTime = Date.now();
+      
       return tweet.data.id;
     } catch (error) {
       if (error instanceof ApiResponseError) {
@@ -78,16 +82,18 @@ export class TwitterService {
 
   async reply(tweetId: string, content: string): Promise<string> {
     try {
-      // Generate AI response
       const tweet = await this.client.v2.singleTweet(tweetId, {
         expansions: ['author_id'],
         'tweet.fields': ['conversation_id', 'context_annotations']
       });
 
+      const author = tweet.includes?.users?.[0]?.username || 'unknown_user';
+      
       const response = await this.aiService.generateResponse({
         content: tweet.data.text,
-        author: tweet.includes?.users?.[0].username,
-        platform: 'twitter'
+        author: author,
+        platform: 'twitter',
+        channel: tweet.data.conversation_id || undefined
       });
 
       return await this.tweet(response, { replyToTweet: tweetId });
@@ -100,7 +106,8 @@ export class TwitterService {
   async retweet(tweetId: string): Promise<void> {
     try {
       await this.checkRateLimit('retweet');
-      await this.client.v2.retweet(await this.client.v2.me().then(me => me.data.id), tweetId);
+      const me = await this.client.v2.me();
+      await this.client.v2.retweet(me.data.id, tweetId);
     } catch (error) {
       console.error('Error retweeting:', error);
       throw error;
@@ -110,14 +117,15 @@ export class TwitterService {
   async like(tweetId: string): Promise<void> {
     try {
       await this.checkRateLimit('like');
-      await this.client.v2.like(await this.client.v2.me().then(me => me.data.id), tweetId);
+      const me = await this.client.v2.me();
+      await this.client.v2.like(me.data.id, tweetId);
     } catch (error) {
       console.error('Error liking tweet:', error);
       throw error;
     }
   }
 
-  async publishMarketUpdate(action: MarketAction, data: any): Promise<string> {
+  async publishMarketUpdate(action: MarketAction, data: Record<string, unknown>): Promise<string> {
     try {
       const content = await this.aiService.generateMarketUpdate({
         action,
@@ -136,11 +144,11 @@ export class TwitterService {
     try {
       const rules = await this.client.v2.streamRules();
       
-      // Set up stream rules if none exist
-      if (!rules.data?.length) {
+      if (!rules.data || rules.data.length === 0) {
+        const me = await this.client.v2.me();
         await this.client.v2.updateStreamRules({
           add: [
-            { value: '@yourbotname', tag: 'mentions' },
+            { value: `@${me.data.username}`, tag: 'mentions' },
             { value: 'your-token-symbol', tag: 'token-mentions' }
           ]
         });
@@ -151,7 +159,7 @@ export class TwitterService {
         expansions: ['referenced_tweets.id']
       });
 
-      stream.on('data', async tweet => {
+      stream.on('data', async (tweet: TweetV2) => {
         await this.handleStreamData(tweet);
       });
 
@@ -166,9 +174,11 @@ export class TwitterService {
 
   private async handleStreamData(tweet: TweetV2): Promise<void> {
     try {
+      if (!tweet.author_id) return;
+
       const shouldEngage = await this.aiService.shouldEngageWithContent({
         text: tweet.text,
-        author: tweet.author_id || '',
+        author: tweet.author_id,
         platform: 'twitter'
       });
 
@@ -185,40 +195,45 @@ export class TwitterService {
     action: { type: string; content?: string },
     tweet: TweetV2
   ): Promise<void> {
-    switch (action.type) {
-      case 'reply':
-        if (action.content) {
-          await this.reply(tweet.id, action.content);
-        }
-        break;
-      case 'retweet':
-        await this.retweet(tweet.id);
-        break;
-      case 'like':
-        await this.like(tweet.id);
-        break;
+    try {
+      switch (action.type) {
+        case 'reply':
+          if (action.content) {
+            await this.reply(tweet.id, action.content);
+          }
+          break;
+        case 'retweet':
+          await this.retweet(tweet.id);
+          break;
+        case 'like':
+          await this.like(tweet.id);
+          break;
+        default:
+          console.log(`Unknown action type: ${action.type}`);
+      }
+    } catch (error) {
+      console.error('Error executing engagement action:', error);
     }
   }
 
   private async checkRateLimit(action: string): Promise<void> {
     const limit = this.rateLimits.get(action);
-    if (limit && limit <= 0) {
+    if (typeof limit === 'number' && limit <= 0) {
       throw new Error(`Rate limit exceeded for ${action}`);
     }
   }
 
   private async handleTwitterError(error: ApiResponseError): Promise<void> {
     if (error.rateLimit) {
-      this.rateLimits.set(
-        error.request.path.split('/').pop()!,
-        error.rateLimit.remaining
-      );
+      const path = error.request.path.split('/').pop();
+      if (path) {
+        this.rateLimits.set(path, error.rateLimit.remaining);
+      }
     }
     throw error;
   }
 
   async cleanup(): Promise<void> {
-    // Implement cleanup if needed
     console.log('Twitter service cleaned up');
   }
 }

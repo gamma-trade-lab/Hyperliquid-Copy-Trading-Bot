@@ -8,6 +8,7 @@ import {
   LAMPORTS_PER_SOL
 } from '@solana/web3.js';
 import { CONFIG } from '../../config/settings';
+import { createTransferInstruction } from '@solana/spl-token';
 
 const TOKEN_PROGRAM_ID = await import('@solana/spl-token').then(module => module.TOKEN_PROGRAM_ID);
 const createMint = await import('@solana/spl-token').then(module => module.createMint);
@@ -98,7 +99,7 @@ export class SolanaService {
       // Get token accounts
       const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
         publicKey,
-        { programId: TOKEN_PROGRAM_ID }
+        { programId: await TOKEN_PROGRAM_ID }
       );
 
       const tokens = tokenAccounts.value.map(account => ({
@@ -174,13 +175,13 @@ export class SolanaService {
 
       // Create transfer instruction
       const transaction = new Transaction().add(
-        await mintTo(
-          this.connection,
-          this.payer,
-          mint,
+        createTransferInstruction(
+          sourceAccount.address,
           destinationAccount.address,
-          this.payer,
-          amount
+          this.payer.publicKey,
+          amount,
+          [],
+          TOKEN_PROGRAM_ID
         )
       );
 
