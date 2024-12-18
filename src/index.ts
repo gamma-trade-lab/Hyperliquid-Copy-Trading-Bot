@@ -1,6 +1,6 @@
 import { SolanaAgentKit, createSolanaTools } from 'solana-agent-kit';
 import { TwitterApi } from 'twitter-api-v2';
-import { Client as DiscordClient, Message, TextChannel } from 'discord.js';
+import { Client as DiscordClient, Message } from 'discord.js';
 import { PublicKey } from '@solana/web3.js';
 import Groq from "groq-sdk";
 import { CONFIG } from './config/settings';
@@ -8,15 +8,12 @@ import { CONFIG } from './config/settings';
 // Import services
 import { AIService } from './services/ai';
 import { SocialService } from './services/social';
-import { BlockchainService } from './services/blockchain';
 import { ContentUtils } from './utils/content';
 import { Parser } from './utils/parser';
 
 // Import eliza and plugins
 import {
   DbCacheAdapter,
-  defaultCharacter,
-  FsCacheAdapter,
   ICacheManager,
   IDatabaseCacheAdapter,
   stringToUuid,
@@ -26,9 +23,7 @@ import {
   IAgentRuntime,
   ModelProviderName,
   elizaLogger,
-  settings,
   IDatabaseAdapter,
-  validateCharacterConfig,
 } from "@ai16z/eliza";
 
 import { PostgresDatabaseAdapter } from "@ai16z/adapter-postgres";
@@ -43,7 +38,6 @@ import { nodePlugin } from "@ai16z/plugin-node";
 // Node imports
 import * as fs from "fs";
 import * as readline from "readline";
-import yargs from "yargs";
 import * as path from "path";
 
 // Initialize services
@@ -208,434 +202,553 @@ class MemeAgentInfluencer {
         await this.setupTwitterStream();
     }
 
+    // src/index.ts - Part 3: MemeAgentInfluencer Core Methods
+
     private async setupTwitterStream() {
-        const rules = await this.twitter.v2.streamRules();
-        if (!rules.data?.length) {
-            await this.twitter.v2.updateStreamRules({
-                add: [{ value: `@${CONFIG.SOCIAL.TWITTER.USERNAME}` }]
-            });
-        }
+      try {
+          const rules = await this.twitter.v2.streamRules();
+          if (!rules.data?.length) {
+              await this.twitter.v2.updateStreamRules({
+                  add: [{ value: `@${CONFIG.SOCIAL.TWITTER.USERNAME}` }]
+              });
+          }
 
-        const stream = await this.twitter.v2.searchStream({
-            'tweet.fields': ['referenced_tweets', 'author_id'],
-            expansions: ['referenced_tweets.id']
-        });
+          const stream = await this.twitter.v2.searchStream({
+              'tweet.fields': ['referenced_tweets', 'author_id'],
+              expansions: ['referenced_tweets.id']
+          });
 
-        stream.on('data', async tweet => {
-            try {
-                const sentiment = await aiService.analyzeMarket(tweet.text); // Corrected method name
-                const response = await aiService.generateResponse({ content: tweet.text, author: tweet.author_id, channel: tweet.id, platform: 'twitter' }); // Added missing properties
-                await this.twitter.v2.reply(response, tweet.id);
-            } catch (error) {
-                console.error('Error handling tweet:', error);
-            }
-        });
-    }
+          stream.on('data', async tweet => {
+              try {
+                  const sentiment = await aiService.analyzeSentiment(tweet.text);
+                  if (sentiment.score > 0.5) { // Only respond to positive/neutral tweets
+                      const response = await aiService.generateResponse({
+                          content: tweet.text,
+                          platform: 'twitter',
+                          author: tweet.author_id || 'unknown',
+                          channel: tweet.id
+                      });
+                      await this.twitter.v2.reply(response, tweet.id);
+                  }
+              } catch (error) {
+                  console.error('Error handling tweet:', error);
+              }
+          });
+      } catch (error) {
+          console.error('Error setting up Twitter stream:', error);
+      }
+  }
 
-    private async startContentGeneration() {
-        setInterval(async () => {
-            try {
-                const content = await ContentUtils.generateContent({
-                    type: 'meme',
-                    platform: 'twitter'
-                });
-                await socialService.broadcast(content); // Ensure broadcast method exists
-            } catch (error) {
-                console.error('Error in content generation:', error);
-            }
-        }, CONFIG.SOCIAL.TWITTER.POSTING_INTERVAL);
-    }
+  private async startContentGeneration() {
+      const generateAndPost = async () => {
+          try {
+              const content = await ContentUtils.generateContent({
+                  type: 'meme',
+                  platform: 'twitter',
+                  context: {
+                      tokenAddress: this.tokenAddress,
+                      tokenName: CONFIG.SOLANA.TOKEN_SETTINGS.NAME
+                  }
+              });
+              await socialService.broadcast(content);
+          } catch (error) {
+              console.error('Error in content generation:', error);
+          }
+      };
 
-    private async startMarketMonitoring() {
-        setInterval(async () => {
-            try {
-                const metrics = {}; // Placeholder
-                const analysis: MarketAnalysis = await aiService.analyzeMarket(metrics);
+      // Initial post
+      await generateAndPost();
+      
+      // Schedule regular posts
+      setInterval(generateAndPost, CONFIG.SOCIAL.TWITTER.POSTING_INTERVAL);
+  }
 
-                if (analysis.shouldTrade) {
-                    await this.handleTradingOpportunity(analysis);
-                }
-            } catch (error) {
-                console.error('Error in market monitoring:', error);
-            }
-        }, CONFIG.MARKET.UPDATE_INTERVAL);
-    }
+  private async startMarketMonitoring() {
+      const checkMarket = async () => {
+          try {
+              const metrics = await tradingService.getMarketData(this.tokenAddress);
+              const analysis: MarketAnalysis = await aiService.analyzeMarket(metrics);
 
-    private async startCommunityEngagement() {
-        setInterval(async () => {
-            try {
-                const content = await ContentUtils.generateContent({
-                    type: 'community',
-                    sentiment: 'positive'
-                });
-                await socialService.broadcast(content); // Ensure broadcast method exists
-            } catch (error) {
-                console.error('Error in community engagement:', error);
-            }
-        }, CONFIG.SOCIAL.TWITTER.POSTING_INTERVAL * 2);
-    }
+              if (analysis.shouldTrade && analysis.confidence > CONFIG.TRADING.CONFIDENCE_THRESHOLD) {
+                  await this.handleTradingOpportunity(analysis);
+                  
+                  // Announce trading action
+                  const content = await ContentUtils.generateContent({
+                      type: 'trade_update',
+                      variables: {
+                          action: analysis.shouldTrade ? 'buy' : 'sell',
+                          confidence: analysis.confidence
+                      }
+                  });
+                  await socialService.broadcast(content);
+              }
+          } catch (error) {
+              console.error('Error in market monitoring:', error);
+          }
+      };
 
-    private async handleCommand(parsedCommand: any, message: Message) {
-        switch (parsedCommand.command) {
-            case 'price':
-                await this.handlePriceCommand(message);
-                break;
-            case 'trade':
-                await this.handleTradeCommand(message, parsedCommand);
-                break;
-            case 'stats':
-                await this.handleStatsCommand(message);
-                break;
-            default:
-                const response = await aiService.generateResponse({ content: message.content, author: message.author.tag, channel: message.channel.id, platform: 'discord' }); // Added missing properties
-                await message.reply(response);
-        }
-    }
+      // Initial check
+      await checkMarket();
+      
+      // Schedule regular checks
+      setInterval(checkMarket, CONFIG.MARKET.UPDATE_INTERVAL);
+  }
 
-    private async handlePriceCommand(message: Message) {
-        try {
-            const price = 0; // Placeholder
-            const content = await ContentUtils.generateContent({
-                type: 'market_update',
-                variables: {
-                    price: price.toString(),
-                    currency: 'USD'
-                }
-            });
-            await message.reply(content);
-        } catch (error) {
-            console.error('Error handling price command:', error);
-            await message.reply('Error fetching price information.');
-        }
-    }
+  private async startCommunityEngagement() {
+      const engageWithCommunity = async () => {
+          try {
+              const content = await ContentUtils.generateContent({
+                  type: 'community',
+                  sentiment: 'positive',
+                  context: {
+                      tokenMetrics: await this.checkTokenMetrics(),
+                      communityGrowth: await socialService.getCommunityMetrics()
+                  }
+              });
+              
+              await socialService.broadcast(content);
+          } catch (error) {
+              console.error('Error in community engagement:', error);
+          }
+      };
 
-    private async handleTradeCommand(message: Message, parsedCommand: any) {
-        const transaction = Parser.parseTransactionRequest(message.content);
-        if (!transaction) {
-            await message.reply('Invalid trade command format.');
-            return;
-        }
+      // Initial engagement
+      await engageWithCommunity();
+      
+      // Schedule regular engagement
+      setInterval(engageWithCommunity, CONFIG.SOCIAL.ENGAGEMENT_INTERVAL);
+  }
 
-        try {
-            const result = 'transaction-id'; // Placeholder
-            await message.reply(`Trade executed! Transaction: ${result}`);
-        } catch (error) {
-            console.error('Trade failed:', error);
-            await message.reply('Sorry, the trade failed. Please try again.');
-        }
-    }
+  private async handleCommand(parsedCommand: any, message: Message) {
+      switch (parsedCommand.command) {
+          case 'price':
+              await this.handlePriceCommand(message);
+              break;
+          case 'trade':
+              await this.handleTradeCommand(message, parsedCommand);
+              break;
+          case 'stats':
+              await this.handleStatsCommand(message);
+              break;
+          default:
+              const response = await aiService.generateResponse({
+                  content: message.content,
+                  platform: 'discord',
+                  author: message.author.tag,
+                  channel: message.channel.id
+              });
+              await message.reply(response);
+      }
+  }
 
-    private async handleStatsCommand(message: Message) {
-        try {
-            const metrics = await this.checkTokenMetrics();
-            const content = await ContentUtils.generateContent({
-                type: 'market_update',
-                variables: metrics
-            });
-            await message.reply(content);
-        } catch (error) {
-            console.error('Error handling stats command:', error);
-            await message.reply('Error fetching token statistics.');
-        }
-    }
+  private async handleTradingOpportunity(analysis: MarketAnalysis) {
+      try {
+          if (analysis.confidence > CONFIG.TRADING.CONFIDENCE_THRESHOLD) {
+              const tradeResult = await tradingService.executeTrade({
+                  inputMint: 'SOL',
+                  outputMint: this.tokenAddress,
+                  amount: CONFIG.TRADING.BASE_AMOUNT,
+                  slippage: CONFIG.TRADING.DEFAULT_SLIPPAGE_BPS
+              });
 
-    private async handleTradingOpportunity(analysis: MarketAnalysis) {
-        if (analysis.confidence > 0.7) {
-            // Placeholder for trading logic
-        }
-    }
+              // Announce successful trade
+              const content = await ContentUtils.generateContent({
+                  type: 'trade_execution',
+                  variables: {
+                      success: true,
+                      txHash: tradeResult.signature
+                  }
+              });
+              await socialService.broadcast(content);
+          }
+      } catch (error) {
+          console.error('Error handling trading opportunity:', error);
+      }
+  }
 
-    private async checkTokenMetrics() {
-        return await this.solanaTools.get_balance(
-            this.solanaKit,
-            new PublicKey(this.tokenAddress)
-        );
-    }
+  private async checkTokenMetrics() {
+      try {
+          return await this.solanaTools.get_balance(
+              this.solanaKit,
+              new PublicKey(this.tokenAddress)
+          );
+      } catch (error) {
+          console.error('Error checking token metrics:', error);
+          throw error;
+      }
+  }
+}
+
+// Create and start the agent
+// src/index.ts - Part 4: Runtime Setup and Initialization
+
+class MemeAgentRuntime extends AgentRuntime {
+  async analyzeMarketSentiment() {
+      try {
+          return await this.generateText({
+              text: "analyze current market sentiment",
+              userId: "system",
+              userName: "System"
+          });
+      } catch (error) {
+          elizaLogger.error("Error analyzing market sentiment:", error);
+          throw error;
+      }
+  }
+
+  async generateMemeContent() {
+      try {
+          return await this.generateText({
+              text: "generate crypto meme content",
+              userId: "system",
+              userName: "System"
+          });
+      } catch (error) {
+          elizaLogger.error("Error generating meme content:", error);
+          throw error;
+      }
+  }
+
+  async generateText({ text, userId, userName }: { 
+      text: string; 
+      userId: string; 
+      userName: string; 
+  }): Promise<string> {
+      return await this.provider.generateText(text, {
+          userId,
+          userName,
+          context: {
+              tokenMetrics: await this.getTokenMetrics(),
+              marketSentiment: await this.getMarketSentiment()
+          }
+      });
+  }
+
+  private async getTokenMetrics() {
+      // Implement token metrics retrieval
+      return {};
+  }
+
+  private async getMarketSentiment() {
+      // Implement market sentiment analysis
+      return {};
+  }
+}
+
+async function startAgent(character: Character, directClient: DirectClient): Promise<any[]> {
+  try {
+      character.id = character.id ?? stringToUuid(character.name);
+      character.username = character.username ?? character.name;
+
+      const token = await getTokenForProvider(character.modelProvider, character);
+      const dataDir = path.join(__dirname, "../data");
+
+      if (!fs.existsSync(dataDir)) {
+          fs.mkdirSync(dataDir, { recursive: true });
+      }
+
+      const db = await initializeDatabase(dataDir);
+      if (db && typeof db.init === 'function') {
+          await db.init();
+      } else {
+          throw new Error('Database initialization failed');
+      }
+
+      const cache = await initializeDbCache(character, db);
+      const runtime = createAgent(character, db, cache, token);
+
+      await runtime.initialize();
+
+      // Initialize social media clients
+      const clients = await initializeClients(character, runtime);
+      directClient.registerAgent(runtime);
+
+      // Set up periodic tasks for the agent
+      setupPeriodicTasks(runtime as MemeAgentRuntime);
+
+      return clients;
+  } catch (error) {
+      elizaLogger.error(
+          `Error starting agent for character ${character.name}:`,
+          error
+      );
+      throw error;
+  }
+}
+
+function setupPeriodicTasks(runtime: MemeAgentRuntime) {
+  // Market Analysis Task
+  setInterval(async () => {
+      try {
+          const sentiment = await runtime.analyzeMarketSentiment();
+          await runtime.generateText({
+              text: `Market Update: ${sentiment}`,
+              userId: "system",
+              userName: "System"
+          });
+      } catch (error) {
+          elizaLogger.error("Error in market analysis task:", error);
+      }
+  }, CONFIG.MARKET.UPDATE_INTERVAL);
+
+  // Meme Generation Task
+  setInterval(async () => {
+      try {
+          const memeContent = await runtime.generateMemeContent();
+          await socialService.broadcast(memeContent);
+      } catch (error) {
+          elizaLogger.error("Error in meme generation task:", error);
+      }
+  }, CONFIG.SOCIAL.MEME_INTERVAL);
+}
+
+async function initializeDatabase(dataDir: string): Promise<IDatabaseAdapter> {
+  const dbConfig = CONFIG.DATABASE;
+  
+  if (dbConfig.type === 'postgres') {
+      return new PostgresDatabaseAdapter(dbConfig.postgres);
+  } else {
+      const db = new Database(path.join(dataDir, "database.sqlite"));
+      return new SqliteDatabaseAdapter(db);
+  }
 }
 
 // Create and start the agent
 const startMemeAgentInfluencer = async () => {
-    try {
-        const agent = new MemeAgentInfluencer();
-        await agent.initialize();
-        console.log('Meme Agent Influencer is running!');
-    } catch (error) {
-        console.error('Failed to start agent:', error);
-        process.exit(1);
-    }
+  try {
+      const agent = new MemeAgentInfluencer();
+      await agent.initialize();
+      console.log('Meme Agent Influencer is running!');
+  } catch (error) {
+      console.error('Failed to start agent:', error);
+      process.exit(1);
+  }
 };
 
+// Start the agent
 if (require.main === module) {
-    startMemeAgentInfluencer();
+  startMemeAgentInfluencer().catch((error) => {
+      console.error('Unhandled error:', error);
+      process.exit(1);
+  });
 }
-// Extended agent runtime for MemeAgentX specific features
-class MemeAgentRuntime extends AgentRuntime {
-    async analyzeMarketSentiment() {
-      // Implement market analysis logic
-      return await this.generateText({
-        text: "analyze current market sentiment",
-        userId: "system",
-        userName: "System"
-      });
-    }
-  
-    async generateMemeContent() {
-      // Implement meme generation logic
-      return await this.generateText({
-        text: "generate crypto meme content",
-        userId: "system",
-        userName: "System"
-      });
-    }
-  
-    async generateText({ text, userId, userName }: { text: string; userId: string; userName: string; }) {
-      // Implement text generation logic
-      return `Generated text for ${userName}: ${text}`;
-    }
-  }
-  
-  async function startAgent(character: Character, directClient: DirectClient) {
-    try {
-      character.id ??= stringToUuid(character.name);
-      character.username ??= character.name;
-  
-      const token = await getTokenForProvider(character.modelProvider, character);
-      const dataDir = path.join(__dirname, "../data");
-  
-      if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
-      }
-  
-      const db = await initializeDatabase(dataDir);
-      if (db && typeof db.init === 'function') {
-        await db.init();
-      } else {
-        throw new Error('Database initialization failed: db is undefined or init is not a function');
-      }
-  
-      const cache = await initializeDbCache(character, db);
-      const runtime = createAgent(character, db, cache, token);
-  
-      await runtime.initialize();
-  
-      // Initialize social media clients
-      const clients = await initializeClients(character, runtime);
-      (directClient as DirectClient).registerAgent(runtime);
-  
-      // Set up periodic tasks for the agent
-      setupPeriodicTasks(runtime as MemeAgentRuntime);
-  
-      return clients;
-    } catch (error) {
-      elizaLogger.error(
-        `Error starting agent for character ${character.name}:`,
-        error
-      );
-      console.error(error);
-      throw error;
-    }
-  }
-  
-  function setupPeriodicTasks(runtime: MemeAgentRuntime) {
-    // Market Analysis Task
-    setInterval(async () => {
-      try {
-        const sentiment = await runtime.analyzeMarketSentiment();
-        await runtime.generateText({
-          text: `Market Update: ${sentiment}`,
-          userId: "system",
-          userName: "System"
-        });
-      } catch (error) {
-        elizaLogger.error("Error in market analysis task:", error);
-      }
-    }, 30 * 60 * 1000); // Every 30 minutes
-  
-    // Meme Generation Task
-    setInterval(async () => {
-      try {
-        const memeContent = await runtime.generateMemeContent();
-        // Post to social media
-      } catch (error) {
-        elizaLogger.error("Error in meme generation task:", error);
-      }
-    }, 60 * 60 * 1000); // Every hour
-  }
-  
-  interface MemeAgentRuntimeConfig {
-    databaseAdapter: IDatabaseAdapter;
-    token: string;
-    modelProvider: ModelProviderName;
-    evaluators: any[];
-    character: Character;
-    plugins: any[];
-    providers: any[];
-    actions: any[];
-    services: any[];
-    managers: any[];
-    cacheManager: ICacheManager;
-  }
-  
-  function createAgent(
-    character: Character,
-    db: IDatabaseAdapter,
-    cache: ICacheManager,
-    token: string
-  ): MemeAgentRuntime {
-    elizaLogger.success(
+
+export {
+  MemeAgentInfluencer,
+  MemeAgentRuntime,
+  startAgent,
+  startMemeAgentInfluencer,
+};
+export const wait = (minTime: number = 1000, maxTime: number = 3000): Promise<void> => {
+  const waitTime = Math.floor(Math.random() * (maxTime - minTime + 1)) + minTime;
+  return new Promise((resolve) => setTimeout(resolve, waitTime));
+};
+
+interface MemeAgentRuntimeConfig {
+  databaseAdapter: IDatabaseAdapter;
+  token: string;
+  modelProvider: ModelProviderName;
+  evaluators: any[];
+  character: Character;
+  plugins: any[];
+  providers: any[];
+  actions: any[];
+  services: any[];
+  managers: any[];
+  cacheManager: ICacheManager;
+}
+
+function createAgent(
+  character: Character,
+  db: IDatabaseAdapter,
+  cache: ICacheManager,
+  token: string
+): MemeAgentRuntime {
+  elizaLogger.success(
       elizaLogger.successesTitle,
       "Creating runtime for character",
       character.name
-    );
-    
-    const config: MemeAgentRuntimeConfig = {
+  );
+  
+  const config: MemeAgentRuntimeConfig = {
       databaseAdapter: db,
       token,
       modelProvider: character.modelProvider,
       evaluators: [],
       character,
       plugins: [
-        bootstrapPlugin,
-        nodePlugin,
-        solanaPlugin,
+          bootstrapPlugin,
+          nodePlugin,
+          solanaPlugin,
       ],
       providers: [],
       actions: [],
       services: [],
       managers: [],
       cacheManager: cache,
-    };
-  
-    return new MemeAgentRuntime(config);
+  };
+
+  return new MemeAgentRuntime(config);
+}
+
+async function getTokenForProvider(
+  provider: ModelProviderName, 
+  character: Character
+): Promise<string> {
+  switch (provider) {
+      case 'groq':
+          return CONFIG.AI.GROQ.API_KEY;
+      case 'anthropic':
+          return CONFIG.AI.ANTHROPIC.API_KEY;
+      case 'openai':
+          return CONFIG.AI.OPENAI.API_KEY;
+      default:
+          throw new Error(`Unsupported model provider: ${provider}`);
   }
-  
-  async function getTokenForProvider(provider: ModelProviderName, character: Character): Promise<string> {
-    // Implement token retrieval logic
-    return "your-token";
+}
+
+async function initializeDbCache(
+  character: Character, 
+  db: IDatabaseAdapter
+): Promise<ICacheManager> {
+  if (!character.id) {
+      throw new Error('Character ID is undefined');
   }
-  
-  async function initializeDatabase(dataDir: string): Promise<IDatabaseAdapter> {
-    // Implement database initialization logic
-    if (CONFIG.database.type === 'postgres') {
-      return new PostgresDatabaseAdapter(CONFIG.database.postgres);
-    } else {
-      return new SqliteDatabaseAdapter(new Database(path.join(dataDir, "database.sqlite")));
-    }
-  }
-  
-  async function initializeDbCache(character: Character, db: IDatabaseAdapter): Promise<ICacheManager> {
-    // Ensure the database adapter implements the required methods
-    const dbCacheAdapter: IDatabaseCacheAdapter = {
+
+  const dbCacheAdapter: IDatabaseCacheAdapter = {
       ...db,
       getCache: async ({ agentId, key }: { agentId: string; key: string; }) => {
-        // Implement getCache logic
-        return undefined;
+          try {
+              // Implement cache retrieval logic
+              return await db.get(`cache:${agentId}:${key}`);
+          } catch (error) {
+              elizaLogger.error('Cache retrieval error:', error);
+              return undefined;
+          }
       },
-      setCache: async ({ agentId, key, value }: { agentId: `${string}-${string}-${string}-${string}-${string}`; key: string; value: string; }) => {
-        // Implement setCache logic
-        return true;
+      setCache: async ({ 
+          agentId, 
+          key, 
+          value 
+      }: { 
+          agentId: string; 
+          key: string; 
+          value: string; 
+      }) => {
+          try {
+              await db.set(`cache:${agentId}:${key}`, value);
+              return true;
+          } catch (error) {
+              elizaLogger.error('Cache set error:', error);
+              return false;
+          }
       },
-      deleteCache: async ({ agentId, key }: { agentId: `${string}-${string}-${string}-${string}-${string}`; key: string; }) => {
-        // Implement deleteCache logic
-        return true;
+      deleteCache: async ({ 
+          agentId, 
+          key 
+      }: { 
+          agentId: string; 
+          key: string; 
+      }) => {
+          try {
+              await db.delete(`cache:${agentId}:${key}`);
+              return true;
+          } catch (error) {
+              elizaLogger.error('Cache deletion error:', error);
+              return false;
+          }
       }
-    };
-  
-    if (!character.id) {
-        throw new Error('Character ID is undefined');
-    }
-    return new CacheManager(new DbCacheAdapter(dbCacheAdapter, character.id));
-  }
-  
-  async function initializeClients(character: Character, runtime: IAgentRuntime): Promise<any[]> {
-    const clients = [];
-  
-    if (CONFIG.clients.direct.enabled) {
-      const directClient = await DirectClientInterface.start();
-      (directClient as DirectClient).registerAgent(runtime as AgentRuntime);
-      clients.push(directClient);
-    }
-  
-    if (CONFIG.clients.discord.enabled) {
-      const discordClient = await DiscordClientInterface.start();
-      (discordClient as any).registerAgent(runtime as AgentRuntime);
-      clients.push(discordClient);
-    }
-  
-    if (CONFIG.clients.twitter.enabled) {
-      const twitterClient = await TwitterClientInterface.start();
-      (twitterClient as any).registerAgent(runtime as AgentRuntime);
-      clients.push(twitterClient);
-    }
-  
-    return clients;
-  }
-  
-  async function parseArguments(): Promise<any> {
-    // Implement argument parsing logic
-    return yargs(process.argv.slice(2)).argv;
-  }
-  
-  async function loadCharacters(filePath: string): Promise<Character[]> {
-    // Implement character loading logic
-    return [defaultCharacter];
-  }
-  
-  async function handleUserInput(input: string, agentName: string): Promise<void> {
-    // Implement user input handling logic
-    console.log(`${agentName}: ${input}`);
-  }
-  
-  // ... keep the rest of the utility functions unchanged ...
-  
-  const startAgents = async () => {
-    const directClient = await DirectClientInterface.start();
-    const args = await parseArguments();
-  
-    let characters = [defaultCharacter]; // Default to our MemeAgentX character
-    
-    if (args.characters) {
-      characters = await loadCharacters(args.characters);
-    }
-  
-    try {
-      for (const character of characters) {
-        await startAgent(character, directClient as DirectClient);
-      }
-    } catch (error) {
-      elizaLogger.error("Error starting agents:", error);
-    }
-  
-    // Start chat interface
-    initializeChatInterface(characters[0].name);
   };
-  
-  function initializeChatInterface(agentName: string) {
-    const rl = readline.createInterface({
+
+  return new CacheManager(new DbCacheAdapter(dbCacheAdapter, character.id));
+}
+
+async function initializeClients(
+  character: Character, 
+  runtime: IAgentRuntime
+): Promise<any[]> {
+  const clients = [];
+
+  if (CONFIG.CLIENTS.DIRECT.enabled) {
+      const directClient = await DirectClientInterface.start();
+      directClient.registerAgent(runtime);
+      clients.push(directClient);
+  }
+
+  if (CONFIG.CLIENTS.DISCORD.enabled) {
+      const discordClient = await DiscordClientInterface.start({
+          token: CONFIG.SOCIAL.DISCORD.TOKEN,
+          guildId: CONFIG.SOCIAL.DISCORD.GUILD_ID
+      });
+      discordClient.registerAgent(runtime);
+      clients.push(discordClient);
+  }
+
+  if (CONFIG.CLIENTS.TWITTER.enabled) {
+      const twitterClient = await TwitterClientInterface.start({
+          ...CONFIG.SOCIAL.TWITTER
+      });
+      twitterClient.registerAgent(runtime);
+      clients.push(twitterClient);
+  }
+
+  return clients;
+}
+
+function initializeChatInterface(agentName: string) {
+  const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
-    });
-  
-    function chat() {
-      rl.question("You: ", async (input) => {
-        await handleUserInput(input, agentName);
-        if (input.toLowerCase() !== "exit") {
-          chat();
-        }
-      });    }  
-    elizaLogger.log("MemeAgentX chat started. Type 'exit' to quit.");
-    chat();
-  
-    rl.on("SIGINT", () => {
-      rl.close();
-      process.exit(0);
-    });
-  }
-  
-  // Start the agent
-  startAgents().catch((error) => {
-    elizaLogger.error("Unhandled error in startAgents:", error);
-    process.exit(1);
   });
 
-export default MemeAgentInfluencer;
+  function chat() {
+      rl.question("You: ", async (input) => {
+          if (input.toLowerCase() === "exit") {
+              rl.close();
+              process.exit(0);
+          }
+
+          try {
+              const response = await aiService.generateResponse({
+                  content: input,
+                  platform: 'cli',
+                  author: 'user'
+              });
+              console.log(`${agentName}: ${response}`);
+          } catch (error) {
+              console.error('Error generating response:', error);
+          }
+
+          chat();
+      });
+  }
+
+  elizaLogger.log(`${agentName} chat started. Type 'exit' to quit.`);
+  chat();
+
+  rl.on("SIGINT", () => {
+      rl.close();
+      process.exit(0);
+  });
+}
+
+// Export everything needed for external use
+export {
+  type MemeAgentRuntimeConfig,
+  type DatabaseConfig,
+  type ClientConfig,
+  type Settings,
+  createAgent,
+  getTokenForProvider,
+  initializeDbCache,
+  initializeClients,
+  initializeChatInterface,
+  wait
+};
+
+export default {
+  MemeAgentInfluencer,
+  MemeAgentRuntime,
+  startAgent,
+  startMemeAgentInfluencer,
+};

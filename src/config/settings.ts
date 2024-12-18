@@ -96,7 +96,21 @@ export const CONFIG = {
             ALLOWED_CHANNELS: (process.env.DISCORD_ALLOWED_CHANNELS ? process.env.DISCORD_ALLOWED_CHANNELS.split(',') : []) as string[],
             ADMIN_ROLES: [], // Add admin role IDs
             COOLDOWN: 60000 // 1 minute cooldown between commands
-        }
+        },
+        TRADING: {
+            CONFIDENCE_THRESHOLD: 0.7,
+            BASE_AMOUNT: 0.1,
+            DEFAULT_SLIPPAGE_BPS: 100
+          },
+        
+          MARKET: {
+            UPDATE_INTERVAL: 60000 // 1 minute
+          },
+        
+          SOCIAL: {
+            MEME_INTERVAL: 3600000, // 1 hour
+            ENGAGEMENT_INTERVAL: 1800000 // 30 minutes
+          }
     },
 
     // Market Analysis Settings
