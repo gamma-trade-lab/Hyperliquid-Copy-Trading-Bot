@@ -22,6 +22,15 @@ export interface SocialConfig {
 }
 
 export class SocialService {
+  send(content: string) {
+    throw new Error('Method not implemented.');
+  }
+  getCommunityMetrics() {
+    throw new Error('Method not implemented.');
+  }
+  sendMessage(platform: string, messageId: string, response: string) {
+    throw new Error('Method not implemented.');
+  }
   private twitterService?: TwitterService;
   private discordService?: DiscordService;
 

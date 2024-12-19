@@ -1,4 +1,7 @@
 export class AIService {
+  analyzeSentiment(text: any) {
+    throw new Error('Method not implemented.');
+  }
   async generateName(): Promise<string> {
     // Implement AI logic to generate a token name
     return "GeneratedName";
