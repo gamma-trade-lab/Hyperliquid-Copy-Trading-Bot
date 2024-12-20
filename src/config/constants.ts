@@ -79,3 +79,13 @@ export const DEFAULT_TRANSACTION_OPTIONS = {
     skipPreflight: false,
     maxSignatureFee: 5000 // lamports
 } as const;
+
+export const AUTOMATION = {
+
+    CONTENT_GENERATION_INTERVAL: 60000,
+
+    MARKET_MONITORING_INTERVAL: 60000,
+
+    COMMUNITY_ENGAGEMENT_INTERVAL: 60000
+
+  } as const ;

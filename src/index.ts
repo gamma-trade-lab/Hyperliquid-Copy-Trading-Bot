@@ -1,6 +1,4 @@
-// src/index.ts
-
-import { SolanaAgentKit, createSolanaTools } from 'solana-agent-kit';
+import { Connection } from '@solana/web3.js';
 import { TwitterApi } from 'twitter-api-v2';
 import { Client as DiscordClient, Message } from 'discord.js';
 import Groq from "groq-sdk";
@@ -8,91 +6,54 @@ import { CONFIG } from './config/settings';
 import { elizaLogger } from "@ai16z/eliza";
 
 // Import services
-import { AIService } from './services/ai';
 import { SocialService } from './services/social';
 import { ContentUtils } from './utils/content';
 import { Parser } from './utils/parser';
 import { TradingService } from './services/blockchain/trading';
+import { AIService } from './services/ai';
 
 // Types
-interface TokenInfo {
-  mint: string;
-  decimals: number;
-  supply: number;
-  metadata: {
-    description: string;
-    image: string;
-  };
-}
+import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext } from './services/blockchain/types';
+import { SocialMetrics } from './services/social';
 
-interface MarketAnalysis {
-  shouldTrade: boolean;
-  confidence: number;
-  action: 'BUY' | 'SELL' | 'HOLD';
-  metrics?: {
-    price: number;
-    volume24h: number;
-    marketCap: number;
-  };
-}
-
-interface TradeResult {
-  success: boolean;
-  signature?: string;
-  error?: string;
-}
-
-interface AgentCommand {
-  type: string;
-  command: string;
-  raw: string;
-  params?: Record<string, any>;
-}
-
-interface CommandContext {
-  platform: string;
-  channelId: string;
-  messageId: string;
-  author: string;
-}
-
-// Initialize services
-const aiService = new AIService();
-
-const socialService = new SocialService({
-  services: {
-    ai: aiService
-  },
-  discord: {
-    token: CONFIG.SOCIAL.DISCORD.TOKEN,
-    guildId: CONFIG.SOCIAL.DISCORD.GUILD_ID
-  }
-});
-
-const tradingService = new TradingService(CONFIG.SOLANA);
-
-// Main Agent Class
 class MemeAgentInfluencer {
-  private solanaKit: SolanaAgentKit;
-  private solanaTools: ReturnType<typeof createSolanaTools>;
+  private connection: Connection;
   private groq: Groq;
   private twitter: TwitterApi;
   private discord: DiscordClient;
+  private aiService: AIService;
+  private socialService: SocialService;
+  private tradingService: TradingService;
   private tokenAddress: string;
   private isInitialized: boolean;
 
   constructor() {
-    this.solanaKit = new SolanaAgentKit(
-      CONFIG.SOLANA.PRIVATE_KEY, 
-      CONFIG.SOLANA.RPC_URL, 
-      CONFIG.SOLANA.NETWORK
-    );
-    this.solanaTools = createSolanaTools(this.solanaKit);
+    this.connection = new Connection(CONFIG.SOLANA.RPC_URL);
     this.groq = new Groq({ apiKey: CONFIG.AI.GROQ.API_KEY });
     this.twitter = new TwitterApi(CONFIG.SOCIAL.TWITTER.tokens);
     this.discord = new DiscordClient({
       intents: ["GuildMessages", "DirectMessages", "MessageContent"]
     });
+    
+    this.aiService = new AIService({
+      groqApiKey: CONFIG.AI.GROQ.API_KEY,
+      defaultModel: CONFIG.AI.GROQ.MODEL,
+      maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
+      temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
+    });
+
+    this.socialService = new SocialService({
+      services: {
+        ai: this.aiService
+      },
+      discord: {
+        token: CONFIG.SOCIAL.DISCORD.TOKEN,
+        guildId: CONFIG.SOCIAL.DISCORD.GUILD_ID
+      },
+      twitter: CONFIG.SOCIAL.TWITTER
+    });
+
+    this.tradingService = new TradingService(CONFIG.SOLANA.RPC_URL);
     this.tokenAddress = '';
     this.isInitialized = false;
   }
@@ -103,12 +64,12 @@ class MemeAgentInfluencer {
     try {
       elizaLogger.info('Initializing Meme Agent Influencer...');
 
-      const tokenInfo = await this.solanaKit.createPumpFunToken(
-        CONFIG.SOLANA.TOKEN_SETTINGS.NAME,
-        CONFIG.SOLANA.TOKEN_SETTINGS.SYMBOL,
-        CONFIG.SOLANA.TOKEN_SETTINGS.METADATA.description,
-        CONFIG.SOLANA.TOKEN_SETTINGS.METADATA.image
-      );
+      const tokenInfo = await this.createToken({
+        name: CONFIG.SOLANA.TOKEN_SETTINGS.NAME,
+        symbol: CONFIG.SOLANA.TOKEN_SETTINGS.SYMBOL,
+        decimals: CONFIG.SOLANA.TOKEN_SETTINGS.DECIMALS,
+        metadata: JSON.stringify(CONFIG.SOLANA.TOKEN_SETTINGS.METADATA)
+      });
 
       this.tokenAddress = tokenInfo.mint;
       elizaLogger.success('Token launched:', this.tokenAddress);
@@ -124,9 +85,20 @@ class MemeAgentInfluencer {
     }
   }
 
+  private async createToken(tokenSettings: {
+    name: string;
+    symbol: string;
+    decimals: number;
+    metadata: string;
+  }): Promise<{ mint: string }> {
+    // Implement the logic to create a token and return its mint address
+    const mintAddress = 'some-mint-address'; // Replace with actual mint address
+    return { mint: mintAddress };
+  }
+
   private async initializeServices(): Promise<void> {
     try {
-      await socialService.initialize();
+      await this.socialService.initialize();
       elizaLogger.success('Social service initialized');
 
       await this.setupMessageHandling();
@@ -182,9 +154,9 @@ class MemeAgentInfluencer {
 
       stream.on('data', async tweet => {
         try {
-          const sentiment = await aiService.analyzeSentiment(tweet.text);
-          if (sentiment > 0.5) {
-            const response = await aiService.generateResponse({
+          const sentiment = await this.aiService.analyzeSentiment(tweet.text);
+          if (sentiment > 0.5) {  // Remove .score since analyzeSentiment returns a number
+            const response = await this.aiService.generateResponse({
               content: tweet.text,
               platform: 'twitter',
               author: tweet.author_id || 'unknown',
@@ -221,21 +193,23 @@ class MemeAgentInfluencer {
           }
         });
 
-        await socialService.send(content);
+        await this.socialService.send(content);
       } catch (error) {
         elizaLogger.error('Content generation error:', error);
       }
     };
 
     await generateAndPost();
-    setInterval(generateAndPost, CONFIG.SOCIAL.POSTING_INTERVAL);
+    setInterval(generateAndPost, CONFIG.AUTOMATION.CONTENT_GENERATION_INTERVAL);
   }
 
   private async startMarketMonitoring(): Promise<void> {
     const monitorMarket = async () => {
       try {
         const analysis = await this.analyzeMarket();
-        if (analysis.shouldTrade && analysis.confidence > CONFIG.TRADING.MIN_CONFIDENCE) {
+        const tradingConfig = CONFIG.SOLANA.TRADING;
+
+        if (analysis.shouldTrade && analysis.confidence > tradingConfig.MIN_CONFIDENCE) {
           await this.executeTrade(analysis);
         }
       } catch (error) {
@@ -244,13 +218,13 @@ class MemeAgentInfluencer {
     };
 
     await monitorMarket();
-    setInterval(monitorMarket, CONFIG.TRADING.UPDATE_INTERVAL);
+    setInterval(monitorMarket, CONFIG.AUTOMATION.MARKET_MONITORING_INTERVAL);
   }
 
   private async startCommunityEngagement(): Promise<void> {
     const engage = async () => {
       try {
-        const metrics = await socialService.getCommunityMetrics();
+        const metrics: SocialMetrics = await this.socialService.getCommunityMetrics();
         const content = await ContentUtils.generateContent({
           type: 'community',
           variables: {
@@ -260,36 +234,44 @@ class MemeAgentInfluencer {
           }
         });
 
-        await socialService.send(content);
+        await this.socialService.send(content);
       } catch (error) {
         elizaLogger.error('Community engagement error:', error);
       }
     };
 
     await engage();
-    setInterval(engage, CONFIG.SOCIAL.ENGAGEMENT_INTERVAL);
+    setInterval(engage, CONFIG.AUTOMATION.COMMUNITY_ENGAGEMENT_INTERVAL);
   }
 
   private async analyzeMarket(): Promise<MarketAnalysis> {
-    const metrics = await tradingService.getMarketData(this.tokenAddress);
-    return await aiService.analyzeMarket(metrics);
+    const metrics = await this.tradingService.getMarketData(this.tokenAddress);
+    const aiAnalysis = await this.aiService.analyzeMarket(metrics);
+    
+    // Return a properly formatted MarketAnalysis object
+    return {
+      shouldTrade: aiAnalysis.shouldTrade,
+      confidence: aiAnalysis.confidence,
+      action: aiAnalysis.action,
+      metrics: aiAnalysis.metrics
+    };
   }
 
   private async executeTrade(analysis: MarketAnalysis): Promise<TradeResult> {
-    return await tradingService.executeTrade({
+    return await this.tradingService.executeTrade({
       inputMint: analysis.action === 'BUY' ? 'SOL' : this.tokenAddress,
       outputMint: analysis.action === 'BUY' ? this.tokenAddress : 'SOL',
       amount: this.calculateTradeAmount(analysis),
-      slippage: CONFIG.TRADING.SLIPPAGE
+      slippage: CONFIG.SOLANA.TRADING.SLIPPAGE
     });
   }
 
   private async getCurrentPrice(): Promise<number> {
-    return await tradingService.getTokenPrice(this.tokenAddress);
+    return await this.tradingService.getTokenPrice(this.tokenAddress);
   }
 
   private calculateTradeAmount(analysis: MarketAnalysis): number {
-    return CONFIG.TRADING.BASE_AMOUNT * analysis.confidence;
+    return CONFIG.SOLANA.TRADING.BASE_AMOUNT * analysis.confidence;
   }
 
   private async handleCommand(
@@ -298,10 +280,10 @@ class MemeAgentInfluencer {
   ): Promise<void> {
     try {
       const response = await this.generateCommandResponse(command, context);
-      await socialService.sendMessage(context.platform, context.messageId, response);
+      await this.socialService.sendMessage(context.platform, context.messageId, response);
     } catch (error) {
       elizaLogger.error('Command handling error:', error);
-      await socialService.sendMessage(
+      await this.socialService.sendMessage(
         context.platform,
         context.messageId,
         'Sorry, there was an error processing your command.'
@@ -318,10 +300,10 @@ class MemeAgentInfluencer {
         const price = await this.getCurrentPrice();
         return `Current price: ${price} SOL`;
       case 'stats':
-        const metrics = await tradingService.getMarketData(this.tokenAddress);
+        const metrics = await this.tradingService.getMarketData(this.tokenAddress);
         return `24h Volume: ${metrics.volume24h}\nMarket Cap: ${metrics.marketCap}`;
       default:
-        return await aiService.generateResponse({
+        return await this.aiService.generateResponse({
           content: command.raw,
           platform: context.platform,
           author: context.author,

@@ -6,7 +6,12 @@ import { WalletService } from '../blockchain/types';
 import { MarketAction } from '../../config/constants';
 
 interface TwitterConfig {
-  tokens: TwitterApiTokens;
+  tokens: {
+    appKey: string;
+    appSecret: string;
+    accessToken: string;
+    accessSecret: string;
+  };
   aiService: AIService;
   walletService: WalletService;
 }
@@ -18,24 +23,24 @@ interface TweetOptions {
 }
 
 export class TwitterService {
-  private client: TwitterApi;
+  private twitterClient: TwitterApi;
   private aiService: AIService;
-  private walletService: WalletService;
+  //private walletService: WalletService;
   private rateLimits: Map<string, number>;
   private lastTweetTime: number;
   private readonly MIN_TWEET_INTERVAL = 60000; // 1 minute
 
-  constructor(config: TwitterConfig) {
-    this.client = new TwitterApi(config.tokens);
-    this.aiService = config.aiService;
-    this.walletService = config.walletService;
+  constructor(tokens: TwitterConfig['tokens'], aiService: AIService) {
+    this.twitterClient = new TwitterApi(tokens);
+    this.aiService = aiService;
+    //this.walletService = walletService;
     this.rateLimits = new Map();
     this.lastTweetTime = 0;
   }
 
   async initialize(): Promise<void> {
     try {
-      const me = await this.client.v2.me();
+      const me = await this.twitterClient.v2.me();
       console.log(`Twitter bot initialized as @${me.data.username}`);
       await this.startStreaming();
     } catch (error) {
@@ -68,7 +73,7 @@ export class TwitterService {
         ...(options.quoteTweetId && { quote_tweet_id: options.quoteTweetId })
       };
 
-      const tweet = await this.client.v2.tweet(tweetData);
+      const tweet = await this.twitterClient.v2.tweet(tweetData);
       this.lastTweetTime = Date.now();
       
       return tweet.data.id;
@@ -82,7 +87,7 @@ export class TwitterService {
 
   async reply(tweetId: string, content: string): Promise<string> {
     try {
-      const tweet = await this.client.v2.singleTweet(tweetId, {
+      const tweet = await this.twitterClient.v2.singleTweet(tweetId, {
         expansions: ['author_id'],
         'tweet.fields': ['conversation_id', 'context_annotations']
       });
@@ -106,8 +111,8 @@ export class TwitterService {
   async retweet(tweetId: string): Promise<void> {
     try {
       await this.checkRateLimit('retweet');
-      const me = await this.client.v2.me();
-      await this.client.v2.retweet(me.data.id, tweetId);
+      const me = await this.twitterClient.v2.me();
+      await this.twitterClient.v2.retweet(me.data.id, tweetId);
     } catch (error) {
       console.error('Error retweeting:', error);
       throw error;
@@ -117,8 +122,8 @@ export class TwitterService {
   async like(tweetId: string): Promise<void> {
     try {
       await this.checkRateLimit('like');
-      const me = await this.client.v2.me();
-      await this.client.v2.like(me.data.id, tweetId);
+      const me = await this.twitterClient.v2.me();
+      await this.twitterClient.v2.like(me.data.id, tweetId);
     } catch (error) {
       console.error('Error liking tweet:', error);
       throw error;
@@ -142,11 +147,11 @@ export class TwitterService {
 
   private async startStreaming(): Promise<void> {
     try {
-      const rules = await this.client.v2.streamRules();
+      const rules = await this.twitterClient.v2.streamRules();
       
       if (!rules.data || rules.data.length === 0) {
-        const me = await this.client.v2.me();
-        await this.client.v2.updateStreamRules({
+        const me = await this.twitterClient.v2.me();
+        await this.twitterClient.v2.updateStreamRules({
           add: [
             { value: `@${me.data.username}`, tag: 'mentions' },
             { value: 'your-token-symbol', tag: 'token-mentions' }
@@ -154,7 +159,7 @@ export class TwitterService {
         });
       }
 
-      const stream = await this.client.v2.searchStream({
+      const stream = await this.twitterClient.v2.searchStream({
         'tweet.fields': ['referenced_tweets', 'author_id'],
         expansions: ['referenced_tweets.id']
       });

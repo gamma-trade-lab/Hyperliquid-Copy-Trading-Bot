@@ -48,7 +48,10 @@ export const CONFIG = {
         TRADING: {
             DEFAULT_SLIPPAGE_BPS: 300, // 3%
             MIN_SOL_BALANCE: 0.05, // Minimum SOL to keep for transactions
-            MAX_TRANSACTION_RETRIES: 3
+            MAX_TRANSACTION_RETRIES: 3,
+            MIN_CONFIDENCE: 0.7,
+            BASE_AMOUNT: 1,
+            SLIPPAGE: 0.01
         }
     },
 
@@ -124,6 +127,12 @@ export const CONFIG = {
         }
     },
 
+    AUTOMATION: {
+        CONTENT_GENERATION_INTERVAL: 60000, // 1 minute
+        MARKET_MONITORING_INTERVAL: 300000, // 5 minutes
+        COMMUNITY_ENGAGEMENT_INTERVAL: 900000 // 15 minutes
+      },
+
     // Development Settings
     DEV: {
         IS_PRODUCTION: process.env.NODE_ENV === 'production',
@@ -175,6 +184,18 @@ export const validateConfig = () => {
 
     if (CONFIG.SOLANA.TOKEN_SETTINGS.INITIAL_SUPPLY <= 0) {
         throw new Error('Initial token supply must be greater than 0');
+    }
+
+    if (CONFIG.SOLANA.TRADING.MIN_CONFIDENCE <= 0 || CONFIG.SOLANA.TRADING.MIN_CONFIDENCE > 1) {
+        throw new Error('Trading confidence must be between 0 and 1');
+    }
+
+    if (CONFIG.SOLANA.TRADING.BASE_AMOUNT <= 0) {
+        throw new Error('Base amount must be greater than 0');
+    }
+
+    if (CONFIG.SOLANA.TRADING.SLIPPAGE < 0 || CONFIG.SOLANA.TRADING.SLIPPAGE > 1) {
+        throw new Error('Slippage must be between 0 and 1');
     }
 
     return true;

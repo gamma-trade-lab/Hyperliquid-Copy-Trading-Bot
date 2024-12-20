@@ -1,5 +1,5 @@
 import { 
-  Client, 
+  Client as DiscordClient, 
   GatewayIntentBits, 
   Message, 
   TextChannel, 
@@ -16,8 +16,8 @@ interface DiscordConfig {
   token: string;
   guildId: string;
   aiService: AIService;
-  walletService: WalletService;
-  tokenService: TokenService;
+  walletService?: WalletService;
+  tokenService?: TokenService;
 }
 
 interface CommandHandler {
@@ -27,15 +27,15 @@ interface CommandHandler {
 }
 
 export class DiscordService {
-  private client: Client;
+  private discordClient: DiscordClient;
   private commands: Map<string, CommandHandler>;
   private guildId: string;
   private aiService: AIService;
-  private walletService: WalletService;
-  private tokenService: TokenService;
+  private walletService?: WalletService;
+  private tokenService?: TokenService;
 
   constructor(config: DiscordConfig) {
-    this.client = new Client({
+    this.discordClient = new DiscordClient({
       intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
@@ -56,7 +56,7 @@ export class DiscordService {
 
   async start(): Promise<void> {
     try {
-      await this.client.login(process.env.DISCORD_TOKEN);
+      await this.discordClient.login(process.env.DISCORD_TOKEN);
       console.log('Discord bot is online!');
       await this.registerCommands();
     } catch (error) {
@@ -100,11 +100,11 @@ export class DiscordService {
   }
 
   private setupEventHandlers(): void {
-    this.client.on('ready', () => {
-      console.log(`Logged in as ${this.client.user?.tag}!`);
+    this.discordClient.on('ready', () => {
+      console.log(`Logged in as ${this.discordClient.user?.tag}!`);
     });
 
-    this.client.on('interactionCreate', async (interaction) => {
+    this.discordClient.on('interactionCreate', async (interaction) => {
       if (!interaction.isChatInputCommand()) return;
 
       const command = this.commands.get(interaction.commandName);
@@ -121,7 +121,7 @@ export class DiscordService {
       }
     });
 
-    this.client.on('messageCreate', async (message) => {
+    this.discordClient.on('messageCreate', async (message) => {
       if (message.author.bot) return;
       await this.handleMessage(message);
     });
@@ -129,7 +129,7 @@ export class DiscordService {
 
   private async registerCommands(): Promise<void> {
     try {
-      const guild = await this.client.guilds.fetch(this.guildId);
+      const guild = await this.discordClient.guilds.fetch(this.guildId);
       const commandData = Array.from(this.commands.values()).map(cmd => ({
         name: cmd.name,
         description: cmd.description,
@@ -147,7 +147,7 @@ export class DiscordService {
   private async handleMessage(message: Message): Promise<void> {
     try {
       // Check if message mentions the bot
-      if (message.mentions.has(this.client.user!)) {
+      if (message.mentions.has(this.discordClient.user!)) {
         const response = await this.aiService.generateResponse({
           content: message.content,
           author: message.author.tag,
@@ -171,13 +171,13 @@ export class DiscordService {
     await interaction.deferReply();
     try {
       // Get token price info
-      const tokenInfo = await this.tokenService.getTokenInfo(
+      const tokenInfo = await this.tokenService?.getTokenInfo(
         new PublicKey(process.env.TOKEN_ADDRESS!)
       );
 
-      const price = tokenInfo.metadata?.price || 'N/A';
-      const marketCap = tokenInfo.metadata?.marketCap || 'N/A';
-      const volume24h = tokenInfo.metadata?.volume24h || 'N/A';
+      const price = tokenInfo?.metadata?.price || 'N/A';
+      const marketCap = tokenInfo?.metadata?.marketCap || 'N/A';
+      const volume24h = tokenInfo?.metadata?.volume24h || 'N/A';
 
       const embed = new EmbedBuilder()
         .setColor('#0099ff')
@@ -199,7 +199,7 @@ export class DiscordService {
     await interaction.deferReply({ ephemeral: true });
     try {
       const userId = interaction.user.id;
-      const wallet = await this.walletService.createWallet('crossmint', {
+      const wallet = await this.walletService?.createWallet('crossmint', {
         linkedUser: userId
       });
 
@@ -259,7 +259,7 @@ export class DiscordService {
 
   async sendMessage(channelId: string, content: string | { title: string; description: string; fields: { name: string; value: string; inline: boolean; }[]; }): Promise<void> {
     try {
-      const channel = await this.client.channels.fetch(channelId) as TextChannel;
+      const channel = await this.discordClient.channels.fetch(channelId) as TextChannel;
       if (!channel) throw new Error('Channel not found');
 
       if (typeof content === 'string') {
@@ -280,7 +280,7 @@ export class DiscordService {
 
   async cleanup(): Promise<void> {
     try {
-      await this.client.destroy();
+      await this.discordClient.destroy();
     } catch (error) {
       console.error('Error cleaning up Discord service:', error);
     }
