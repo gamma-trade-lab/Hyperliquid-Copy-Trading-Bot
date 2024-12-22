@@ -98,7 +98,6 @@ export const character: Character = {
     "vaguely prophetic but also hilarious",
     "terminally online"
   ],
-  people: [],
   topics: [
     "memecoin analysis",
     "defi protocols",
