@@ -2,10 +2,6 @@ import typescript from '@rollup/plugin-typescript';
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import json from '@rollup/plugin-json';
-import { fileURLToPath } from 'url';
-import path from 'path';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default {
   input: 'src/index.ts',
@@ -14,33 +10,22 @@ export default {
     format: 'es',
     sourcemap: true,
     preserveModules: true,
-    preserveModulesRoot: 'src',
-    interop: 'auto'
+    preserveModulesRoot: 'src'
   },
   plugins: [
     resolve({
       preferBuiltins: true,
       exportConditions: ['node'],
-      extensions: ['.js', '.ts', '.json', '.node'],
-      moduleDirectories: ['node_modules']
+      extensions: ['.js', '.ts', '.json']
     }),
     commonjs({
       ignoreDynamicRequires: true,
-      requireReturnsDefault: 'auto',
       transformMixedEsModules: true,
-      // Handle specific packages
-      ignore: [
-        '@anush008/tokenizers-linux-x64-gnu',
-        /native\-modules/
-      ]
+      requireReturnsDefault: 'preferred'
     }),
     json(),
     typescript({
-      tsconfig: './tsconfig.json',
-      declaration: true,
-      declarationDir: 'dist/types',
-      rootDir: 'src',
-      moduleResolution: 'node'
+      tsconfig: './tsconfig.json'
     })
   ],
   external: [
@@ -50,14 +35,6 @@ export default {
     'dotenv',
     'twitter-api-v2',
     'groq-sdk',
-    'undici',
-    '@ai16z/eliza',
-    '@opentelemetry/api',
-    /\.node$/
-  ],
-  onwarn(warning, warn) {
-    if (warning.code === 'CIRCULAR_DEPENDENCY') return;
-    if (warning.code === 'THIS_IS_UNDEFINED') return;
-    warn(warning);
-  }
+    /node_modules/
+  ]
 };

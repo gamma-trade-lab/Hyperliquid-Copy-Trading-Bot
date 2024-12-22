@@ -2,9 +2,13 @@
 
 import { PublicKey } from '@solana/web3.js';
 import * as dotenv from 'dotenv';
+import { NetworkType } from './constants';
+import bs58 from 'bs58';
+import { validateSolanaConfig } from '../utils/solana-validator';
 
 // Load environment variables
 dotenv.config();
+console.log('Loaded .env file from:', process.cwd() + '/.env');
 
 // Validate required environment variables
 const requiredEnvVars = [
@@ -20,54 +24,43 @@ for (const envVar of requiredEnvVars) {
     }
 }
 
-export interface DiscordConfig {
-    token: string;
-    allowedChannels: string[];
+function getRequiredEnvVar(key: string, defaultValue?: string): string {
+    const value = process.env[key];
+    if (!value && defaultValue === undefined) {
+        throw new Error(`Missing required environment variable: ${key}`);
+    }
+    return value || defaultValue || '';
 }
 
 export const CONFIG = {
     // Blockchain Settings
     SOLANA: {
-        RPC_URL: process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
-        PRIVATE_KEY: process.env.SOLANA_PRIVATE_KEY!,
-        NETWORK: 'mainnet-beta' as const,
+        NETWORK: getRequiredEnvVar('NETWORK_TYPE', 'devnet') as NetworkType,
+        RPC_URL: getRequiredEnvVar('RPC_ENDPOINT', 'https://api.devnet.solana.com'),
+        PRIVATE_KEY: getRequiredEnvVar('SOLANA_PRIVATE_KEY'),
+        PUBKEY: getRequiredEnvVar('SOLANA_PUBKEY'),
         TOKEN_SETTINGS: {
-            NAME: 'MEME_AGENT',
-            SYMBOL: 'MEME',
-            DECIMALS: 9,
-            INITIAL_SUPPLY: 1_000_000_000,
-            METADATA: {
-                name: 'Meme Agent Token',
-                symbol: 'MEME',
-                description: 'AI-powered meme coin influencer agent token',
-                image: 'https://your-token-image.com/meme.png',
-                external_url: 'https://your-website.com',
-                attributes: []
-            }
+            NAME: getRequiredEnvVar('TOKEN_NAME', 'Meme Token'),
+            SYMBOL: getRequiredEnvVar('TOKEN_SYMBOL', 'MEME'),
+            DECIMALS: parseInt(getRequiredEnvVar('TOKEN_DECIMALS', '9')),
+            METADATA: JSON.parse(getRequiredEnvVar('TOKEN_METADATA', '{"description":"Meme Token for Testing"}'))
         },
         TRADING: {
-            DEFAULT_SLIPPAGE_BPS: 300, // 3%
-            MIN_SOL_BALANCE: 0.05, // Minimum SOL to keep for transactions
-            MAX_TRANSACTION_RETRIES: 3,
-            MIN_CONFIDENCE: 0.7,
-            BASE_AMOUNT: 1,
-            SLIPPAGE: 0.01
+            BASE_AMOUNT: parseFloat(getRequiredEnvVar('TRADING_BASE_AMOUNT', '0.1')),
+            MIN_CONFIDENCE: parseFloat(getRequiredEnvVar('TRADING_MIN_CONFIDENCE', '0.7')),
+            SLIPPAGE: parseFloat(getRequiredEnvVar('TRADING_SLIPPAGE', '0.01'))
         }
     },
 
     // AI Settings
     AI: {
         GROQ: {
-            API_KEY: process.env.GROQ_API_KEY!,
-            MODEL: 'mixtral-8x7b-32768',
-            DEFAULT_TEMPERATURE: 0.9,
-            MAX_TOKENS: 150,
+            API_KEY: process.env.GROQ_API_KEY || '',
+            MODEL: process.env.GROQ_MODEL || 'default-model',
+            MAX_TOKENS: parseInt(process.env.GROQ_MAX_TOKENS || '1000', 10),
+            DEFAULT_TEMPERATURE: parseFloat(process.env.GROQ_DEFAULT_TEMPERATURE || '0.7'),
             SYSTEM_PROMPTS: {
-                MEME_GENERATION: `You are a meme coin influencer AI agent. Your token is called $MEME.
-                                Be engaging, funny, and create viral content. Keep responses under 280 characters
-                                for Twitter compatibility. Use emojis and relevant hashtags.`,
-                SENTIMENT_ANALYSIS: 'Analyze the sentiment of the following text and respond with only positive, negative, or neutral.',
-                TRADING_ANALYSIS: 'Analyze the trading opportunity and provide a clear recommendation.'
+                MEME_GENERATION: 'Generate a meme based on the following prompt:'
             }
         }
     },
@@ -76,44 +69,24 @@ export const CONFIG = {
     SOCIAL: {
         TWITTER: {
             tokens: {
-                appKey: 'your-app-key',
-                appSecret: 'your-app-secret',
-                accessToken: 'your-access-token',
-                accessSecret: 'your-access-secret'
+                appKey: getRequiredEnvVar('TWITTER_API_KEY'),
+                appSecret: getRequiredEnvVar('TWITTER_API_SECRET'),
+                accessToken: getRequiredEnvVar('TWITTER_ACCESS_TOKEN'),
+                accessSecret: getRequiredEnvVar('TWITTER_ACCESS_SECRET')
             },
-            API_KEY: process.env.TWITTER_API_KEY!,
-            USERNAME: process.env.TWITTER_USERNAME || '',
-            POSTING_INTERVAL: 3600000, // 1 hour in milliseconds
-            MAX_TWEET_LENGTH: 280,
-            HASHTAGS: ['#Solana', '#Crypto', '#Memecoins', '#Web3'],
-            REPLY_PROBABILITY: 0.8, // 80% chance to reply to mentions
-            URL: "https://twitter.com/your_twitter_handle"
-        },
-        TELEGRAM: {
-            URL: "https://t.me/your_telegram_channel"
+            USERNAME: getRequiredEnvVar('TWITTER_USERNAME')
         },
         DISCORD: {
-            TOKEN: process.env.DISCORD_TOKEN!,
-            GUILD_ID: 'your-guild-id',
-            COMMAND_PREFIX: '!',
-            ALLOWED_CHANNELS: (process.env.DISCORD_ALLOWED_CHANNELS ? process.env.DISCORD_ALLOWED_CHANNELS.split(',') : []) as string[],
-            ADMIN_ROLES: [], // Add admin role IDs
-            COOLDOWN: 60000 // 1 minute cooldown between commands
-        },
-        TRADING: {
-            CONFIDENCE_THRESHOLD: 0.7,
-            BASE_AMOUNT: 0.1,
-            DEFAULT_SLIPPAGE_BPS: 100
-          },
-        
-          MARKET: {
-            UPDATE_INTERVAL: 60000 // 1 minute
-          },
-        
-          SOCIAL: {
-            MEME_INTERVAL: 3600000, // 1 hour
-            ENGAGEMENT_INTERVAL: 1800000 // 30 minutes
-          }
+            TOKEN: getRequiredEnvVar('DISCORD_TOKEN'),
+            GUILD_ID: getRequiredEnvVar('DISCORD_GUILD_ID'),
+            COMMAND_PREFIX: getRequiredEnvVar('DISCORD_COMMAND_PREFIX')
+        }
+    },
+
+    AUTOMATION: {
+        CONTENT_GENERATION_INTERVAL: parseInt(getRequiredEnvVar('CONTENT_GENERATION_INTERVAL')),
+        MARKET_MONITORING_INTERVAL: parseInt(getRequiredEnvVar('MARKET_MONITORING_INTERVAL')),
+        COMMUNITY_ENGAGEMENT_INTERVAL: parseInt(getRequiredEnvVar('COMMUNITY_ENGAGEMENT_INTERVAL'))
     },
 
     // Market Analysis Settings
@@ -127,19 +100,13 @@ export const CONFIG = {
         }
     },
 
-    AUTOMATION: {
-        CONTENT_GENERATION_INTERVAL: 60000, // 1 minute
-        MARKET_MONITORING_INTERVAL: 300000, // 5 minutes
-        COMMUNITY_ENGAGEMENT_INTERVAL: 900000 // 15 minutes
-      },
-
     // Development Settings
     DEV: {
         IS_PRODUCTION: process.env.NODE_ENV === 'production',
         LOG_LEVEL: process.env.LOG_LEVEL || 'info',
         ENABLE_DEBUG: process.env.ENABLE_DEBUG === 'true',
         ERROR_REPORTING: {
-            ENABLED: true,
+            ENABLED: process.env.ENABLE_ERROR_REPORTING === 'true',
             WEBHOOK_URL: process.env.ERROR_WEBHOOK_URL
         }
     },
@@ -174,34 +141,118 @@ export type SocialConfig = typeof CONFIG.SOCIAL;
 export type MarketConfig = typeof CONFIG.MARKET;
 
 // Validation helper
-export const validateConfig = () => {
-    // Add any additional validation logic here
+function isValidPrivateKey(key: string): boolean {
     try {
-        new PublicKey(CONFIG.SOLANA.PRIVATE_KEY);
-    } catch (error) {
-        throw new Error('Invalid Solana private key in configuration');
+        // Check if the key is a hex string of the correct length
+        if (/^[0-9a-fA-F]{128}$/.test(key)) return true;
+        
+        // If it's an array string, parse it and check length
+        if (key.startsWith('[') && key.endsWith(']')) {
+            const numbers = key
+                .slice(1, -1)
+                .split(',')
+                .map(n => parseInt(n.trim()));
+            return numbers.length === 64 && numbers.every(n => n >= 0 && n <= 255);
+        }
+        
+        return false;
+    } catch {
+        return false;
     }
-
-    if (CONFIG.SOLANA.TOKEN_SETTINGS.INITIAL_SUPPLY <= 0) {
-        throw new Error('Initial token supply must be greater than 0');
-    }
-
-    if (CONFIG.SOLANA.TRADING.MIN_CONFIDENCE <= 0 || CONFIG.SOLANA.TRADING.MIN_CONFIDENCE > 1) {
-        throw new Error('Trading confidence must be between 0 and 1');
-    }
-
-    if (CONFIG.SOLANA.TRADING.BASE_AMOUNT <= 0) {
-        throw new Error('Base amount must be greater than 0');
-    }
-
-    if (CONFIG.SOLANA.TRADING.SLIPPAGE < 0 || CONFIG.SOLANA.TRADING.SLIPPAGE > 1) {
-        throw new Error('Slippage must be between 0 and 1');
-    }
-
-    return true;
-};
+}
 
 // Initialize configuration
 validateConfig();
+validateSolanaConfig(CONFIG.SOLANA);
 
 export default CONFIG;
+
+function validateConfig() {
+    // Validate Solana private key
+    if (!isValidPrivateKey(CONFIG.SOLANA.PRIVATE_KEY)) {
+        throw new Error('Invalid Solana private key format.');
+    }
+
+    // Validate Solana public key
+    try {
+        new PublicKey(CONFIG.SOLANA.PUBKEY);
+    } catch (error) {
+        throw new Error('Invalid Solana public key format.');
+    }
+
+    // Validate network type
+    if (!Object.values(NetworkType).includes(CONFIG.SOLANA.NETWORK as NetworkType)) {
+        throw new Error('Invalid Solana network type.');
+    }
+
+    // Validate token decimals
+    if (isNaN(CONFIG.SOLANA.TOKEN_SETTINGS.DECIMALS) || CONFIG.SOLANA.TOKEN_SETTINGS.DECIMALS < 0) {
+        throw new Error('Invalid token decimals.');
+    }
+
+    // Validate trading settings
+    if (isNaN(CONFIG.SOLANA.TRADING.BASE_AMOUNT) || CONFIG.SOLANA.TRADING.BASE_AMOUNT <= 0) {
+        throw new Error('Invalid trading base amount.');
+    }
+    if (isNaN(CONFIG.SOLANA.TRADING.MIN_CONFIDENCE) || CONFIG.SOLANA.TRADING.MIN_CONFIDENCE < 0 || CONFIG.SOLANA.TRADING.MIN_CONFIDENCE > 1) {
+        throw new Error('Invalid trading minimum confidence.');
+    }
+    if (isNaN(CONFIG.SOLANA.TRADING.SLIPPAGE) || CONFIG.SOLANA.TRADING.SLIPPAGE < 0 || CONFIG.SOLANA.TRADING.SLIPPAGE > 1) {
+        throw new Error('Invalid trading slippage.');
+    }
+
+    // Validate AI settings
+    if (isNaN(CONFIG.AI.GROQ.MAX_TOKENS) || CONFIG.AI.GROQ.MAX_TOKENS <= 0) {
+        throw new Error('Invalid AI max tokens.');
+    }
+    if (isNaN(CONFIG.AI.GROQ.DEFAULT_TEMPERATURE) || CONFIG.AI.GROQ.DEFAULT_TEMPERATURE < 0 || CONFIG.AI.GROQ.DEFAULT_TEMPERATURE > 1) {
+        throw new Error('Invalid AI default temperature.');
+    }
+
+    // Validate social media settings
+    if (!CONFIG.SOCIAL.TWITTER.USERNAME) {
+        throw new Error('Invalid Twitter username.');
+    }
+    if (!CONFIG.SOCIAL.DISCORD.GUILD_ID) {
+        throw new Error('Invalid Discord guild ID.');
+    }
+
+    // Validate automation intervals
+    if (isNaN(CONFIG.AUTOMATION.CONTENT_GENERATION_INTERVAL) || CONFIG.AUTOMATION.CONTENT_GENERATION_INTERVAL <= 0) {
+        throw new Error('Invalid content generation interval.');
+    }
+    if (isNaN(CONFIG.AUTOMATION.MARKET_MONITORING_INTERVAL) || CONFIG.AUTOMATION.MARKET_MONITORING_INTERVAL <= 0) {
+        throw new Error('Invalid market monitoring interval.');
+    }
+    if (isNaN(CONFIG.AUTOMATION.COMMUNITY_ENGAGEMENT_INTERVAL) || CONFIG.AUTOMATION.COMMUNITY_ENGAGEMENT_INTERVAL <= 0) {
+        throw new Error('Invalid community engagement interval.');
+    }
+
+    // Validate market settings
+    if (isNaN(CONFIG.MARKET.UPDATE_INTERVAL) || CONFIG.MARKET.UPDATE_INTERVAL <= 0) {
+        throw new Error('Invalid market update interval.');
+    }
+    if (isNaN(CONFIG.MARKET.PRICE_CHANGE_THRESHOLD) || CONFIG.MARKET.PRICE_CHANGE_THRESHOLD < 0 || CONFIG.MARKET.PRICE_CHANGE_THRESHOLD > 1) {
+        throw new Error('Invalid market price change threshold.');
+    }
+    if (isNaN(CONFIG.MARKET.VOLUME_CHANGE_THRESHOLD) || CONFIG.MARKET.VOLUME_CHANGE_THRESHOLD < 0 || CONFIG.MARKET.VOLUME_CHANGE_THRESHOLD > 1) {
+        throw new Error('Invalid market volume change threshold.');
+    }
+
+    // Validate development settings
+    if (typeof CONFIG.DEV.IS_PRODUCTION !== 'boolean') {
+        throw new Error('Invalid development production flag.');
+    }
+    if (!['info', 'debug', 'warn', 'error'].includes(CONFIG.DEV.LOG_LEVEL)) {
+        throw new Error('Invalid log level.');
+    }
+    if (typeof CONFIG.DEV.ENABLE_DEBUG !== 'boolean') {
+        throw new Error('Invalid debug flag.');
+    }
+    if (CONFIG.DEV.ERROR_REPORTING.ENABLED) {
+        if (!CONFIG.DEV.ERROR_REPORTING.WEBHOOK_URL) {
+            console.warn('Warning: Error reporting is enabled but no webhook URL is provided. Disabling error reporting.');
+            (CONFIG.DEV.ERROR_REPORTING as any).ENABLED = false;
+        }
+    }
+}

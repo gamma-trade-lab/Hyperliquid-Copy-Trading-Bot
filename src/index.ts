@@ -1,9 +1,10 @@
-import { Connection } from '@solana/web3.js';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { TwitterApi, TweetV2SingleStreamResult } from 'twitter-api-v2';
 import { Client as DiscordClient, Message } from 'discord.js';
 import Groq from "groq-sdk";
 import { CONFIG } from './config/settings';
 import { elizaLogger } from "@ai16z/eliza";
+import { config } from 'dotenv';
 
 // Import services
 import { SocialService } from './services/social';
@@ -326,6 +327,63 @@ class MemeAgentInfluencer {
     }
   }
 }
+
+async function initializeSolanaConnection() {
+  console.log('Initializing Solana connection...');
+  try {
+    const connection = new Connection(CONFIG.SOLANA.RPC_URL, 'confirmed');
+    const version = await connection.getVersion();
+    console.log('Solana connection established:', version);
+    return connection;
+  } catch (error) {
+    console.error('Failed to connect to Solana:', error);
+    throw error;
+  }
+}
+
+async function validateWalletBalance(connection: Connection) {
+  console.log('Checking wallet balance...');
+  try {
+    const publicKey = new PublicKey(CONFIG.SOLANA.PUBKEY);
+    const balance = await connection.getBalance(publicKey);
+    console.log('Wallet balance:', balance / 1e9, 'SOL');
+    return balance;
+  } catch (error) {
+    console.error('Failed to check wallet balance:', error);
+    throw error;
+  }
+}
+
+async function main() {
+  try {
+    console.log('Meme Agent Starting...');
+    console.log('Loading configuration...');
+    config();
+
+    // Log configuration (redact sensitive info)
+    console.log('Configuration loaded:', {
+      network: CONFIG.SOLANA.NETWORK,
+      rpcUrl: CONFIG.SOLANA.RPC_URL,
+      pubkey: CONFIG.SOLANA.PUBKEY
+    });
+
+    // Initialize Solana connection
+    const connection = await initializeSolanaConnection();
+
+    // Check wallet balance
+    await validateWalletBalance(connection);
+
+    console.log('Initialization complete!');
+  } catch (error) {
+    console.error('Fatal error during initialization:', error);
+    process.exit(1);
+  }
+}
+
+main().catch((error) => {
+  console.error('Fatal error:', error);
+  process.exit(1);
+});
 
 export {
   MemeAgentInfluencer,
