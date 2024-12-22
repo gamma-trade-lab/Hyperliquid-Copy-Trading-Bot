@@ -1,0 +1,185 @@
+{
+    "version": "1.0.0",
+    "patterns": {
+      "content_structures": {
+        "shock_and_awe": {
+          "pattern_id": "shock_value",
+          "viral_score": 0.9,
+          "structures": [
+            {
+              "format": "statement_revelation",
+              "template": "Everyone thinks {common_belief}...\nBut here's the truth: {revelation}",
+              "conditions": ["contrarian_market", "major_events"],
+              "virality_triggers": ["controversy", "insider_knowledge"]
+            },
+            {
+              "format": "prediction_validation",
+              "template": "Called {prediction} when everyone laughed.\nNow: {current_situation}",
+              "conditions": ["validated_prediction"],
+              "virality_triggers": ["proof", "credibility"]
+            }
+          ],
+          "success_metrics": {
+            "minimum_engagement": 100,
+            "viral_threshold": 500,
+            "response_sentiment": "positive"
+          }
+        },
+        "fomo_triggers": {
+          "pattern_id": "fomo_generation",
+          "viral_score": 0.85,
+          "structures": [
+            {
+              "format": "missed_opportunity",
+              "template": "If you had bought {token} {timeframe} ago:\n{gains_calculation}",
+              "conditions": ["price_surge", "bull_market"],
+              "virality_triggers": ["regret", "opportunity"]
+            },
+            {
+              "format": "exclusive_info",
+              "template": "What most {token} holders don't know about {topic}...",
+              "conditions": ["information_asymmetry"],
+              "virality_triggers": ["exclusivity", "insider_knowledge"]
+            }
+          ],
+          "success_metrics": {
+            "minimum_engagement": 75,
+            "viral_threshold": 400,
+            "response_sentiment": "fomo"
+          }
+        }
+      },
+      "timing_patterns": {
+        "market_sentiment": {
+          "bullish": {
+            "optimal_posting_times": ["market_open", "price_surge", "volume_spike"],
+            "content_tone": "confident",
+            "engagement_multiplier": 1.2
+          },
+          "bearish": {
+            "optimal_posting_times": ["dips", "fear_peaks", "recovery_signs"],
+            "content_tone": "reassuring",
+            "engagement_multiplier": 0.9
+          }
+        },
+        "community_activity": {
+          "high_engagement": {
+            "posting_frequency": "increased",
+            "content_type": "interactive",
+            "virality_multiplier": 1.3
+          },
+          "low_engagement": {
+            "posting_frequency": "strategic",
+            "content_type": "value_focused",
+            "virality_multiplier": 0.8
+          }
+        }
+      },
+      "engagement_hooks": {
+        "questions": {
+          "pattern_id": "community_questions",
+          "viral_score": 0.8,
+          "templates": [
+            "What's your price target for {token}?",
+            "Who's still holding since {price}?",
+            "Bullish or Bearish on {token} today?"
+          ],
+          "conditions": ["active_community", "price_movement"]
+        },
+        "calls_to_action": {
+          "pattern_id": "engagement_cta",
+          "viral_score": 0.75,
+          "templates": [
+            "Like if you're holding {token}",
+            "Tag a friend who needs to see this",
+            "Share your {token} story below ⬇️"
+          ],
+          "conditions": ["growing_community", "positive_sentiment"]
+        }
+      }
+    },
+    "amplification_strategies": {
+      "content_timing": {
+        "best_times": {
+          "weekdays": ["8:00", "12:00", "19:00"],
+          "weekends": ["11:00", "15:00", "20:00"]
+        },
+        "market_events": {
+          "price_movement": {
+            "threshold": 5,
+            "reaction_time": 300
+          },
+          "volume_spikes": {
+            "threshold": 200,
+            "reaction_time": 180
+          }
+        }
+      },
+      "engagement_optimization": {
+        "initial_boost": {
+          "minimum_engagement": 10,
+          "time_window": 900,
+          "boost_threshold": 0.7
+        },
+        "viral_potential": {
+          "engagement_ratio": 0.05,
+          "repost_ratio": 0.02,
+          "comment_ratio": 0.03
+        }
+      },
+      "hashtag_strategies": {
+        "trending": {
+          "max_tags": 3,
+          "relevance_threshold": 0.8,
+          "update_frequency": 3600
+        },
+        "community": {
+          "core_tags": ["crypto", "defi", "solana"],
+          "dynamic_tags": "{token_specific}",
+          "max_community_tags": 2
+        }
+      }
+    },
+    "response_patterns": {
+      "engagement": {
+        "positive": {
+          "templates": [
+            "Thanks for the support! 🙏",
+            "Appreciate the feedback! 💯",
+            "You're absolutely right! 🎯"
+          ],
+          "conditions": ["positive_sentiment", "high_engagement"]
+        },
+        "negative": {
+          "templates": [
+            "Let's have a constructive discussion",
+            "Interesting perspective. Here's why...",
+            "Thanks for sharing your thoughts!"
+          ],
+          "conditions": ["negative_sentiment", "criticism"]
+        }
+      },
+      "momentum": {
+        "viral_post": {
+          "follow_up_templates": [
+            "Thread incoming! 🧵",
+            "More alpha dropping soon!",
+            "Stay tuned for part 2!"
+          ],
+          "timing": "peak_engagement"
+        }
+      }
+    },
+    "metrics": {
+      "viral_thresholds": {
+        "minimum_engagement": 50,
+        "viral_score": 0.7,
+        "time_window": 3600
+      },
+      "success_indicators": {
+        "engagement_rate": 0.05,
+        "sentiment_ratio": 0.8,
+        "growth_rate": 0.1
+      }
+    }
+  }

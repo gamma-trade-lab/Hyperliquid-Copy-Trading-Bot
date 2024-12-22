@@ -1,0 +1,157 @@
+{
+    "version": "1.0.0",
+    "categories": {
+      "market_sentiment": {
+        "bullish": [
+          {
+            "id": "moon-soon",
+            "name": "Moon Soon",
+            "format": "image",
+            "viralScore": 0.9,
+            "template": {
+              "setup": "{token} holders checking their portfolios",
+              "punchline": "We're all gonna make it! 🚀",
+              "imagePrompt": "astronaut looking at chart going up",
+              "tags": ["moon", "bullish", "portfolio", "gains"]
+            },
+            "marketConditions": ["bullish", "recovery"],
+            "sentiment": "positive",
+            "variations": [
+              "Wen moon? Now moon! 🌕",
+              "Loading moon mission... 🚀",
+              "Preparing for liftoff 🧑‍🚀"
+            ]
+          },
+          {
+            "id": "diamond-hands",
+            "name": "Diamond Hands",
+            "format": "text",
+            "viralScore": 0.85,
+            "template": {
+              "setup": "Paper hands: *sold at {price}*\nMe with my {token}:",
+              "punchline": "💎🙌 WAGMI",
+              "tags": ["diamond-hands", "hodl", "paper-hands"]
+            },
+            "marketConditions": ["bullish", "recovery", "dip"],
+            "sentiment": "confident"
+          }
+        ],
+        "bearish": [
+          {
+            "id": "wojak-panic",
+            "name": "Wojak Panic",
+            "format": "image",
+            "viralScore": 0.8,
+            "template": {
+              "setup": "Me watching {token} price after buying the top",
+              "punchline": "*wojak panic intensifies*",
+              "imagePrompt": "wojak panic face with red candles",
+              "tags": ["panic", "dump", "bear-market"]
+            },
+            "marketConditions": ["bearish", "crash"],
+            "sentiment": "fearful"
+          },
+          {
+            "id": "this-is-fine",
+            "name": "This Is Fine",
+            "format": "image",
+            "viralScore": 0.75,
+            "template": {
+              "setup": "Portfolio down {percent}%",
+              "punchline": "This is fine. 🔥",
+              "imagePrompt": "dog in burning house saying this is fine",
+              "tags": ["cope", "bear-market", "hopium"]
+            },
+            "marketConditions": ["bearish", "crash"],
+            "sentiment": "coping"
+          }
+        ]
+      },
+      "community_events": {
+        "announcements": [
+          {
+            "id": "gm-warriors",
+            "name": "GM Warriors",
+            "format": "text",
+            "viralScore": 0.7,
+            "template": {
+              "setup": "GM {community}! Ready for another day of",
+              "punchline": "Maximum gains! 📈",
+              "tags": ["gm", "community", "motivation"]
+            },
+            "timing": "morning",
+            "sentiment": "positive"
+          }
+        ],
+        "milestones": [
+          {
+            "id": "ath-celebration",
+            "name": "ATH Celebration",
+            "format": "mixed",
+            "viralScore": 0.95,
+            "template": {
+              "setup": "NEW ATH ALERT! {token} just hit {price}!",
+              "punchline": "Congratulations diamond hands! 💎",
+              "tags": ["ath", "milestone", "celebration"]
+            },
+            "marketConditions": ["bullish"],
+            "sentiment": "euphoric"
+          }
+        ]
+      },
+      "trading_moments": {
+        "entry": [
+          {
+            "id": "dip-buyer",
+            "name": "Dip Buyer",
+            "format": "text",
+            "viralScore": 0.8,
+            "template": {
+              "setup": "Everyone: Don't catch falling knives!\nMe:",
+              "punchline": "haha buy button go brrr 🛍️",
+              "tags": ["dip-buying", "trading", "strategy"]
+            },
+            "marketConditions": ["dip", "crash"],
+            "sentiment": "contrarian"
+          }
+        ],
+        "exit": [
+          {
+            "id": "profit-secured",
+            "name": "Profit Secured",
+            "format": "text",
+            "viralScore": 0.75,
+            "template": {
+              "setup": "Finally sold {token} for {gain}% profit",
+              "punchline": "Time to watch it pump another 500% 🤡",
+              "tags": ["profit", "trading", "paper-hands"]
+            },
+            "marketConditions": ["bullish", "top"],
+            "sentiment": "humorous"
+          }
+        ]
+      }
+    },
+    "modifiers": {
+      "bullish": {
+        "emojis": ["🚀", "💎", "🌕", "📈", "🔥"],
+        "intensity_multiplier": 1.2
+      },
+      "bearish": {
+        "emojis": ["💩", "🔻", "📉", "🤡", "🫡"],
+        "intensity_multiplier": 0.8
+      },
+      "neutral": {
+        "emojis": ["👀", "🤔", "💭", "📊", "⚖️"],
+        "intensity_multiplier": 1.0
+      }
+    },
+    "rules": {
+      "max_emojis_per_post": 4,
+      "min_text_length": 10,
+      "max_text_length": 240,
+      "cooldown_period": 3600,
+      "viral_score_threshold": 0.7,
+      "max_daily_templates_per_category": 3
+    }
+  }
