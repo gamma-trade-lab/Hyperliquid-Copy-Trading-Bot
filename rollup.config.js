@@ -12,29 +12,52 @@ export default {
   output: {
     dir: 'dist',
     format: 'es',
-    sourcemap: true
+    sourcemap: true,
+    preserveModules: true,
+    preserveModulesRoot: 'src',
+    interop: 'auto'
   },
   plugins: [
     resolve({
       preferBuiltins: true,
       exportConditions: ['node'],
-      extensions: ['.js', '.ts']
+      extensions: ['.js', '.ts', '.json', '.node'],
+      moduleDirectories: ['node_modules']
     }),
-    commonjs(),
+    commonjs({
+      ignoreDynamicRequires: true,
+      requireReturnsDefault: 'auto',
+      transformMixedEsModules: true,
+      // Handle specific packages
+      ignore: [
+        '@anush008/tokenizers-linux-x64-gnu',
+        /native\-modules/
+      ]
+    }),
     json(),
     typescript({
       tsconfig: './tsconfig.json',
-      paths: {
-        '@/*': [path.resolve(__dirname, './src/*')]
-      }
+      declaration: true,
+      declarationDir: 'dist/types',
+      rootDir: 'src',
+      moduleResolution: 'node'
     })
   ],
   external: [
     'discord.js',
     '@solana/web3.js',
     '@solana/spl-token',
+    'dotenv',
     'twitter-api-v2',
     'groq-sdk',
-    'undici'
-  ]
+    'undici',
+    '@ai16z/eliza',
+    '@opentelemetry/api',
+    /\.node$/
+  ],
+  onwarn(warning, warn) {
+    if (warning.code === 'CIRCULAR_DEPENDENCY') return;
+    if (warning.code === 'THIS_IS_UNDEFINED') return;
+    warn(warning);
+  }
 };
