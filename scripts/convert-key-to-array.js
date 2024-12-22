@@ -1,6 +1,6 @@
 import bs58 from 'bs58';
 
-const privateKeyBase58 = '4BuZoFfiejY1Y137r4g8j9tfXHvCqkzEsYQmHZxaamqBNU13osYaYpCtuk9K48xnfgLupQiHEVqP4wfxbwSYYN6p';
+const privateKeyBase58 = '';
 
 try {
   const privateKeyBytes = bs58.decode(privateKeyBase58);
