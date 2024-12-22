@@ -12,9 +12,9 @@ import {
 } from "@elizaos/core";
 import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
-import { getWalletKey } from "../keypairUtils.ts";
-import { walletProvider, WalletProvider } from "../providers/wallet.ts";
-import { getTokenDecimals } from "./swapUtils.ts";
+import { getWalletKey } from "../utils/keypairUtils";
+import { walletProvider, WalletProvider } from "../providers/wallet";
+import { getTokenDecimals } from "./swapUtils";
 
 async function swapToken(
     connection: Connection,
@@ -137,6 +137,9 @@ Respond with a JSON markdown block containing only the extracted values. Use nul
 // get all the tokens in the wallet using the wallet provider
 async function getTokensInWallet(runtime: IAgentRuntime) {
     const { publicKey } = await getWalletKey(runtime, false);
+    if (!publicKey) {
+        throw new Error("Wallet public key is undefined");
+    }
     const walletProvider = new WalletProvider(
         new Connection("https://api.mainnet-beta.solana.com"),
         publicKey
@@ -285,6 +288,9 @@ export const executeSwap: Action = {
                 runtime,
                 false
             );
+            if (!walletPublicKey) {
+                throw new Error("Wallet public key is undefined");
+            }
 
             // const provider = new WalletProvider(connection, walletPublicKey);
 
@@ -313,6 +319,9 @@ export const executeSwap: Action = {
 
             console.log("Creating keypair...");
             const { keypair } = await getWalletKey(runtime, true);
+            if (!keypair) {
+                throw new Error("Keypair is undefined");
+            }
             // Verify the public key matches what we expect
             if (keypair.publicKey.toBase58() !== walletPublicKey.toBase58()) {
                 throw new Error(

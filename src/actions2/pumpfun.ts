@@ -19,7 +19,7 @@ import {
     type Action,
 } from "@elizaos/core";
 
-import { walletProvider } from "../providers/wallet.ts";
+import { walletProvider } from "../providers/wallet";
 
 export interface CreateAndBuyContent extends Content {
     tokenMetadata: {
@@ -240,7 +240,7 @@ const promptConfirmation = async (): Promise<boolean> => {
 // Save the base64 data to a file
 import * as fs from "fs";
 import * as path from "path";
-import { getWalletKey } from "../keypairUtils.ts";
+import { getWalletKey } from "../utils/keypairUtils";
 
 const pumpfunTemplate = `Respond with a JSON markdown block containing only the extracted values. Use null for any values that cannot be determined.
 
@@ -349,6 +349,10 @@ export default {
             runtime
         );
 
+        if (!imageResult.data || imageResult.data.length === 0) {
+            throw new Error("Image generation failed");
+        }
+
         tokenMetadata.image_description = imageResult.data[0].replace(
             /^data:image\/[a-z]+;base64,/,
             ""
@@ -391,6 +395,9 @@ export default {
                 runtime,
                 true
             );
+            if (!deployerKeypair) {
+                throw new Error("Deployer keypair is undefined");
+            }
 
             // Generate new mint keypair
             const mintKeypair = Keypair.generate();
@@ -474,8 +481,8 @@ export default {
         } catch (error) {
             if (callback) {
                 callback({
-                    text: `Error during token creation: ${error.message}`,
-                    content: { error: error.message },
+                    text: `Error during token creation: ${(error as Error).message}`,
+                    content: { error: (error as Error).message },
                 });
             }
             return false;

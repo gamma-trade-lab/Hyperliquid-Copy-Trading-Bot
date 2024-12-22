@@ -5,8 +5,8 @@ import {
     type Action,
 } from "@elizaos/core";
 import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
-import { getQuote } from "./swapUtils.ts";
-import { getWalletKey } from "../keypairUtils.ts";
+import { getQuote } from "./swapUtils";
+import { getWalletKey } from "../utils/keypairUtils";
 
 async function invokeSwapDao(
     connection: Connection,
@@ -69,8 +69,15 @@ export const executeSwapForDAO: Action = {
             );
 
             const { keypair: authority } = await getWalletKey(runtime, true);
+            if (!authority) {
+                throw new Error("Authority keypair is undefined");
+            }
 
-            const daoMint = new PublicKey(runtime.getSetting("DAO_MINT")); // DAO mint address
+            const daoMintSetting = runtime.getSetting("DAO_MINT");
+            if (!daoMintSetting) {
+                throw new Error("DAO mint address is null");
+            }
+            const daoMint = new PublicKey(daoMintSetting); // DAO mint address
 
             // Derive PDAs
             const [statePDA] = await PublicKey.findProgramAddress(

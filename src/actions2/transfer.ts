@@ -22,7 +22,7 @@ import {
     type Action,
 } from "@elizaos/core";
 import { composeContext } from "@elizaos/core";
-import { getWalletKey } from "../keypairUtils";
+import { getWalletKey } from "../utils/keypairUtils";
 import { generateObjectDeprecated } from "@elizaos/core";
 
 export interface TransferContent extends Content {
@@ -141,6 +141,9 @@ export default {
                 runtime,
                 true
             );
+            if (!senderKeypair) {
+                throw new Error("Sender keypair is undefined");
+            }
 
             const connection = new Connection(settings.RPC_URL!);
 
@@ -229,8 +232,8 @@ export default {
             console.error("Error during token transfer:", error);
             if (callback) {
                 callback({
-                    text: `Error transferring tokens: ${error.message}`,
-                    content: { error: error.message },
+                    text: `Error transferring tokens: ${(error as Error).message}`,
+                    content: { error: (error as Error).message },
                 });
             }
             return false;

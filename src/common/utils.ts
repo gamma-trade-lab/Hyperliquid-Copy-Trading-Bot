@@ -1,5 +1,5 @@
 import { Content } from "@ai16z/eliza";
-import { SearchPluginConfig, SearchResult } from "./types.ts";
+import { SearchPluginConfig, SearchResult } from "./types";
 
 export class ApiError extends Error {
   constructor(

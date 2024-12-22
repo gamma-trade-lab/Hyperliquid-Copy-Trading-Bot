@@ -22,7 +22,7 @@ import {
     type Action,
 } from "@elizaos/core";
 
-import { walletProvider } from "../providers/wallet.ts";
+import { walletProvider } from "../providers/wallet";
 
 interface CreateTokenMetadata {
     name: string;
@@ -470,6 +470,10 @@ export default {
             runtime
         );
 
+        if (!imageResult.data || imageResult.data.length === 0) {
+            throw new Error("Image generation failed");
+        }
+
         const imageBuffer = Buffer.from(imageResult.data[0], "base64");
         const formData = new FormData();
         const blob = new Blob([imageBuffer], { type: "image/png" });
@@ -486,9 +490,13 @@ export default {
         const metadataResponseJSON = (await metadataResponse.json()) as {
             name: string;
             symbol: string;
-            metadataUri: string;
+            metadataUri: string | null;
         };
-        // Add the default decimals and convert file to Blob
+
+        if (!metadataResponseJSON.metadataUri) {
+            throw new Error("Metadata URI is null");
+        }
+
         const fullTokenMetadata: CreateTokenMetadata = {
             name: tokenMetadata.name,
             symbol: tokenMetadata.symbol,
@@ -506,6 +514,9 @@ export default {
             const privateKeyString =
                 runtime.getSetting("SOLANA_PRIVATE_KEY") ??
                 runtime.getSetting("WALLET_PRIVATE_KEY");
+            if (!privateKeyString) {
+                throw new Error("Private key is null");
+            }
             const secretKey = bs58.decode(privateKeyString);
             const deployerKeypair = Keypair.fromSecretKey(secretKey);
 
@@ -588,8 +599,8 @@ export default {
         } catch (error) {
             if (callback) {
                 callback({
-                    text: `Error during token creation: ${error.message}`,
-                    content: { error: error.message },
+                    text: `Error during token creation: ${(error as Error).message}`,
+                    content: { error: (error as Error).message },
                 });
             }
             return false;
