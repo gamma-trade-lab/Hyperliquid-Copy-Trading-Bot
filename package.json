@@ -11,7 +11,11 @@
   "author": "",
   "license": "ISC",
   "description": "",
-  "dependencies": {
+  "dependencies": { "@ai16z/adapter-postgres": "^0.1.6",
+  "@elizaos/core": "0.1.7-alpha.1",
+  "@ai16z/adapter-sqlite": "^0.1.6",
+  "@ai16z/client-discord": "^0.1.6",
+  "@ai16z/plugin-node": "^0.1.6",
     "@ai16z/plugin-solana": "0.1.6",
     "@ai16z/plugin-starknet": "0.1.6",
     "@coral-xyz/anchor": "^0.30.1",
@@ -33,7 +37,16 @@
     "undici": "7.2.0",
     "winston": "3.17.0",
     "ws": "^8.18.0",
-    "yargs": "17.7.2"
+    "yargs": "17.7.2",
+    "yup": "^0.32.11",
+    "bignumber": "1.1.0",
+    "bignumber.js": "9.1.2",
+    "bs58": "6.0.0",
+    "fomo-sdk-solana": "1.3.2",
+    "node-cache": "5.1.2",
+    "pumpdotfun-sdk": "1.3.2",
+    "tsup": "8.3.5",
+    "vitest": "2.1.4"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "28.0.2",
@@ -51,6 +64,10 @@
     "rollup": "^4.18.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "@ai16z/client-direct": "0.1.6-alpha.4",
+    "@ai16z/eliza": "0.1.6-alpha.4",
+    "@ai16z/plugin-0g": "0.1.6-alpha.4",
+    "@ai16z/plugin-0g-ai": "0.1.6-alpha.4"
   }
 }
