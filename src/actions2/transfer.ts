@@ -1,5 +1,5 @@
 import {
-    getAssociatedTokenAddressSync,
+    getAssociatedTokenAddress,
     createTransferInstruction,
 } from "@solana/spl-token";
 import { elizaLogger, settings } from "@elizaos/core";
@@ -164,11 +164,11 @@ export default {
             );
 
             // Rest of the existing working code...
-            const senderATA = getAssociatedTokenAddressSync(
+            const senderATA = getAssociatedTokenAddress(
                 mintPubkey,
                 senderKeypair.publicKey
             );
-            const recipientATA = getAssociatedTokenAddressSync(
+            const recipientATA = getAssociatedTokenAddress(
                 mintPubkey,
                 recipientPubkey
             );

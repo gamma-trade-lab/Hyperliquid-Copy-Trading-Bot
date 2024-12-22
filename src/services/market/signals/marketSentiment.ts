@@ -65,6 +65,57 @@ export class MarketSentimentAnalyzer extends EventEmitter {
     this.startPeriodicAnalysis();
   }
 
+  private startPeriodicAnalysis(): void {
+    setInterval(() => {
+      this.analyzeSentiment();
+    }, this.UPDATE_INTERVAL);
+  }
+
+  private isSignificantData(data: SentimentData): boolean {
+    return data.confidence >= this.CONFIDENCE_THRESHOLD;
+  }
+
+  private getFilteredData(filter?: SentimentFilter): SentimentData[] {
+    const now = Date.now();
+    return Array.from(this.sentimentData.values()).filter(data => {
+      const withinTimeRange = !filter?.timeRange || 
+        (data.timestamp >= filter.timeRange.start && data.timestamp <= filter.timeRange.end);
+      const meetsConfidence = !filter?.confidenceThreshold || 
+        data.confidence >= filter.confidenceThreshold;
+      const matchesSource = !filter?.sources || 
+        filter.sources.includes(data.source);
+      const withinRetention = now - data.timestamp <= this.DATA_RETENTION;
+
+      return withinTimeRange && meetsConfidence && matchesSource && withinRetention;
+    });
+  }
+
+  private getDefaultAnalysis(): SentimentAnalysis {
+    return {
+      overall: 0,
+      weightedScore: 0,
+      distribution: {
+        bullish: 0,
+        bearish: 0,
+        neutral: 0
+      },
+      confidence: 0,
+      dominantSources: [],
+      trends: {
+        shortTerm: 'neutral',
+        mediumTerm: 'neutral',
+        longTerm: 'neutral'
+      }
+    };
+  }
+
+  private async performAnalysis(data: SentimentData[]): Promise<SentimentAnalysis> {
+    // Implement sentiment analysis logic using AIService
+    const dataString = JSON.stringify(data);
+    const analysis: string = (await this.aiService.analyzeSentiment(dataString)).toString();
+    return JSON.parse(analysis) as SentimentAnalysis;
+  }
+
   public async addSentimentData(
     data: Omit<SentimentData, 'id' | 'timestamp'>
   ): Promise<void> {
@@ -104,3 +155,4 @@ export class MarketSentimentAnalyzer extends EventEmitter {
       throw error;
     }
   }
+}

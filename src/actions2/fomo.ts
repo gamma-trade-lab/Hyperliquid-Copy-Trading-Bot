@@ -6,7 +6,7 @@ import {
     VersionedTransaction,
 } from "@solana/web3.js";
 import { Fomo, PurchaseCurrency } from "fomo-sdk-solana";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { getAssociatedTokenAddress } from "@solana/spl-token";
 import bs58 from "bs58";
 import {
     settings,
@@ -138,7 +138,7 @@ export const createAndBuyToken = async ({
             "Success:",
             `https://fomo.fund/token/${mint.publicKey.toBase58()}`
         );
-        const ata = getAssociatedTokenAddressSync(
+        const ata = await getAssociatedTokenAddress(
             mint.publicKey,
             deployer.publicKey,
             allowOffCurve
@@ -245,7 +245,7 @@ export const buyToken = async ({
 
     if (!confirmation.value.err) {
         console.log("Success:", `https://fomo.fund/token/${mint.toBase58()}`);
-        const ata = getAssociatedTokenAddressSync(
+        const ata = await getAssociatedTokenAddress(
             mint,
             buyer.publicKey,
             allowOffCurve
@@ -338,7 +338,7 @@ export const sellToken = async ({
 
     if (!confirmation.value.err) {
         console.log("Success:", `https://fomo.fund/token/${mint.toBase58()}`);
-        const ata = getAssociatedTokenAddressSync(
+        const ata = await getAssociatedTokenAddress(
             mint,
             seller.publicKey,
             allowOffCurve

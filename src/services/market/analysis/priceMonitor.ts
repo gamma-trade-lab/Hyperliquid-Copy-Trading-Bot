@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { AIService } from '../../ai/ai';
 
-interface PricePoint {
+export interface PricePoint {
   price: number;
   volume: number;
   timestamp: number;

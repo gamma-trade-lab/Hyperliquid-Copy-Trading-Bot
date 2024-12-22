@@ -187,14 +187,20 @@ export class ViralUtils {
       "${content}"
       
       Response format: { "contains": boolean, "confidence": number }
+      Type: pattern_analysis
     `;
 
     const response = await this.aiService.generateResponse({
       content: prompt,
-      context: { type: 'pattern_analysis' }
+      platform: 'default' // Add platform property
     });
 
-    return JSON.parse(response).contains;
+    try {
+      return JSON.parse(response).contains;
+    } catch (error) {
+      console.error('Error parsing pattern detection response:', error);
+      return false;
+    }
   }
 
   private calculateReadability(content: string): number {
@@ -273,14 +279,20 @@ export class ViralUtils {
       Audience: ${audience.join(', ')}
       
       Response format: { "relevant": boolean, "confidence": number }
+      Type: audience_analysis
     `;
 
     const response = await this.aiService.generateResponse({
       content: prompt,
-      context: { type: 'audience_analysis' }
+      platform: 'default' // Add platform property
     });
 
-    return JSON.parse(response).relevant;
+    try {
+      return JSON.parse(response).relevant;
+    } catch (error) {
+      console.error('Error parsing audience relevance response:', error);
+      return false;
+    }
   }
 
   private async calculateMomentumScore(recentTrends: string[]): Promise<number> {

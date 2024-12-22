@@ -13,7 +13,7 @@ import {
 } from "../types/token.ts";
 import NodeCache from "node-cache";
 import * as path from "path";
-import { toBN } from "../bignumber.ts";
+import { toBN } from "../bignumber";
 import { WalletProvider, Item } from "./wallet.ts";
 import { Connection } from "@solana/web3.js";
 import { getWalletKey } from "../keypairUtils.ts";

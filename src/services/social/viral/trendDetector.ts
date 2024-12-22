@@ -23,12 +23,14 @@ interface TrendAnalysis {
   durability: number;
 }
 
-enum TrendStage {
-  EMERGING = 'emerging',
-  RISING = 'rising',
-  PEAKING = 'peaking',
-  DECLINING = 'declining',
-  DEAD = 'dead'
+export enum TrendStage {
+  EMERGING,
+  PEAK,
+  DECLINE,
+  DEAD,
+  RISING,
+  PEAKING,
+  DECLINING
 }
 
 export class TrendDetector extends EventEmitter {

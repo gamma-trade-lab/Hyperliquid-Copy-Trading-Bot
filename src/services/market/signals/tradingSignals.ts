@@ -123,6 +123,38 @@ export class TradingSignalGenerator extends EventEmitter {
     return signals;
   }
 
+  private async generateFundamentalSignals(
+    marketData: any,
+    timeframe: SignalTimeframe
+  ): Promise<TradingSignal[]> {
+    // Implement fundamental signal generation logic
+    return [];
+  }
+
+  private async generateMomentumSignals(
+    marketData: any,
+    timeframe: SignalTimeframe
+  ): Promise<TradingSignal[]> {
+    // Implement momentum signal generation logic
+    return [];
+  }
+
+  private async generateVolatilitySignals(
+    marketData: any,
+    timeframe: SignalTimeframe
+  ): Promise<TradingSignal[]> {
+    // Implement volatility signal generation logic
+    return [];
+  }
+
+  private async generateSentimentSignals(
+    marketData: any,
+    timeframe: SignalTimeframe
+  ): Promise<TradingSignal[]> {
+    // Implement sentiment signal generation logic
+    return [];
+  }
+
   private analyzeMAs(marketData: any): TradingSignal | null {
     const { ma20, ma50, ma200 } = marketData.indicators;
     if (!ma20 || !ma50 || !ma200) return null;
@@ -239,12 +271,12 @@ export class TradingSignalGenerator extends EventEmitter {
 
     // Calculate contributions
     const macdCrossover = macd - signal;
-    indicators[0].contribution = macdCrossover;
-    indicators[1].contribution = histogram > 0 ? 1 : -1;
-    indicators[2].contribution = histogram;
+    indicators[0].contribution = macdCrossover * indicators[0].weight;
+    indicators[1].contribution = (histogram > 0 ? 1 : -1) * indicators[1].weight;
+    indicators[2].contribution = histogram * indicators[2].weight;
 
     const totalContribution = indicators.reduce(
-      (sum, ind) => sum + (ind.contribution * ind.weight),
+      (sum, ind) => sum + ind.contribution,
       0
     );
 
@@ -331,14 +363,7 @@ export class TradingSignalGenerator extends EventEmitter {
       const prompt = this.buildSignalAnalysisPrompt(signals);
       const analysis = await this.aiService.generateResponse({
         content: prompt,
-        context: {
-          type: 'signal_validation',
-          signals: signals.map(s => ({
-            type: s.type,
-            action: s.action,
-            strength: s.strength
-          }))
-        }
+        platform: ''
       });
 
       return JSON.parse(analysis);

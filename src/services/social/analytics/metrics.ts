@@ -89,6 +89,10 @@ export class MetricsAnalyzer extends EventEmitter {
     });
   }
 
+  private addMetric(metric: Metric): void {
+    this.metrics.set(metric.id, metric);
+  }
+
   public async trackMetric(
     metricId: string,
     value: number,
@@ -161,4 +165,31 @@ export class MetricsAnalyzer extends EventEmitter {
     // Calculate change
     const change = previous !== 0 ? (current - previous) / previous : 0;
 
-    //
+    // Determine trend
+    const trend = change > this.TREND_THRESHOLD ? 'up' : change < -this.TREND_THRESHOLD ? 'down' : 'stable';
+
+    // Calculate volatility (standard deviation of values)
+    const volatility = this.calculateVolatility(relevantPoints.map(p => p.value));
+
+    return {
+      current,
+      previous,
+      change,
+      trend,
+      volatility
+    };
+  }
+
+  private calculateAverage(values: number[]): number {
+    if (values.length === 0) return 0;
+    const sum = values.reduce((acc, val) => acc + val, 0);
+    return sum / values.length;
+  }
+
+  private calculateVolatility(values: number[]): number {
+    if (values.length === 0) return 0;
+    const average = this.calculateAverage(values);
+    const variance = values.reduce((acc, val) => acc + Math.pow(val - average, 2), 0) / values.length;
+    return Math.sqrt(variance);
+  }
+}

@@ -4,7 +4,6 @@ import { generateImage } from "@elizaos/core";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { CreateTokenMetadata, PriorityFee, PumpFunSDK } from "pumpdotfun-sdk";
 
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import {
     settings,
     ActionExample,
@@ -20,6 +19,7 @@ import {
 } from "@elizaos/core";
 
 import { walletProvider } from "../providers/wallet";
+import { getAssociatedTokenAddress } from "@solana/spl-token";
 
 export interface CreateAndBuyContent extends Content {
     tokenMetadata: {
@@ -96,7 +96,7 @@ export const createAndBuyToken = async ({
             "Success:",
             `https://pump.fun/${mint.publicKey.toBase58()}`
         );
-        const ata = getAssociatedTokenAddressSync(
+        const ata = await getAssociatedTokenAddress(
             mint.publicKey,
             deployer.publicKey,
             allowOffCurve
@@ -158,7 +158,7 @@ export const buyToken = async ({
     );
     if (buyResults.success) {
         console.log("Success:", `https://pump.fun/${mint.toBase58()}`);
-        const ata = getAssociatedTokenAddressSync(
+        const ata = await getAssociatedTokenAddress(
             mint,
             buyer.publicKey,
             allowOffCurve
@@ -206,7 +206,7 @@ export const sellToken = async ({
     );
     if (sellResults.success) {
         console.log("Success:", `https://pump.fun/${mint.toBase58()}`);
-        const ata = getAssociatedTokenAddressSync(
+        const ata = await getAssociatedTokenAddress(
             mint,
             seller.publicKey,
             allowOffCurve

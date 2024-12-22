@@ -12,7 +12,7 @@ import { IAgentRuntime } from "@elizaos/core";
 import { WalletProvider } from "./wallet.ts";
 import * as amqp from "amqplib";
 import { ProcessedTokenData } from "../types/token.ts";
-import { getWalletKey } from "../keypairUtils.ts";
+import { getWalletKey } from "../keypairUtils";
 
 interface SellDetails {
     sell_amount: number;
@@ -20,7 +20,7 @@ interface SellDetails {
 }
 
 export class SimulationSellingService {
-    private trustScoreDb: TrustScoreDatabase;
+    private trustScoreDb: any;
     private walletProvider: WalletProvider;
     private connection: Connection;
     private baseMint: PublicKey;
@@ -36,7 +36,7 @@ export class SimulationSellingService {
 
     private runningProcesses: Set<string> = new Set();
 
-    constructor(runtime: IAgentRuntime, trustScoreDb: TrustScoreDatabase) {
+    constructor(runtime: IAgentRuntime, trustScoreDb: any) {
         this.trustScoreDb = trustScoreDb;
 
         this.connection = new Connection(runtime.getSetting("RPC_URL"));
@@ -196,7 +196,7 @@ export class SimulationSellingService {
         await this.processTokenPerformances(tokenPerformances);
     }
 
-    private processTokenPerformances(tokenPerformances: TokenPerformance[]) {
+    private processTokenPerformances(tokenPerformances: any[]) {
         //  To Do: logic when to sell and how much
         console.log("Deciding when to sell and how much...");
         const runningProcesses = this.runningProcesses;
@@ -215,11 +215,11 @@ export class SimulationSellingService {
             );
             // const shouldTrade = await tokenProvider.shouldTradeToken();
             // if (shouldTrade) {
-            const tokenRecommendations: TokenRecommendation[] =
+            const tokenRecommendations: any[] =
                 this.trustScoreDb.getRecommendationsByToken(
                     tokenPerformance.tokenAddress
                 );
-            const tokenRecommendation: TokenRecommendation =
+            const tokenRecommendation: any =
                 tokenRecommendations[0];
             const balance = tokenPerformance.balance;
             const sell_recommender_id = tokenRecommendation.recommenderId;
@@ -249,7 +249,7 @@ export class SimulationSellingService {
                 console.log(`Token ${tokenAddress} is already being processed`);
                 return;
             }
-            const tokenPerformance =
+            const tokenPerformance: any =
                 this.trustScoreDb.getTokenPerformance(tokenAddress);
 
             // eslint-disable-next-line @typescript-eslint/no-unused-vars

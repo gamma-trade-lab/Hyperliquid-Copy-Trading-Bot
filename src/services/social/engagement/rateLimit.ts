@@ -34,17 +34,13 @@ export class RateLimitManager extends EventEmitter {
     // Twitter rate limits
     this.setRateLimit(Platform.TWITTER, {
       maxRequests: 300,
-      windowMs: 900000, // 15 minutes
-      current: 0,
-      resetTime: Date.now() + 900000
+      windowMs: 900000 // 15 minutes
     });
 
     // Discord rate limits
     this.setRateLimit(Platform.DISCORD, {
       maxRequests: 50,
-      windowMs: 60000, // 1 minute
-      current: 0,
-      resetTime: Date.now() + 60000
+      windowMs: 60000 // 1 minute
     });
 
     // Other platforms...
@@ -52,9 +48,7 @@ export class RateLimitManager extends EventEmitter {
       if (!this.limits.has(platform)) {
         this.setRateLimit(platform, {
           maxRequests: 100,
-          windowMs: 300000, // 5 minutes
-          current: 0,
-          resetTime: Date.now() + 300000
+          windowMs: 300000 // 5 minutes
         });
       }
     });
@@ -228,4 +222,12 @@ export class RateLimitManager extends EventEmitter {
 
     // Adjust limit based on success rate
     let dynamicLimit = baseLimit;
-    if (pattern
+    if (pattern.successRate < 0.5) {
+      dynamicLimit = Math.max(10, baseLimit * 0.5);
+    } else if (pattern.successRate < 0.8) {
+      dynamicLimit = Math.max(20, baseLimit * 0.8);
+    }
+
+    return dynamicLimit;
+  }
+}

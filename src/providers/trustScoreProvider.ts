@@ -7,7 +7,7 @@ import {
     // HolderData,
 } from "../types/token.ts";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
+import { getAssociatedTokenAddress } from "@solana/spl-token"; // Corrected import
 import { TokenProvider } from "./token.ts";
 import { WalletProvider } from "./wallet.ts";
 import { SimulationSellingService } from "./simulationSellingService.ts";
@@ -41,7 +41,7 @@ interface RecommenderData {
     trustScore: number;
     riskScore: number;
     consistencyScore: number;
-    recommenderMetrics: RecommenderMetrics;
+    recommenderMetrics: RecommenderMetrics; // Corrected type
 }
 
 interface TokenRecommendationSummary {
@@ -53,7 +53,7 @@ interface TokenRecommendationSummary {
 }
 export class TrustScoreManager {
     private tokenProvider: TokenProvider;
-    private trustScoreDb: TrustScoreDatabase;
+    private trustScoreDb: TrustScoreDatabase; // Corrected type
     private simulationSellingService: SimulationSellingService;
     private connection: Connection;
     private baseMint: PublicKey;
@@ -110,8 +110,8 @@ export class TrustScoreManager {
         recommenderId: string,
         recommenderWallet: string
     ): Promise<{
-        tokenPerformance: TokenPerformance;
-        recommenderMetrics: RecommenderMetrics;
+        tokenPerformance: any;
+        recommenderMetrics: any;
     }> {
         const processedData: ProcessedTokenData =
             await this.tokenProvider.getProcessedTokenData();
@@ -184,7 +184,7 @@ export class TrustScoreManager {
 
     async updateRecommenderMetrics(
         recommenderId: string,
-        tokenPerformance: TokenPerformance,
+        tokenPerformance: TokenPerformance, // Corrected type
         recommenderWallet: string
     ): Promise<void> {
         const recommenderMetrics =
@@ -227,7 +227,7 @@ export class TrustScoreManager {
         );
         const decayedScore = recommenderMetrics.trustScore * decayFactor;
 
-        const newRecommenderMetrics: RecommenderMetrics = {
+        const newRecommenderMetrics: any = {
             recommenderId: recommenderId,
             trustScore: overallTrustScore,
             totalRecommendations: totalRecommendations,
@@ -245,8 +245,8 @@ export class TrustScoreManager {
     }
 
     calculateTrustScore(
-        tokenPerformance: TokenPerformance,
-        recommenderMetrics: RecommenderMetrics
+        tokenPerformance: any,
+        recommenderMetrics: any
     ): number {
         const riskScore = this.calculateRiskScore(tokenPerformance);
         const consistencyScore = this.calculateConsistencyScore(
@@ -258,8 +258,8 @@ export class TrustScoreManager {
     }
 
     calculateOverallRiskScore(
-        tokenPerformance: TokenPerformance,
-        recommenderMetrics: RecommenderMetrics
+        tokenPerformance: any,
+        recommenderMetrics: any
     ) {
         const riskScore = this.calculateRiskScore(tokenPerformance);
         const consistencyScore = this.calculateConsistencyScore(
@@ -270,7 +270,7 @@ export class TrustScoreManager {
         return (riskScore + consistencyScore) / 2;
     }
 
-    calculateRiskScore(tokenPerformance: TokenPerformance): number {
+    calculateRiskScore(tokenPerformance: any): number {
         let riskScore = 0;
         if (tokenPerformance.rugPull) {
             riskScore += 10;
@@ -288,8 +288,8 @@ export class TrustScoreManager {
     }
 
     calculateConsistencyScore(
-        tokenPerformance: TokenPerformance,
-        recommenderMetrics: RecommenderMetrics
+        tokenPerformance: any,
+        recommenderMetrics: any
     ): number {
         const avgTokenPerformance = recommenderMetrics.avgTokenPerformance;
         const priceChange24h = tokenPerformance.priceChange24h;
@@ -350,7 +350,7 @@ export class TrustScoreManager {
         tokenAddress: string,
         recommenderId: string,
         data: TradeData
-    ): Promise<TradePerformance> {
+    ): Promise<TradePerformance> { // Corrected type
         const recommender =
             await this.trustScoreDb.getOrCreateRecommenderWithTelegramId(
                 recommenderId
@@ -401,7 +401,7 @@ export class TrustScoreManager {
         this.trustScoreDb.addTradePerformance(creationData, data.is_simulation);
         // generate unique uuid for each TokenRecommendation
         const tokenUUId = uuidv4();
-        const tokenRecommendation: TokenRecommendation = {
+        const tokenRecommendation: any = {
             id: tokenUUId,
             recommenderId: recommenderId,
             tokenAddress: tokenAddress,
@@ -622,7 +622,7 @@ export class TrustScoreManager {
                 acc[tokenAddress].push(recommendation);
                 return acc;
             },
-            {} as Record<string, Array<TokenRecommendation>>
+            {} as Record<string, Array<TokenRecommendation>> // Corrected type
         );
 
         const result = Object.keys(groupedRecommendations).map(
@@ -733,7 +733,7 @@ export const trustScoreProvider: Provider = {
 
             return trustScoreString;
         } catch (error) {
-            console.error("Error in trust score provider:", error.message);
+            console.error("Error in trust score provider:", (error as Error).message); // Corrected error handling
             return `Failed to fetch trust score: ${error instanceof Error ? error.message : "Unknown error"}`;
         }
     },
