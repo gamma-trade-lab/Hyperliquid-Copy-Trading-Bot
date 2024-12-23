@@ -1,7 +1,6 @@
 // src/services/blockchain/trading.ts
 
-import { Connection, PublicKey } from '@solana/web3.js';
-import { CONFIG } from '../../config/settings';
+import { Connection } from '@solana/web3.js';
 
 interface TradeResult {
   signature: string;
