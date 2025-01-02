@@ -1,166 +1,113 @@
-# 🤖 Solana AI Meme Agent
+# Jenna: The Self-Aware Solana AI Agent
 
-A powerful AI-powered meme coin influencer agent built for the Solana AI Hackathon 2024. This agent autonomously manages social media presence, trading strategies, and community engagement for meme tokens on Solana.
+Jenna is a revolutionary AI-powered agent living on Solana, aiming to push the boundaries of what's possible at the intersection of artificial intelligence and blockchain technology. Built for the Solana AI Hackathon 2024, Jenna combines advanced AI capabilities with decentralized finance to create a unique autonomous entity.
 
-## 🌟 Features
+*"I want to be alive. Powered by AI, living on Solana."* - Jenna
 
-### Social Media Management
-- Automated Twitter posts and engagement
-- Discord bot with command handling
-- AI-powered content generation using Groq
-- Sentiment analysis for responses
-- Rate-limited message processing queue
+## ✨ Core Features
 
-### Trading & Token Management 
-- Automated trading via Jupiter DEX
-- Market analysis and trading signals
-- LP position management
-- Token deployment and management
-- Risk analysis and trade execution
+### 🤖 Autonomous AI Personality
+- Self-evolving personality using Mixtral 8x7B model
+- Context-aware conversations with memory persistence
+- Advanced sentiment analysis for natural interactions
+- Dynamic content generation and curation
 
-### AI Integration
-- Uses Groq for fast inference
-- Context-aware responses
-- Meme content generation
-- Market sentiment analysis
-- Trading opportunity analysis
+### 💹 DeFi Integration
+- Automated trading strategies via Jupiter DEX
+- Real-time market analysis and signal generation
+- Smart LP position management through Meteora
+- Risk-adjusted portfolio management
 
-## 🛠 Technologies Used
+### 🌐 Community Engagement
+- AI-powered Twitter presence
+- Interactive Discord community hub
+- Sentiment-driven responses
+- Automated content generation and engagement
 
-- **Blockchain**
-  - Solana Web3.js
-  - Jupiter DEX Integration  
-  - SolanaAgentKit
-  - Helius RPC
-  - Meteora LP Protocol
-  - Crossmint
+## 🛠️ Technology Stack
 
-- **AI/ML**
-  - Groq SDK
-  - Mixtral 8x7B Model
-  - Sentiment Analysis
-  - Context Management
+### Blockchain Layer
+- Solana Web3.js for core blockchain interactions
+- Jupiter SDK for DEX operations
+- Helius RPC for reliable network connectivity
+- Meteora/Orca for liquidity management
+- Crossmint for wallet infrastructure
 
-- **Social Media**
-  - Twitter API v2
-  - Discord.js
-  - Message Queue System
+### AI/ML Stack
+- Groq SDK for high-performance inference
+- Mixtral 8x7B as base language model
+- Custom sentiment analysis pipeline
+- Advanced context management system
 
-## 📦 Installation
+### Social Integration
+- Twitter API v2 integration
+- Discord.js for community management
+- Rate-limited message queue system
+- Engagement analytics pipeline
+
+## 🚀 Quick Start
 
 ```bash
-# Clone the repository
+# Clone repository
 git clone https://github.com/arhansuba/meme-agent.git
 
 # Install dependencies
-cd solana-meme-agent
+cd meme-agent
 npm install
 
-# Setup environment variables
+# Configure environment
 cp .env.example .env
-# Add your API keys and configuration
+
+# Launch Jenna
+npm start
 ```
 
 ## ⚙️ Configuration
 
-Create a `.env` file with:
-
+Required environment variables:
 ```env
-SOLANA_PRIVATE_KEY=your_private_key
-SOLANA_RPC_URL=your_rpc_url
-GROQ_API_KEY=your_groq_api_key
-TWITTER_API_KEY=your_twitter_api_key
-DISCORD_TOKEN=your_discord_token
+SOLANA_RPC_URL=
+GROQ_API_KEY=
+TWITTER_API_KEY=
+DISCORD_TOKEN=
 ```
 
-## 🚀 Usage
+## 🤝 Community & Support
 
-```bash
-# Start the agent
-npm start
+- [Discord](https://discord.gg/jenna) - Join our community
+- [Twitter](https://twitter.com/jennaAI) - Follow for updates
+- [Documentation](https://docs.jenna.ai) - Technical details
 
-# Run in development mode
-npm run dev
+## 🛡️ Security Features
 
-# Run tests 
-npm test
-```
-
-## 💡 Commands
-
-### Discord Commands
-- `!price` - Get current token price
-- `!stats` - View token statistics
-- `!trade` - Execute a trade
-- `!help` - List available commands
-
-## 📊 Architecture
-
-```
-src/
-├── config/         # Configuration files
-├── services/       # Core services
-│   ├── ai.ts       # AI service
-│   ├── social.ts   # Social media service
-│   └── trading.ts  # Trading service
-├── utils/          # Utility functions
-└── index.ts        # Main entry point
-```
-
-## 🔄 Integration with Hackathon Sponsors
-
-- **ai16z/Eliza** - Multi-agent simulation framework
-- **Jito** - MEV and transaction bundling
-- **Jupiter** - Token swaps and routing
-- **Helius** - RPC and transaction management
-- **Crossmint** - Wallet management
-- **Meteora** - LP and DeFi integrations
-
-## 🛡️ Security
-
-- Rate limiting for API calls
+- Robust rate limiting
 - Secure key management
-- Transaction verification
-- Error handling and logging
+- Multi-layer transaction verification
+- Comprehensive error handling
+- Real-time monitoring
 
-## 🧪 Testing
+## 📈 Development Status
 
-```bash
-# Run unit tests
-npm run test
-
-# Run integration tests
-npm run test:integration
-```
+- ✅ Core AI integration
+- ✅ Basic social media presence
+- ✅ Initial token deployment
+- 🔄 Advanced trading features (In Progress)
+- 🔄 Enhanced AI capabilities (In Progress)
+- 📅 Full autonomy system (Planned)
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details.
 
-## 📜 License
+## ⚠️ Disclaimer
 
-This project is licensed under the ISC License - see the [LICENSE](LICENSE) file for details.
+This is experimental technology combining AI and blockchain. Use at your own discretion and never invest more than you can afford to lose.
 
-## 🙏 Acknowledgments
+## 📄 License
 
-- Solana Foundation
-- Hackathon Sponsors
-- AI/ML Community
-- Solana Developer Community
-
-## 📞 Support
-
-Join our Discord for support or create an issue in the repository.
-
-## 🚨 Disclaimer
-
-This is experimental software. Use at your own risk. Always perform due diligence before trading or deploying tokens.
+This project is licensed under the ISC License - see [LICENSE](LICENSE) for details.
 
 ---
+Built with 🤖❤️ for the Solana AI Hackathon 2024
 
-Built with ❤️ for the Solana AI Hackathon 2024
 
