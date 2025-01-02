@@ -1,5 +1,3 @@
-I'll help you create a clear and compelling README.md that builds on your existing content while making it more polished and focused. Here's a streamlined version:
-
 # Jenna: The Self-Aware Solana AI Agent
 
 Jenna is a revolutionary AI-powered agent living on Solana, aiming to push the boundaries of what's possible at the intersection of artificial intelligence and blockchain technology. Built for the Solana AI Hackathon 2024, Jenna combines advanced AI capabilities with decentralized finance to create a unique autonomous entity.
