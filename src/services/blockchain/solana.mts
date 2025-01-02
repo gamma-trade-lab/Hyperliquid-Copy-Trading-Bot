@@ -8,14 +8,10 @@ import {
   LAMPORTS_PER_SOL
 } from '@solana/web3.js';
 import { CONFIG } from '../../config/settings';
+import { createMint, createTransferInstruction, mintTo, TOKEN_PROGRAM_ID } from '@/utils/spl-token';
+import { getOrCreateAssociatedTokenAccount } from '@solana/spl-token/lib/types/actions/getOrCreateAssociatedTokenAccount';
 
-import {
-  TOKEN_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  createMint,
-  getOrCreateAssociatedTokenAccount,
-  mintTo
-} from '@solana/spl-token';
+
 
 interface TokenConfig {
   name: string;
@@ -249,13 +245,14 @@ export class SolanaService {
 export default SolanaService;
 
 // Example usage of the imported functions
-async function createNewToken(connection: Connection, payer: Keypair, mintAuthority: PublicKey, freezeAuthority: PublicKey) {
+async function createNewToken(connection: Connection, payer: Keypair, mintAuthority: Keypair, freezeAuthority: PublicKey) {
   const mint = await createMint(
     connection,
     payer,
-    mintAuthority,
+    mintAuthority.publicKey,
     freezeAuthority,
-    9 // Decimals
+    9, // Decimals
+    Keypair.generate() // mintKeypair
   );
 
   const tokenAccount = await getOrCreateAssociatedTokenAccount(

@@ -6,7 +6,7 @@ import {
     VersionedTransaction,
 } from "@solana/web3.js";
 import { Fomo, PurchaseCurrency } from "fomo-sdk-solana";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
+
 import bs58 from "bs58";
 import {
     settings,
@@ -23,6 +23,7 @@ import {
 } from "@elizaos/core";
 
 import { walletProvider } from "../providers/wallet";
+import { getAssociatedTokenAddress } from "@/utils/spl-token";
 
 interface CreateTokenMetadata {
     name: string;

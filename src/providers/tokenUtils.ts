@@ -1,4 +1,6 @@
-import { getAccountInfo, getAssociatedTokenAddress } from "@solana/spl-token";
+
+
+import { getAccount, getAssociatedTokenAddress } from "@/utils/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
 
 export async function getTokenPriceInSol(tokenSymbol: string): Promise<number> {
@@ -16,11 +18,12 @@ async function getTokenBalance(
 ): Promise<number> {
     const tokenAccountAddress = await getAssociatedTokenAddress(
         tokenMintAddress,
-        walletPublicKey
+        walletPublicKey,
+        false
     );
 
     try {
-        const tokenAccount = await getAccount(connection, tokenAccountAddress);
+        const tokenAccount = await getAccount(connection, tokenAccountAddress, "confirmed");
         const tokenAmount = tokenAccount.amount as unknown as number;
         return tokenAmount;
     } catch (error) {

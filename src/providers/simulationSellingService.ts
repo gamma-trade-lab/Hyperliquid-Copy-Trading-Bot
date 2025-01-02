@@ -1,7 +1,6 @@
 import {
     TrustScoreDatabase,
-    TokenPerformance,
-    // TradePerformance,
+    type TokenPerformance,
     TokenRecommendation,
 } from "@elizaos/plugin-trustdb";
 import { Connection, PublicKey } from "@solana/web3.js";
@@ -12,7 +11,7 @@ import { IAgentRuntime } from "@elizaos/core";
 import { WalletProvider } from "./wallet.ts";
 import * as amqp from "amqplib";
 import { ProcessedTokenData } from "../types/token.ts";
-import { getWalletKey } from "../keypairUtils";
+import { getWalletKey } from "../utils/keypairUtils";
 
 interface SellDetails {
     sell_amount: number;
@@ -495,7 +494,12 @@ export class SimulationSellingService {
 
 // SellDecision interface
 interface SellDecision {
-    tokenPerformance: TokenPerformance;
+    tokenPerformance: {
+        tokenAddress: string;
+        symbol: string;
+        balance: number;
+        // Add other required properties from TokenPerformance
+    };
     amountToSell: number;
     sell_recommender_id: string | null;
 }

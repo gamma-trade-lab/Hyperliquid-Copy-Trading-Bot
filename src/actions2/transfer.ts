@@ -1,7 +1,4 @@
-import {
-    getAssociatedTokenAddress,
-    createTransferInstruction,
-} from "@solana/spl-token";
+
 import { elizaLogger, settings } from "@elizaos/core";
 
 import {
@@ -24,6 +21,7 @@ import {
 import { composeContext } from "@elizaos/core";
 import { getWalletKey } from "../utils/keypairUtils";
 import { generateObjectDeprecated } from "@elizaos/core";
+import { createTransferInstruction, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from "@/utils/spl-token";
 
 export interface TransferContent extends Content {
     tokenAddress: string;
@@ -166,24 +164,32 @@ export default {
             // Rest of the existing working code...
             const senderATA = getAssociatedTokenAddress(
                 mintPubkey,
-                senderKeypair.publicKey
+                senderKeypair.publicKey,
+                false
             );
             const recipientATA = getAssociatedTokenAddress(
                 mintPubkey,
-                recipientPubkey
+                recipientPubkey,
+                false
             );
 
             const instructions = [];
 
             const recipientATAInfo =
-                await connection.getAccountInfo(recipientATA);
+                await connection.getAccountInfo(await recipientATA);
             if (!recipientATAInfo) {
-                const { createAssociatedTokenAccountInstruction } =
-                    await import("@solana/spl-token");
                 instructions.push(
                     createAssociatedTokenAccountInstruction(
                         senderKeypair.publicKey,
-                        recipientATA,
+                        await recipientATA,
+                        recipientPubkey,
+                        mintPubkey
+                    )
+                );
+                instructions.push(
+                    createAssociatedTokenAccountInstruction(
+                        senderKeypair.publicKey,
+                        await recipientATA,
                         recipientPubkey,
                         mintPubkey
                     )
@@ -192,10 +198,12 @@ export default {
 
             instructions.push(
                 createTransferInstruction(
-                    senderATA,
-                    recipientATA,
+                    await senderATA,
+                    await recipientATA,
                     senderKeypair.publicKey,
-                    adjustedAmount
+                    adjustedAmount,
+                    [], // p0 argument
+                    PublicKey.default // TOKEN_PROGRAM_ID argument, replace with actual program ID if available
                 )
             );
 

@@ -27,13 +27,7 @@ import {
   toSetParamsEvent,
   toTradeEvent,
 } from "./events";
-import {
-  createAssociatedTokenAccountInstruction,
-  getAccount,
-  getAssociatedTokenAddress,
-  createAssociatedTokenAccount,
-  getAccountInfo,
-} from "@solana/spl-token";
+
 import { BondingCurveAccount } from "./bondingCurveAccount";
 import { BN } from "bn.js";
 import {
@@ -47,6 +41,8 @@ import {
 } from "./util";
 import { PumpFun, IDL } from "../IDL";
 import { fetch } from "undici";
+import { createAssociatedTokenAccountInstruction, getAccount, getAssociatedTokenAddress } from "@/utils/spl-token";
+
 
 const PROGRAM_ID = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
 const MPL_TOKEN_METADATA_PROGRAM_ID =

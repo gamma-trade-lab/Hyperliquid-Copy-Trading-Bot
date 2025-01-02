@@ -1,4 +1,4 @@
-import { getAssociatedTokenAddress } from "@solana/spl-token";
+
 import {
     BlockhashWithExpiryBlockHeight,
     Connection,
@@ -10,6 +10,7 @@ import {
     VersionedTransaction,
 } from "@solana/web3.js";
 import { settings } from "@elizaos/core";
+import { getAssociatedTokenAddress } from "@/utils/spl-token";
 
 const solAddress = settings.SOL_ADDRESS;
 const SLIPPAGE = settings.SLIPPAGE;

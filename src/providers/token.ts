@@ -13,10 +13,10 @@ import {
 } from "../types/token.ts";
 import NodeCache from "node-cache";
 import * as path from "path";
-import { toBN } from "../bignumber";
+import { toBN } from "../utils/bignumber";
 import { WalletProvider, Item } from "./wallet.ts";
 import { Connection } from "@solana/web3.js";
-import { getWalletKey } from "../keypairUtils.ts";
+import { getWalletKey } from "../utils/keypairUtils.ts";
 
 const PROVIDER_CONFIG = {
     BIRDEYE_API: "https://public-api.birdeye.so",
@@ -234,7 +234,7 @@ export class TokenProvider {
         } catch (error) {
             console.error(
                 "Error fetching token data from Codex:",
-                error.message
+                (error as Error).message
             );
             return {} as TokenCodex;
         }

@@ -152,8 +152,8 @@ export class TradingEngine extends EventEmitter {
     const outputAmount = JSBI.toNumber(route.outAmount);
     return {
       id: 'trade-id',
-      inputToken: route.inputMint.toBase58(),
-      outputToken: route.outputMint.toBase58(),
+      inputToken: route.marketInfos[0].inputMint.toBase58(),
+      outputToken: route.marketInfos[route.marketInfos.length - 1].outputMint.toBase58(),
       inputAmount,
       outputAmount,
       executionPrice: outputAmount / inputAmount,

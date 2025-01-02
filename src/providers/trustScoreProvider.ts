@@ -1,26 +1,105 @@
 import {
     ProcessedTokenData,
     TokenSecurityData,
-    // TokenTradeData,
-    // DexScreenerData,
-    // DexScreenerPair,
-    // HolderData,
 } from "../types/token.ts";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { getAssociatedTokenAddress } from "@solana/spl-token"; // Corrected import
 import { TokenProvider } from "./token.ts";
 import { WalletProvider } from "./wallet.ts";
 import { SimulationSellingService } from "./simulationSellingService.ts";
-import {
-    TrustScoreDatabase,
-    RecommenderMetrics,
-    TokenPerformance,
-    TradePerformance,
-    TokenRecommendation,
-} from "@elizaos/plugin-trustdb";
+import { TrustScoreDatabase } from "@elizaos/plugin-trustdb";
 import { settings } from "@elizaos/core";
 import { IAgentRuntime, Memory, Provider, State } from "@elizaos/core";
 import { v4 as uuidv4 } from "uuid";
+import { getAssociatedTokenAddress } from "@/utils/spl-token/accounts.ts";
+
+
+
+interface IRecommenderMetrics {
+    recommenderId: string;
+    trustScore: number;
+    totalRecommendations: number;
+    successfulRecs: number;
+    avgTokenPerformance: number;
+    riskScore: number;
+    consistencyScore: number;
+    virtualConfidence: number;
+    lastActiveDate: Date;
+    trustDecay: number;
+    lastUpdated: Date;
+}
+
+interface ITokenPerformance {
+    tokenAddress: string;
+    symbol: string;
+    priceChange24h: number;
+    volumeChange24h: number;
+    trade_24h_change: number;
+    liquidity: number;
+    liquidityChange24h: number;
+    holderChange24h: number;
+    rugPull: boolean;
+    isScam: boolean;
+    marketCapChange24h: number;
+    sustainedGrowth: boolean;
+    rapidDump: boolean;
+    suspiciousVolume: boolean;
+    validationTrust: number;
+    balance: number;
+    initialMarketCap: number;
+    lastUpdated: Date;
+}
+
+interface ITradePerformance {
+    token_address: string;
+    recommender_id: string;
+    buy_price: number;
+    sell_price: number;
+    buy_timeStamp: string;
+    sell_timeStamp: string;
+    buy_amount: number;
+    sell_amount: number;
+    buy_sol: number;
+    received_sol: number;
+    buy_value_usd: number;
+    sell_value_usd: number;
+    profit_usd: number;
+    profit_percent: number;
+    buy_market_cap: number;
+    sell_market_cap: number;
+    market_cap_change: number;
+    buy_liquidity: number;
+    sell_liquidity: number;
+    liquidity_change: number;
+    last_updated: string;
+    rapidDump: boolean;
+}
+
+interface ITokenRecommendation {
+    id: string;
+    recommenderId: string;
+    tokenAddress: string;
+    timestamp: Date;
+    initialMarketCap: number;
+    initialLiquidity: number;
+    initialPrice: number;
+}
+
+interface ITrustScoreDatabase {
+    getRecommenderMetrics(recommenderId: string): Promise<IRecommenderMetrics>;
+    updateRecommenderMetrics(metrics: IRecommenderMetrics): Promise<void>;
+    getOrCreateRecommenderWithTelegramId(telegramId: string): Promise<any>;
+    addTradePerformance(data: ITradePerformance, isSimulation: boolean): Promise<void>;
+    addTokenRecommendation(recommendation: ITokenRecommendation): Promise<void>;
+    upsertTokenPerformance(performance: ITokenPerformance): Promise<void>;
+    updateTokenBalance(tokenAddress: string, balance: number): Promise<void>;
+    getTokenBalance(tokenAddress: string): number;
+    addTransaction(transaction: any): Promise<void>;
+    getLatestTradePerformance(tokenAddress: string, recommenderId: string, isSimulation: boolean): Promise<ITradePerformance>;
+    updateTradePerformanceOnSell(tokenAddress: string, recommenderId: string, buyTimeStamp: string, sellDetails: any, isSimulation: boolean): Promise<void>;
+    getTokenPerformance(tokenAddress: string): ITokenPerformance;
+    calculateValidationTrust(tokenAddress: string): number;
+    getRecommendationsByDateRange(startDate: Date, endDate: Date): ITokenRecommendation[];
+}
 
 const Wallet = settings.MAIN_WALLET_ADDRESS;
 interface TradeData {
@@ -41,7 +120,7 @@ interface RecommenderData {
     trustScore: number;
     riskScore: number;
     consistencyScore: number;
-    recommenderMetrics: RecommenderMetrics; // Corrected type
+    recommenderMetrics: IRecommenderMetrics; // Updated type
 }
 
 interface TokenRecommendationSummary {
@@ -53,7 +132,7 @@ interface TokenRecommendationSummary {
 }
 export class TrustScoreManager {
     private tokenProvider: TokenProvider;
-    private trustScoreDb: TrustScoreDatabase; // Corrected type
+    private trustScoreDb: ITrustScoreDatabase; // Updated type
     private simulationSellingService: SimulationSellingService;
     private connection: Connection;
     private baseMint: PublicKey;
@@ -64,7 +143,7 @@ export class TrustScoreManager {
     constructor(
         runtime: IAgentRuntime,
         tokenProvider: TokenProvider,
-        trustScoreDb: TrustScoreDatabase
+        trustScoreDb: ITrustScoreDatabase  // Updated type
     ) {
         this.tokenProvider = tokenProvider;
         this.trustScoreDb = trustScoreDb;
@@ -86,7 +165,8 @@ export class TrustScoreManager {
         try {
             const tokenAta = await getAssociatedTokenAddress(
                 new PublicKey(recommenderWallet),
-                this.baseMint
+                this.baseMint,
+                false
             );
             const tokenBalInfo =
                 await this.connection.getTokenAccountBalance(tokenAta);
@@ -184,7 +264,7 @@ export class TrustScoreManager {
 
     async updateRecommenderMetrics(
         recommenderId: string,
-        tokenPerformance: TokenPerformance, // Corrected type
+        tokenPerformance: ITokenPerformance, // Updated type
         recommenderWallet: string
     ): Promise<void> {
         const recommenderMetrics =
@@ -350,7 +430,7 @@ export class TrustScoreManager {
         tokenAddress: string,
         recommenderId: string,
         data: TradeData
-    ): Promise<TradePerformance> { // Corrected type
+    ): Promise<ITradePerformance> { // Updated type
         const recommender =
             await this.trustScoreDb.getOrCreateRecommenderWithTelegramId(
                 recommenderId
@@ -622,7 +702,7 @@ export class TrustScoreManager {
                 acc[tokenAddress].push(recommendation);
                 return acc;
             },
-            {} as Record<string, Array<TokenRecommendation>> // Corrected type
+            {} as Record<string, Array<ITokenRecommendation>> // Updated type
         );
 
         const result = Object.keys(groupedRecommendations).map(

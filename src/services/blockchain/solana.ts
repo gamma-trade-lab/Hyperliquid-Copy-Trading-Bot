@@ -9,14 +9,10 @@ import {
     SystemProgram,
     LAMPORTS_PER_SOL
   } from '@solana/web3.js';
-  import { 
-    TOKEN_PROGRAM_ID,
-    createMint,
-    createTransferInstruction,
-    getOrCreateAssociatedTokenAccount,
-    mintTo
-  } from '@solana/spl-token';
+ 
   import { CONFIG } from '../../config/settings';
+import { createMint, createTransferInstruction, mintTo, TOKEN_PROGRAM_ID } from '@/utils/spl-token';
+import { getOrCreateAssociatedTokenAccount } from '@solana/spl-token/lib/types/actions/getOrCreateAssociatedTokenAccount';
   
   interface TokenConfig {
     name: string;

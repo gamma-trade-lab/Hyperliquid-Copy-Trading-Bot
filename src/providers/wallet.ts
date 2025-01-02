@@ -2,7 +2,7 @@ import { IAgentRuntime, Memory, Provider, State } from "@elizaos/core";
 import { Connection, PublicKey } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 import NodeCache from "node-cache";
-import { getWalletKey } from "../keypairUtils";
+import { getWalletKey } from "../utils/keypairUtils";
 
 // Provider configuration
 const PROVIDER_CONFIG = {
@@ -92,7 +92,7 @@ export class WalletProvider {
                 return data;
             } catch (error) {
                 console.error(`Attempt ${i + 1} failed:`, error);
-                lastError = error;
+                lastError = error as Error;
                 if (i < PROVIDER_CONFIG.MAX_RETRIES - 1) {
                     const delay = PROVIDER_CONFIG.RETRY_DELAY * Math.pow(2, i);
                     await new Promise((resolve) => setTimeout(resolve, delay));

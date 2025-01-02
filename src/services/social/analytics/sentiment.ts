@@ -31,6 +31,17 @@ interface AggregatedSentiment {
   trend: 'improving' | 'declining' | 'stable';
 }
 
+interface ResponseContext {
+  type: string;
+  metadata: Record<string, any>;
+}
+
+interface AIServiceRequest {
+  content: string;
+  context: ResponseContext;
+  platform: string;
+}
+
 export class SentimentAnalyzer extends EventEmitter {
   private aiService: AIService;
   private sentimentHistory: Map<string, ContentSentiment>;
@@ -60,8 +71,8 @@ export class SentimentAnalyzer extends EventEmitter {
         context: {
           type: 'sentiment_analysis',
           metadata
-        }
-      });
+        } as ResponseContext
+      } as AIServiceRequest);
 
       // Parse AI response into sentiment data
       const sentimentData = this.parseSentimentResponse(response);

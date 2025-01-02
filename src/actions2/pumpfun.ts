@@ -19,7 +19,7 @@ import {
 } from "@elizaos/core";
 
 import { walletProvider } from "../providers/wallet";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
+
 
 export interface CreateAndBuyContent extends Content {
     tokenMetadata: {
@@ -241,6 +241,7 @@ const promptConfirmation = async (): Promise<boolean> => {
 import * as fs from "fs";
 import * as path from "path";
 import { getWalletKey } from "../utils/keypairUtils";
+import { getAssociatedTokenAddress } from "@/utils/spl-token";
 
 const pumpfunTemplate = `Respond with a JSON markdown block containing only the extracted values. Use null for any values that cannot be determined.
 
