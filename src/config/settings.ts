@@ -38,7 +38,7 @@ export const CONFIG = {
         NETWORK: getRequiredEnvVar('NETWORK_TYPE', 'devnet') as NetworkType,
         RPC_URL: getRequiredEnvVar('RPC_ENDPOINT', 'https://api.devnet.solana.com'),
         PRIVATE_KEY: getRequiredEnvVar('SOLANA_PRIVATE_KEY'),
-        PUBLIC_KEY: getRequiredEnvVar('SOLANA_PUBLIC_KEY'), // Changed from SOLANA_PUBKEY
+        PUBKEY: getRequiredEnvVar('SOLANA_PUBLIC_KEY'), // Changed from SOLANA_PUBKEY
         TOKEN_SETTINGS: {
             NAME: getRequiredEnvVar('TOKEN_NAME', 'Meme Token'),
             SYMBOL: getRequiredEnvVar('TOKEN_SYMBOL', 'MEME'),
@@ -68,13 +68,14 @@ export const CONFIG = {
     // Social Media Settings
     SOCIAL: {
         TWITTER: {
+            USERNAME: process.env.TWITTER_USERNAME || '',
             tokens: {
-                appKey: getRequiredEnvVar('TWITTER_API_KEY'),
-                appSecret: getRequiredEnvVar('TWITTER_API_SECRET'),
-                accessToken: getRequiredEnvVar('TWITTER_ACCESS_TOKEN'),
-                accessSecret: getRequiredEnvVar('TWITTER_ACCESS_SECRET')
-            },
-            USERNAME: getRequiredEnvVar('TWITTER_USERNAME')
+                appKey: process.env.TWITTER_API_KEY || '',
+                appSecret: process.env.TWITTER_API_SECRET || '',
+                accessToken: process.env.TWITTER_ACCESS_TOKEN || '',
+                accessSecret: process.env.TWITTER_ACCESS_SECRET || '',
+                bearerToken: process.env.TWITTER_BEARER_TOKEN || ''  // Ensure bearer token is included
+            }
         },
         DISCORD: {
             TOKEN: getRequiredEnvVar('DISCORD_TOKEN'),
@@ -175,7 +176,7 @@ function validateConfig() {
 
     // Validate Solana public key
     try {
-        new PublicKey(CONFIG.SOLANA.PUBLIC_KEY);
+        new PublicKey(CONFIG.SOLANA.PUBKEY);
     } catch (error) {
         throw new Error('Invalid Solana public key format.');
     }

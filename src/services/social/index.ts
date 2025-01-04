@@ -17,7 +17,7 @@ export interface SocialConfig {
     guildId: string;
   };
   twitter: {
-    tokens: TwitterApiTokens;
+    tokens: TwitterApiTokens & { bearerToken: string; username: string }; // Ensure bearerToken and username are included
   };
 }
 
@@ -28,10 +28,12 @@ export class SocialService {
   constructor(config: SocialConfig) {
     if (config.twitter?.tokens) {
       const twitterConfig = {
-        appKey: config.twitter.tokens.appKey ?? '',
-        appSecret: config.twitter.tokens.appSecret ?? '',
+        apiKey: config.twitter.tokens.appKey ?? '',
+        apiSecret: config.twitter.tokens.appSecret ?? '',
         accessToken: config.twitter.tokens.accessToken ?? '',
-        accessSecret: config.twitter.tokens.accessSecret ?? ''
+        accessSecret: config.twitter.tokens.accessSecret ?? '',
+        bearerToken: config.twitter.tokens.bearerToken ?? '', // Include bearerToken
+        username: config.twitter.tokens.username ?? '' // Include username
       };
       
       this.twitterService = new TwitterService(twitterConfig, config.services.ai);
@@ -87,7 +89,7 @@ export class SocialService {
     switch (platform.toLowerCase()) {
       case 'twitter':
         if (this.twitterService) {
-          await this.twitterService.reply(messageId, content);
+          await this.twitterService.reply(messageId, content); // Ensure TwitterService has a reply method
         }
         break;
       case 'discord':

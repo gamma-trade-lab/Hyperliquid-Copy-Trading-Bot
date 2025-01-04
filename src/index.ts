@@ -1,21 +1,33 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-import { TwitterApi, TweetV2SingleStreamResult } from 'twitter-api-v2';
+import { TwitterApi } from 'twitter-api-v2';
 import { Client as DiscordClient, Message } from 'discord.js';
 import Groq from "groq-sdk";
 import { CONFIG } from './config/settings';
-import { elizaLogger } from "@ai16z/eliza";
 import { config } from 'dotenv';
-
+import { MemorySaver } from "@langchain/langgraph";
 // Import services
 import { SocialService } from './services/social';
 import { ContentUtils } from './utils/content';
 import { Parser } from './utils/parser';
 import { TradingService } from './services/blockchain/trading';
 import { AIService } from './services/ai';
+import { TwitterService } from './services/social/twitter';
 
 // Types
 import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext } from './services/blockchain/types';
 import { SocialMetrics } from './services/social';
+
+import {
+    IAgentRuntime,
+    elizaLogger} from "@ai16z/eliza";
+
+// Import mainCharacter from local file
+import { mainCharacter } from './mainCharacter';
+
+// Extend IAgentRuntime to include llm
+interface ExtendedAgentRuntime extends IAgentRuntime {
+    llm: Groq;
+}
 
 class MemeAgentInfluencer {
   private connection: Connection;
@@ -25,76 +37,217 @@ class MemeAgentInfluencer {
   private aiService: AIService;
   private socialService: SocialService;
   private tradingService: TradingService;
+  private twitterService: TwitterService;
   private tokenAddress: string;
   private isInitialized: boolean;
+  private twitterClient: TwitterApi;  // Add separate client for app-only auth
+  private appOnlyClient: TwitterApi;
+  private runtime: ExtendedAgentRuntime;
 
   constructor() {
-    this.connection = new Connection(CONFIG.SOLANA.RPC_URL);
-    this.groq = new Groq({ apiKey: CONFIG.AI.GROQ.API_KEY });
-    this.twitter = new TwitterApi(CONFIG.SOCIAL.TWITTER.tokens);
-    this.discord = new DiscordClient({
-      intents: ["GuildMessages", "DirectMessages", "MessageContent"]
-    });
-    
-    this.aiService = new AIService({
-      groqApiKey: CONFIG.AI.GROQ.API_KEY,
-      defaultModel: CONFIG.AI.GROQ.MODEL,
-      maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
-      temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
-    });
-
-    this.socialService = new SocialService({
-      services: {
-        ai: this.aiService
-      },
-      discord: {
-        token: CONFIG.SOCIAL.DISCORD.TOKEN,
-        guildId: CONFIG.SOCIAL.DISCORD.GUILD_ID
-      },
-      twitter: CONFIG.SOCIAL.TWITTER
-    });
-
-    this.tradingService = new TradingService(CONFIG.SOLANA.RPC_URL);
-    this.tokenAddress = '';
+    // Minimal initialization in constructor
     this.isInitialized = false;
+    this.tokenAddress = '';
   }
 
   async initialize(): Promise<void> {
-    if (this.isInitialized) return;
-    
     try {
-      elizaLogger.info('Initializing Meme Agent Influencer...');
+      console.log('Initializing JENNA...');
 
-      const tokenInfo = await this.createToken({
-        name: CONFIG.SOLANA.TOKEN_SETTINGS.NAME,
-        symbol: CONFIG.SOLANA.TOKEN_SETTINGS.SYMBOL,
-        decimals: CONFIG.SOLANA.TOKEN_SETTINGS.DECIMALS,
-        metadata: JSON.stringify(CONFIG.SOLANA.TOKEN_SETTINGS.METADATA)
-      });
+      // 1. Initialize LLM 
+      await this.initializeLLM();
 
-      this.tokenAddress = tokenInfo.mint;
-      elizaLogger.success('Token launched:', this.tokenAddress);
+      // 2. Initialize Twitter
+      await this.verifyAndInitialize();
 
+      // 3. Initialize Solana
+      await this.initializeSolana();
+
+      // 4. Initialize Services
       await this.initializeServices();
+
+      // 5. Start automation
       await this.startAutomation();
 
       this.isInitialized = true;
-      elizaLogger.success('Meme Agent Influencer initialized successfully!');
+      console.log('JENNA initialization complete');
+
     } catch (error) {
-      elizaLogger.error('Initialization failed:', error);
+      console.error('Failed to initialize JENNA:', error);
+      await this.cleanup();
       throw error;
     }
   }
 
-  private async createToken(tokenSettings: {
-    name: string;
-    symbol: string;
-    decimals: number;
-    metadata: string;
-  }): Promise<{ mint: string }> {
-    // Implement the logic to create a token and return its mint address
-    const mintAddress = 'some-mint-address'; // Replace with actual mint address
-    return { mint: mintAddress };
+  private async initializeLLM(): Promise<void> {
+    try {
+      const groqApiKey = process.env.GROQ_API_KEY;
+      if (!groqApiKey) {
+        throw new Error('GROQ API key not found');
+      }
+
+      this.groq = new Groq({ apiKey: groqApiKey });
+      this.runtime = {
+        llm: this.groq,
+        // Add other runtime properties as needed
+      } as ExtendedAgentRuntime;
+
+      this.aiService = new AIService({
+        groqApiKey,
+        defaultModel: CONFIG.AI.GROQ.MODEL,
+        maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
+        temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
+      });
+
+      console.log('LLM initialized successfully');
+    } catch (error) {
+      throw new Error(`Failed to initialize LLM: ${(error as Error).message}`);
+    }
+  }
+
+  private async initializeSolana(): Promise<void> {
+    try {
+      this.connection = new Connection(CONFIG.SOLANA.RPC_URL);
+      const version = await this.connection.getVersion();
+      console.log('Solana connection established:', version);
+
+      const publicKey = new PublicKey(CONFIG.SOLANA.PUBKEY);
+      const balance = await this.connection.getBalance(publicKey);
+      console.log('Wallet balance:', balance / 1e9, 'SOL');
+
+      // Initialize trading service
+      this.tradingService = new TradingService(CONFIG.SOLANA.RPC_URL);
+      
+      console.log('Solana connection initialized');
+    } catch (error) {
+      throw new Error(`Failed to initialize Solana: ${(error as Error).message}`);
+    }
+  }
+
+  async startAgent(): Promise<void> {
+    try {
+      // Initialize first
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      // Then start either chat or autonomous mode
+      const mode = await this.chooseMode();
+      
+      const agentExecutor = await this.initializeAgent();
+      
+      if (mode === "chat") {
+        await this.runChatMode(agentExecutor, {});
+      } else if (mode === "auto") {
+        await this.runAutonomousMode(agentExecutor, {});
+      }
+    } catch (error) {
+      console.error('Failed to start agent:', error);
+      await this.cleanup();
+      throw error;
+    }
+  }
+
+  public async verifyAndInitialize(): Promise<void> {
+    try {
+      const config = {
+        apiKey: process.env.TWITTER_API_KEY!,
+        apiSecret: process.env.TWITTER_API_SECRET!,
+        accessToken: process.env.TWITTER_ACCESS_TOKEN!,
+        accessSecret: process.env.TWITTER_ACCESS_SECRET!,
+        bearerToken: process.env.TWITTER_BEARER_TOKEN!
+      };
+
+      // Validate Twitter credentials
+      Object.entries(config).forEach(([key, value]) => {
+        if (!value) {
+          throw new Error(`Missing Twitter credential: ${key}`);
+        }
+      });
+
+      // Initialize app-only client first
+      this.appOnlyClient = new TwitterApi(config.bearerToken);
+
+      // Initialize user context client
+      this.twitter = new TwitterApi({
+        appKey: config.apiKey,
+        appSecret: config.apiSecret,
+        accessToken: config.accessToken,
+        accessSecret: config.accessSecret,
+      });
+
+      // Store both clients
+      this.twitterClient = this.twitter;
+
+      // Verify user credentials using user context client
+      const me = await this.twitter.v2.me();
+      elizaLogger.success(`Twitter credentials verified for @${me.data.username}`);
+
+      // Verify app-only credentials
+      await this.appOnlyClient.v2.tweets(['1']); // Simple test request
+      elizaLogger.success('App-only authentication verified');
+
+    } catch (error) {
+      elizaLogger.error('Twitter authentication error:', error);
+      throw new Error('Failed to initialize Twitter: ' + (error as Error).message);
+    }
+  }
+
+  private async setupTwitterStream(): Promise<void> {
+    try {
+      if (!this.appOnlyClient) {
+        throw new Error('App-only client not initialized');
+      }
+
+      // Set up stream using app-only client
+      const stream = await this.appOnlyClient.v2.searchStream({
+        'tweet.fields': ['referenced_tweets', 'author_id'],
+        expansions: ['referenced_tweets.id']
+      });
+
+      stream.autoReconnect = true;
+
+      stream.on('data', async (tweet) => {
+        try {
+          // Use regular client for replies
+          const sentiment = await this.aiService.analyzeSentiment(tweet.data.text);
+          if (sentiment > 0.5) {
+            const response = await this.aiService.generateResponse({
+              content: tweet.data.text,
+              platform: 'twitter',
+              author: tweet.data.author_id || 'unknown',
+              messageId: ''
+            });
+            // Use user context client for posting replies
+            await this.twitter.v2.reply(response, tweet.data.id);
+          }
+        } catch (error) {
+          elizaLogger.error('Error handling tweet:', error);
+        }
+      });
+
+      elizaLogger.success('Twitter stream setup completed');
+    } catch (error) {
+      elizaLogger.error('Error setting up Twitter stream:', error);
+      throw error;
+    }
+  }
+
+  private async cleanup(): Promise<void> {
+    try {
+      if (this.appOnlyClient) {
+        // Use appOnlyClient for cleaning up stream rules
+        await this.appOnlyClient.v2.updateStreamRules({ delete: { ids: ['*'] } });
+      }
+      if (this.discord) {
+        this.discord.destroy();
+      }
+      this.isInitialized = false;
+      console.log('Cleanup completed successfully');
+    } catch (error) {
+      console.error('Error during cleanup:', error);
+      throw error;
+    }
   }
 
   private async initializeServices(): Promise<void> {
@@ -104,10 +257,140 @@ class MemeAgentInfluencer {
 
       await this.setupMessageHandling();
       elizaLogger.success('Message handling initialized');
+
+      await this.setupTwitterRules();
+      elizaLogger.success('Twitter rules initialized');
+
+      await this.setupTwitterStream();
+      elizaLogger.success('Twitter stream initialized');
     } catch (error) {
       elizaLogger.error('Service initialization failed:', error);
       throw error;
     }
+  }
+
+  private async verifyTwitterCredentials(): Promise<void> {
+    try {
+      const me = await this.twitter.v2.me();
+      elizaLogger.success(`Twitter credentials verified for @${me.data.username}`);
+    } catch (error) {
+      elizaLogger.error('Twitter credentials verification failed:', error);
+      throw new Error('Failed to verify Twitter credentials');
+    }
+  }
+
+  async postTweet(content: string, options: { mediaUrls?: string[] } = {}): Promise<void> {
+    try {
+      elizaLogger.info('Preparing to post tweet...');
+      
+      let mediaIds: string[] = [];
+      if (options.mediaUrls?.length) {
+        mediaIds = await Promise.all(
+          options.mediaUrls.map(url => this.twitter.v1.uploadMedia(url))
+        );
+      }
+
+      const tweet = await this.twitter.v2.tweet({
+        text: content,
+        ...(mediaIds.length && { media: { media_ids: mediaIds.slice(0, 4) as [string] | [string, string] | [string, string, string] | [string, string, string, string] } })
+      });
+
+      elizaLogger.success('Tweet posted successfully:', tweet.data.id);
+    } catch (error) {
+      elizaLogger.error('Failed to post tweet:', error);
+      throw error;
+    }
+  }
+
+  // Add postTweetWithRetry method
+  async postTweetWithRetry(content: string, retries = 3): Promise<void> {
+    const baseWaitTime = 5000; // Start with 5 seconds
+    let lastError: any;
+    
+    for (let i = 0; i < retries; i++) {
+      try {
+        await this.twitter.v2.tweet({ text: content });
+        elizaLogger.success('Tweet posted successfully');
+        return;
+      } catch (error: any) {
+        lastError = error;
+        elizaLogger.error(`Failed to post tweet (attempt ${i + 1}):`, error);
+        await new Promise(resolve => setTimeout(resolve, baseWaitTime * (i + 1)));
+      }
+    }
+    
+    elizaLogger.error('Failed to post tweet after multiple attempts:', lastError);
+    throw lastError;
+  }
+
+  private async setupTwitterRules(): Promise<void> {
+    try {
+      // Ensure we have a valid bearer token
+      if (!process.env.TWITTER_BEARER_TOKEN) {
+        throw new Error('Twitter Bearer Token is required for stream rules');
+      }
+
+      // Use only the app-only client for stream rules
+      if (!this.appOnlyClient) {
+        this.appOnlyClient = new TwitterApi(process.env.TWITTER_BEARER_TOKEN);
+      }
+
+      const rules = await this.appOnlyClient.v2.streamRules();
+      
+      // Delete existing rules if any
+      if (rules.data?.length) {
+        await this.appOnlyClient.v2.updateStreamRules({
+          delete: { ids: rules.data.map(rule => rule.id) }
+        });
+      }
+
+      // Add new rules using app-only client
+      await this.appOnlyClient.v2.updateStreamRules({
+        add: [
+          { value: `@${CONFIG.SOCIAL.TWITTER.USERNAME}`, tag: 'mentions' },
+          { value: CONFIG.SOLANA.TOKEN_SETTINGS.SYMBOL, tag: 'token_mentions' }
+        ]
+      });
+
+      elizaLogger.success('Twitter rules setup completed');
+    } catch (error: any) {
+      // More specific error handling
+      if (error.code === 403) {
+        elizaLogger.error('Authentication error: Make sure you have the correct Bearer Token with appropriate permissions');
+      } else {
+        elizaLogger.error('Error setting up Twitter rules:', error);
+      }
+      throw error;
+    }
+  }
+
+  private scheduleTwitterContent(): void {
+    setInterval(async () => {
+      try {
+        const price = await this.getCurrentPrice();
+        const content = await this.aiService.generateResponse({
+          content: `Current ${CONFIG.SOLANA.TOKEN_SETTINGS.SYMBOL} price: ${price} SOL`,
+          platform: 'twitter',
+          author: '',
+          messageId: ''
+        });
+        
+        await this.postTweet(content);
+      } catch (error) {
+        elizaLogger.error('Error in scheduled Twitter content:', error);
+      }
+    }, CONFIG.AUTOMATION.CONTENT_GENERATION_INTERVAL);
+  }
+
+  private async createToken(_tokenSettings: {
+    name: string;
+    symbol: string;
+    decimals: number;
+    metadata: string;
+  }): Promise<{ mint: string }> {
+    // Implement the logic to create a token and return its mint address
+    const mintAddress = '9gxa9dZbWzju9wpDxsnTKusrN7SRGaxaLHq2JVXUa78H'; // Replace with actual mint address
+    return { mint: mintAddress };
   }
 
   private async setupMessageHandling(): Promise<void> {
@@ -139,47 +422,29 @@ class MemeAgentInfluencer {
     await this.setupTwitterStream();
   }
 
-  private async setupTwitterStream(): Promise<void> {
-    try {
-      const rules = await this.twitter.v2.streamRules();
-      if (!rules.data?.length) {
-        await this.twitter.v2.updateStreamRules({
-          add: [{ value: `@${CONFIG.SOCIAL.TWITTER.USERNAME}` }]
-        });
-      }
-
-      const stream = await this.twitter.v2.searchStream({
-        'tweet.fields': ['referenced_tweets', 'author_id'],
-        expansions: ['referenced_tweets.id']
-      });
-
-      stream.on('data', async (tweet: TweetV2SingleStreamResult) => {
-        try {
-          const sentiment = await this.aiService.analyzeSentiment(tweet.data.text);
-          if (sentiment > 0.5) {
-            const response = await this.aiService.generateResponse({
-              content: tweet.data.text,
-              platform: 'twitter',
-              author: tweet.data.author_id || 'unknown',
-              channel: tweet.data.id
-            });
-            await this.twitter.v2.reply(response, tweet.data.id);
-          }
-        } catch (error) {
-          elizaLogger.error('Error handling tweet:', error);
-        }
-      });
-    } catch (error) {
-      elizaLogger.error('Error setting up Twitter stream:', error);
-    }
-  }
-
   private async startAutomation(): Promise<void> {
     await Promise.all([
       this.startContentGeneration(),
       this.startMarketMonitoring(),
       this.startCommunityEngagement()
     ]);
+
+    // Schedule periodic AI tweets
+    const tweetChain = Array.isArray(mainCharacter.settings.chains) ? mainCharacter.settings.chains.find(chain => chain.type === 'tweet' && chain.enabled) : undefined;
+    const tweetInterval = tweetChain?.config?.interval ?? 1800000; // Default to 30 minutes
+
+    setInterval(async () => {
+      try {
+        const marketData = await this.tradingService.getMarketData(this.tokenAddress);
+        await this.postAITweet({
+          topic: CONFIG.SOLANA.TOKEN_SETTINGS.SYMBOL,
+          price: marketData.price,
+          volume: marketData.volume24h
+        });
+      } catch (error) {
+        elizaLogger.error('Error in automated tweet generation:', error);
+      }
+    }, tweetInterval);
   }
 
   private async startContentGeneration(): Promise<void> {
@@ -194,7 +459,8 @@ class MemeAgentInfluencer {
           }
         });
 
-        await this.socialService.send(content);
+        // Post to Twitter instead of using socialService
+        await this.postTweet(content);
       } catch (error) {
         elizaLogger.error('Content generation error:', error);
       }
@@ -308,21 +574,229 @@ class MemeAgentInfluencer {
           content: command.raw,
           platform: context.platform,
           author: context.author,
-          channel: context.channelId
+          messageId: ''
         });
+    }
+  }
+
+  async replyToTweet(tweetId: string, content: string): Promise<void> {
+    try {
+      await this.twitter.v2.reply(content, tweetId);
+      elizaLogger.success('Reply posted successfully');
+    } catch (error) {
+      elizaLogger.error('Failed to reply to tweet:', error);
+      throw error;
     }
   }
 
   async shutdown(): Promise<void> {
     try {
-      await this.twitter.v2.updateStreamRules({
-        delete: { ids: ['*'] }
-      });
+      if (this.appOnlyClient) {
+        // Use appOnlyClient for cleaning up stream rules
+        await this.appOnlyClient.v2.updateStreamRules({ delete: { ids: ['*'] } });
+      }
       this.discord.destroy();
       this.isInitialized = false;
       elizaLogger.success('Agent shutdown complete');
     } catch (error) {
       elizaLogger.error('Error during shutdown:', error);
+      throw error;
+    }
+  }
+
+  private async initializeAgent(): Promise<void> {
+    // Initialize LLM
+    const groqApiKey = process.env.GROQ_API_KEY;
+    const llm = new Groq({ apiKey: groqApiKey });
+
+    // Load Bearer Token
+    const twitterBearerToken = process.env.TWITTER_BEARER_TOKEN;
+    const twitterAccessToken = process.env.TWITTER_ACCESS_TOKEN;
+    const twitterAccessTokenSecret = process.env.TWITTER_ACCESS_SECRET;
+
+    if (!twitterBearerToken || !twitterAccessToken || !twitterAccessTokenSecret) {
+      throw new Error("Twitter Bearer Token, access token, or access token secret is missing. Please check your .env file.");
+    }
+
+    // Load OAuth 2.0 Client ID and Client Secret
+    const oauthClientId = process.env.OAUTH_CLIENT_ID;
+    const oauthClientSecret = process.env.OAUTH_CLIENT_SECRET;
+
+    if (!oauthClientId || !oauthClientSecret) {
+      throw new Error("OAuth Client ID or Client Secret is missing. Please check your .env file.");
+    }
+
+    // Store buffered conversation history in memory
+    const memory = new MemorySaver();
+
+    // Create and configure the agent with default system prompt
+    const defaultSystemPrompt = "You are an AI agent specialized in cryptocurrency and blockchain interactions. Help users understand and interact with blockchain technology.";
+    
+    const agent = await createReActAgent(
+      llm,
+      [], // Add tools as needed
+      memory,
+      defaultSystemPrompt // Use default prompt instead of mainCharacter.settings.systemPrompt
+    );
+
+    return agent;
+  }
+
+  private async runAutonomousMode(agentExecutor: any, config: any, interval = 10): Promise<void> {
+    console.log("Starting autonomous mode...");
+    while (true) {
+      try {
+        // Provide instructions autonomously
+        const thought = "Be creative and do something interesting on the blockchain. Choose an action or set of actions and execute it that highlights your abilities.";
+
+        // Run agent in autonomous mode
+        for await (const chunk of agentExecutor.stream({ messages: [{ content: thought }] }, config)) {
+          if (chunk.agent) {
+            console.log(chunk.agent.messages[0].content);
+          } else if (chunk.tools) {
+            console.log(chunk.tools.messages[0].content);
+          }
+          console.log("-------------------");
+        }
+
+        // Wait before the next action
+        await new Promise(resolve => setTimeout(resolve, interval * 1000));
+      } catch (error) {
+        console.log("Goodbye Agent!");
+        process.exit(0);
+      }
+    }
+  }
+
+  private async runChatMode(agentExecutor: any, config: any): Promise<void> {
+    console.log("Starting chat mode... Type 'exit' to end.");
+    while (true) {
+      try {
+        const userInput = await new Promise<string>(resolve => {
+          process.stdout.write("\nPrompt: ");
+          process.stdin.once('data', data => resolve(data.toString().trim()));
+        });
+
+        if (userInput.toLowerCase() === "exit") {
+          break;
+        }
+
+        // Run agent with the user's input in chat mode
+        for await (const chunk of agentExecutor.stream({ messages: [{ content: userInput }] }, config)) {
+          if (chunk.agent) {
+            console.log(chunk.agent.messages[0].content);
+          } else if (chunk.tools) {
+            console.log(chunk.tools.messages[0].content);
+          }
+          console.log("-------------------");
+        }
+      } catch (error) {
+        console.log("Goodbye Agent!");
+        process.exit(0);
+      }
+    }
+  }
+
+  private async chooseMode(): Promise<string> {
+    while (true) {
+      console.log("\nAvailable modes:");
+      console.log("1. chat    - Interactive chat mode");
+      console.log("2. auto    - Autonomous action mode");
+
+      const choice = await new Promise<string>(resolve => {
+        process.stdout.write("\nChoose a mode (enter number or name): ");
+        process.stdin.once('data', data => resolve(data.toString().trim().toLowerCase()));
+      });
+
+      if (choice === "1" || choice === "chat") {
+        return "chat";
+      } else if (choice === "2" || choice === "auto") {
+        return "auto";
+      }
+      console.log("Invalid choice. Please try again.");
+    }
+  }
+
+  async main(): Promise<void> {
+    try {
+      console.log("Starting Agent...");
+      const agentExecutor = await this.initializeAgent();
+
+      const mode = await this.chooseMode();
+      if (mode === "chat") {
+        await this.runChatMode(agentExecutor, {});
+      } else if (mode === "auto") {
+        await this.runAutonomousMode(agentExecutor, {});
+      }
+    } catch (error) {
+      console.error("Fatal error during initialization:", error);
+      process.exit(1);
+    }
+  }
+
+  // Add new method for AI tweet generation
+  private async generateTweetContent(context: any = {}): Promise<string> {
+    try {
+        const prompt = `Generate an engaging tweet about ${context.topic || 'cryptocurrency'} 
+                      that is informative and entertaining. Include relevant market metrics 
+                      if available. Max length: 280 characters.`;
+
+        const response = await this.runtime.llm.chat.completions.create({
+            messages: [{ role: 'user', content: prompt }],
+            model: 'mixtral-8x7b-32768',
+            max_tokens: 100,
+            temperature: 0.7
+        });
+
+        return response.choices[0].message.content.trim();
+    } catch (error) {
+        elizaLogger.error('Error generating tweet content:', error);
+        throw error;
+    }
+  }
+
+  // Add new method for AI-powered Twitter posting
+  async postAITweet(context: any = {}): Promise<void> {
+    try {
+        elizaLogger.info('Generating AI tweet...');
+        
+        // Generate tweet content
+        const content = await this.generateTweetContent(context);
+        
+        // Post tweet with retry logic
+        await this.postTweetWithRetry(content);
+        
+        elizaLogger.success('AI tweet posted successfully');
+    } catch (error) {
+        elizaLogger.error('Failed to post AI tweet:', error);
+        throw error;
+    }
+  }
+
+  async startTwitterBot(): Promise<void> {
+    try {
+      elizaLogger.info('Starting Twitter bot...');
+      
+      if (!this.twitterService) {
+        this.twitterService = new TwitterService({
+          apiKey: process.env.TWITTER_API_KEY!,
+          apiSecret: process.env.TWITTER_API_SECRET!,
+          accessToken: process.env.TWITTER_ACCESS_TOKEN!,
+          accessSecret: process.env.TWITTER_ACCESS_SECRET!,
+          bearerToken: process.env.TWITTER_BEARER_TOKEN!,
+          username: CONFIG.SOCIAL.TWITTER.USERNAME
+        }, this.aiService);
+        
+        await this.twitterService.initialize();
+      }
+      
+      // Use TwitterService's methods instead of direct implementation
+      await this.twitterService.startStream();
+      this.scheduleTwitterContent();
+      
+      elizaLogger.success('Twitter bot started successfully');
+    } catch (error) {
+      elizaLogger.error('Failed to start Twitter bot:', error);
       throw error;
     }
   }
@@ -367,13 +841,41 @@ async function main() {
       pubkey: CONFIG.SOLANA.PUBKEY
     });
 
+    // Log environment variables to verify they are loaded correctly
+    console.log('Twitter API Key:', process.env.TWITTER_API_KEY);
+    console.log('Twitter API Secret:', process.env.TWITTER_API_SECRET);
+    console.log('Twitter Access Token:', process.env.TWITTER_ACCESS_TOKEN);
+    console.log('Twitter Access Secret:', process.env.TWITTER_ACCESS_SECRET);
+    console.log('Twitter Bearer Token:', process.env.TWITTER_BEARER_TOKEN);
+
     // Initialize Solana connection
     const connection = await initializeSolanaConnection();
 
     // Check wallet balance
     await validateWalletBalance(connection);
 
-    console.log('Initialization complete!');
+    // Create and initialize the MemeAgentInfluencer
+    const agent = new MemeAgentInfluencer();
+    await agent.verifyAndInitialize();
+    
+    // Start Twitter bot functionality
+    await agent.startTwitterBot();
+    
+    elizaLogger.success('MemeAgent fully initialized and running!');
+
+    // Handle shutdown gracefully
+    process.on('SIGINT', async () => {
+      elizaLogger.info('Shutting down MemeAgent...');
+      await agent.shutdown();
+      process.exit(0);
+    });
+
+    process.on('SIGTERM', async () => {
+      elizaLogger.info('Shutting down MemeAgent...');
+      await agent.shutdown();
+      process.exit(0);
+    });
+
   } catch (error) {
     console.error('Fatal error during initialization:', error);
     process.exit(1);
@@ -385,6 +887,12 @@ main().catch((error) => {
   process.exit(1);
 });
 
+const agent = new MemeAgentInfluencer();
+agent.main().catch(error => {
+  console.error("Fatal error:", error);
+  process.exit(1);
+});
+
 export {
   MemeAgentInfluencer,
   type TokenInfo,
@@ -393,3 +901,57 @@ export {
   type AgentCommand,
   type CommandContext
 };
+
+function createReActAgent(llm: Groq, tools: any, memory: any, systemPrompt: string): Promise<any> {
+  try {
+    // Initialize the agent with provided components
+    const agent = {
+      llm,
+      tools,
+      memory,
+      systemPrompt,
+      
+      async stream(input: { messages: Array<{ content: string }> }) {
+        try {
+          // Process the input using LLM
+          const response = await llm.chat.completions.create({
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...input.messages.map(msg => ({ role: 'user' as const, content: msg.content, name: 'user' }))
+            ],
+            model: 'mixtral-8x7b-32768',
+            stream: true
+          });
+
+          // Store conversation in memory
+          await memory.save({
+            messages: input.messages,
+            response: response
+          });
+
+          // Return response stream
+          return {
+            async *[Symbol.asyncIterator]() {
+              for await (const chunk of response) {
+                yield {
+                  agent: {
+                    messages: [{ content: chunk.choices[0]?.delta?.content || '' }]
+                  }
+                };
+              }
+            }
+          };
+        } catch (error) {
+          console.error('Error in agent stream:', error);
+          throw error;
+        }
+      }
+    };
+
+    return Promise.resolve(agent);
+  } catch (error) {
+    console.error('Error creating ReAct agent:', error);
+    throw error;
+  }
+}
+

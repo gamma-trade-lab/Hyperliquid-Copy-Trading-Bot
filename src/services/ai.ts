@@ -8,6 +8,13 @@ interface AIServiceConfig {
     temperature: number;
   }
   
+  interface GenerateResponseParams {
+    content: string;
+    author: string;
+    platform: string;
+    messageId: string; // Add this property to the interface
+  }
+
   export class AIService {
     private config: AIServiceConfig;
   
@@ -74,7 +81,7 @@ interface AIServiceConfig {
       }
     }
   
-    async generateResponse(context: { content: string; author: string; channel: string; platform: string }): Promise<string> {
+    async generateResponse(params: GenerateResponseParams): Promise<string> {
       try {
         // Implement AI logic to generate a response
         return "Generated Response";
