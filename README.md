@@ -74,9 +74,8 @@ DISCORD_TOKEN=
 
 ## 🤝 Community & Support
 
-- [Discord](https://discord.gg/jenna) - Join our community
-- [Twitter](https://twitter.com/jennaAI) - Follow for updates
-- [Documentation](https://docs.jenna.ai) - Technical details
+- [Telegram](https://t.co/TNjpnrSCB7) - Join our community
+- [Twitter](https://x.com/jennamagent) - Follow for updates
 
 ## 🛡️ Security Features
 
