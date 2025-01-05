@@ -1,14 +1,46 @@
 import { MarketAction } from "@/config/constants";
 
+export interface LLMProvider {
+  chatCompletion(request: ChatRequest): Promise<ChatResponse>;
+}
+
+export interface ChatRequest {
+  messages: Array<{
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+  }>;
+  model: string;
+  temperature?: number;
+  max_tokens?: number;
+}
+
+export interface ChatResponse {
+  id: string;
+  object: string;
+  created: number;
+  choices: Array<{
+    message: {
+      role: 'system' | 'user' | 'assistant';
+      content: string;
+    };
+    finish_reason: string;
+  }>;
+}
+
+export interface Tweet {
+  id: string;
+  text: string;
+  author?: {
+    id: string;
+    username: string;
+  };
+}
+
 export interface MarketAnalysis {
   shouldTrade: boolean;
   confidence: number;
   action: 'BUY' | 'SELL' | 'HOLD';
-  metrics?: {
-    price: number;
-    volume24h: number;
-    marketCap: number;
-  };
+  metrics?: MarketData;
 }
 
 
@@ -30,63 +62,7 @@ export interface MarketData {
     topInfluencers: string[];
   }
 
-  export interface AIService {
-    generateResponse(params: {
-      content: string;
-      author: string;
-      channel: string;
-      platform: string;
-    }): Promise<string>;
-    generateMarketAnalysis(): Promise<string>;
-  }
   // src/services/ai/types.ts
-export type ChatMessage = {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-};
-
-export interface ChatRequest {
-  messages: ChatMessage[];
-  model: string;
-  temperature?: number;
-  max_tokens?: number;
-  stream?: boolean;
-}
-
-export interface ChatResponse {
-  id: string;
-  object: string;
-  created: number;
-  choices: Array<{
-    message: { role: string; content: string };
-    finish_reason: string;
-  }>;
-}
-
-export interface LLMProvider {
-  chatCompletion(request: ChatRequest): Promise<ChatResponse>;
-}
-
-export interface AIServiceConfig {
-  useDeepSeek?: boolean;
-  deepSeekApiKey?: string;
-  groqApiKey?: string;
-  defaultModel: string;
-  maxTokens: number;
-  temperature: number;
-}
-
-export interface Tweet {
-  id: string;
-  text: string;
-  author: string;
-  metrics?: {
-    retweets: number;
-    likes: number;
-    replies: number;
-  };
-}
-
 export interface AIService {
   generateResponse(params: {
     content: string;
@@ -97,9 +73,11 @@ export interface AIService {
   
   generateMarketUpdate(params: {
     action: MarketAction;
-    data: any;
+    data: MarketData;
     platform: string;
   }): Promise<string>;
+  
+  analyzeMarket(data: MarketData): Promise<MarketAnalysis>;
   
   shouldEngageWithContent(params: {
     text: string;
@@ -107,8 +85,30 @@ export interface AIService {
     platform: string;
   }): Promise<boolean>;
   
-  determineEngagementAction(tweet: Tweet): Promise<{
-    type: string;
+  determineEngagementAction(tweet: any): Promise<{
+    type: 'reply' | 'retweet' | 'like' | 'ignore';
     content?: string;
+    confidence?: number;
   }>;
+}
+
+export interface TweetGenerationError extends Error {
+  code: 'CONTENT_GENERATION_FAILED' | 'MARKET_DATA_INVALID' | 'RATE_LIMIT_EXCEEDED';
+  context?: any;
+}
+
+export interface TweetGenerationResult {
+  content: string;
+  metadata: {
+    generatedAt: Date;
+    context: {
+      marketCondition?: string;
+      topics?: string[];
+      style?: {
+        tone: 'bullish' | 'bearish' | 'neutral';
+        humor: number;
+        formality: number;
+      };
+    };
+  };
 }

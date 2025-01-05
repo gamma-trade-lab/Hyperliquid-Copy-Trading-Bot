@@ -15,6 +15,7 @@ import { AIService } from './services/ai';
 // Types
 import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext } from './services/blockchain/types';
 import { SocialMetrics } from './services/social';
+import { TwitterStreamHandler } from './services/social/TwitterStreamHandler';
 
 class MemeAgentInfluencer {
   private connection: Connection;
@@ -50,9 +51,9 @@ class MemeAgentInfluencer {
       },
       twitter: {
         credentials: {
-          username: CONFIG.SOCIAL.TWITTER.USERNAME,
-          password: process.env.TWITTER_PASSWORD!,
-          email: process.env.TWITTER_EMAIL!
+          username: CONFIG.SOCIAL.TWITTER.username,
+          password: CONFIG.SOCIAL.TWITTER.password,
+          email: CONFIG.SOCIAL.TWITTER.email
         }
       }
     });
@@ -144,8 +145,20 @@ class MemeAgentInfluencer {
 
   private async setupTwitterStream(): Promise<void> {
     try {
-      // TODO: Implement Twitter stream setup using agent-twitter-client
-      elizaLogger.info('Twitter stream setup will be implemented with agent-twitter-client');
+      // Get Twitter client from social service
+      const twitterClient = await this.socialService.getTwitterClient();
+      
+      if (twitterClient) {
+        // Initialize Twitter stream handler
+        const streamHandler = new TwitterStreamHandler(
+          twitterClient,
+          this.aiService
+        );
+        await streamHandler.initialize();
+        elizaLogger.success('Twitter stream handler initialized');
+      } else {
+        elizaLogger.warn('Twitter stream setup skipped - no Twitter client available');
+      }
     } catch (error) {
       elizaLogger.error('Error setting up Twitter stream:', error);
     }
@@ -223,16 +236,24 @@ class MemeAgentInfluencer {
   }
 
   private async analyzeMarket(): Promise<MarketAnalysis> {
-    const metrics = await this.tradingService.getMarketData(this.tokenAddress);
-    const aiAnalysis = await this.aiService.analyzeMarket(metrics);
-    
-    // Return a properly formatted MarketAnalysis object
-    return {
-      shouldTrade: aiAnalysis.shouldTrade,
-      confidence: aiAnalysis.confidence,
-      action: aiAnalysis.action,
-      metrics: aiAnalysis.metrics
-    };
+    try {
+      const metrics = await this.tradingService.getMarketData();
+      return await this.aiService.analyzeMarket(metrics);
+    } catch (error) {
+      console.error('Error analyzing market:', error);
+      return {
+        shouldTrade: false,
+        confidence: 0,
+        action: 'HOLD',
+        metrics: {
+          price: 0,
+          volume24h: 0,
+          marketCap: 0,
+          priceChange24h: 0,
+          topHolders: []
+        }
+      };
+    }
   }
 
   private async executeTrade(analysis: MarketAnalysis): Promise<TradeResult> {
@@ -278,7 +299,7 @@ class MemeAgentInfluencer {
         const price = await this.getCurrentPrice();
         return `Current price: ${price} SOL`;
       case 'stats':
-        const metrics = await this.tradingService.getMarketData(this.tokenAddress);
+        const metrics = await this.tradingService.getMarketData();
         return `24h Volume: ${metrics.volume24h}\nMarket Cap: ${metrics.marketCap}`;
       default:
         return await this.aiService.generateResponse({
@@ -319,7 +340,7 @@ async function initializeSolanaConnection() {
 async function validateWalletBalance(connection: Connection) {
   console.log('Checking wallet balance...');
   try {
-    const publicKey = new PublicKey(CONFIG.SOLANA.PUBLIC_KEY);
+    const publicKey = new PublicKey(CONFIG.SOLANA.PUBKEY);
     const balance = await connection.getBalance(publicKey);
     console.log('Wallet balance:', balance / 1e9, 'SOL');
     return balance;
@@ -339,7 +360,7 @@ async function main() {
     console.log('Configuration loaded:', {
       network: CONFIG.SOLANA.NETWORK,
       rpcUrl: CONFIG.SOLANA.RPC_URL,
-      pubkey: CONFIG.SOLANA.PUBLIC_KEY
+      pubkey: CONFIG.SOLANA.PUBKEY
     });
 
     // Initialize Solana connection

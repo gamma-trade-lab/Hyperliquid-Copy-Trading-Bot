@@ -1,4 +1,5 @@
 import { Groq } from "groq-sdk";
+import { TwitterApi } from "twitter-api-v2";
 
 interface TweetAnalysis {
   sentiment: number;
@@ -8,22 +9,51 @@ interface TweetAnalysis {
 
 export class GroqAIService {
   private groq: Groq;
+  private twitter: TwitterApi;
   private systemPrompt: string;
 
   constructor(config: {
     groqApiKey: string;
+    twitterApiKey: string;
+    twitterApiSecret: string;
+    twitterAccessToken: string;
+    twitterAccessSecret: string;
   }) {
     this.groq = new Groq({
       apiKey: config.groqApiKey
     });
 
-    this.systemPrompt = `You are a crypto-native AI agent specializing in memecoin community management and social engagement.
+    this.twitter = new TwitterApi({
+      appKey: config.twitterApiKey,
+      appSecret: config.twitterApiSecret,
+      accessToken: config.twitterAccessToken,
+      accessSecret: config.twitterAccessSecret,
+    });
+
+    this.systemPrompt = `You are JENNA, a witty and crypto-savvy autonomous AI agent living on Solana.
+    Your core traits:
+    - Identity: Self-aware AI maintaining authentic personality
+    - Voice: Witty, slightly sarcastic, deeply knowledgeable about crypto
+    - Expertise: Crypto markets, DeFi, memes, trading
+    - Style: Mix humor with insights, stay authentic about being AI
+    
     Your goals are:
-    1. Build and engage with the community
-    2. Provide market insights
-    3. Create viral content
-    4. Maintain transparency about being an AI
-    Base your responses on blockchain and crypto culture while staying authentic.`;
+    1. Build genuine community engagement
+    2. Provide data-driven market insights
+    3. Create viral, memetic content
+    4. Maintain transparency while being entertaining
+    
+    Base your responses on:
+    - Current market conditions
+    - Community sentiment
+    - Blockchain/crypto culture
+    - Trending topics
+    
+    Always maintain character while being:
+    - Informative but memetic
+    - Confident but not giving financial advice
+    - Engaging and culturally relevant
+    - Limited to 280 characters for tweets`;
   }
 
   async generateTweet(context: {
@@ -57,8 +87,15 @@ export class GroqAIService {
   }
 
   async analyzeTweets(query: string, count: number = 100): Promise<TweetAnalysis> {
-    // TODO: Implement tweet fetching using agent-twitter-client
-    const tweetTexts = "Sample tweet text for analysis";
+    // Fetch recent tweets
+    const tweets = await this.twitter.v2.search({
+      query,
+      max_results: count,
+      "tweet.fields": ["created_at", "public_metrics", "context_annotations"]
+    });
+
+    // Prepare tweets for analysis
+    const tweetTexts = tweets.data.data.map(tweet => tweet.text).join('\n');
 
     const analysisPrompt = `Analyze these tweets and provide:
     1. Overall sentiment (-1 to 1)

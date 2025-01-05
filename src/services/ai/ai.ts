@@ -17,7 +17,7 @@ import { Groq } from 'groq-sdk';
 import { randomBytes } from 'crypto';
 import { MarketAction } from '../../config/constants';
 import { DeepSeekProvider } from './providers/deepSeekProvider';
-import { LLMProvider, ChatRequest, ChatResponse, Tweet } from './types';
+import { LLMProvider, ChatRequest, ChatResponse, Tweet, MarketData, MarketAnalysis } from './types';
 import CONFIG from '../../config/settings';
 import personalityConfig from '../../config/personality';
 
@@ -37,17 +37,6 @@ interface ResponseContext {
   author?: string;
   channel?: string;
   marketCondition?: string;
-}
-
-interface MarketAnalysis {
-  shouldTrade: boolean;
-  confidence: number;
-  action: 'BUY' | 'SELL' | 'HOLD';
-  metrics: {
-    price: number;
-    volume24h: number;
-    marketCap: number;
-  };
 }
 
 interface MemeResponse {
@@ -151,17 +140,53 @@ export class AIService {
     return 0.7;
   }
 
-  async analyzeMarket(metrics: any): Promise<MarketAnalysis> {
-    return {
-      shouldTrade: true,
-      confidence: 0.8,
-      action: 'BUY',
-      metrics: {
-        price: metrics.price || 0,
-        volume24h: metrics.volume24h || 0,
-        marketCap: metrics.marketCap || 0
+  async analyzeMarket(metrics: MarketData): Promise<MarketAnalysis> {
+    try {
+      const prompt = `Analyze market data:
+        Price: ${metrics.price}
+        24h Volume: ${metrics.volume24h}
+        Market Cap: ${metrics.marketCap}
+        24h Price Change: ${metrics.priceChange24h}
+        
+        Determine if we should trade based on these metrics.
+        Response format: {
+          "shouldTrade": boolean,
+          "confidence": number (0-1),
+          "action": "BUY" | "SELL" | "HOLD",
+          "metrics": {...provided metrics}
+        }`;
+
+      const response = await this.provider.chatCompletion({
+        messages: [
+          { role: "system", content: this.personality.core.voice.tone },
+          { role: "user", content: prompt }
+        ],
+        model: this.config.defaultModel,
+        temperature: 0.3,
+        max_tokens: 150
+      });
+
+      const content = response.choices[0].message.content;
+      if (!content) {
+        throw new Error('Response content is null');
       }
-    };
+
+      const analysis = JSON.parse(content);
+      return {
+        shouldTrade: analysis.shouldTrade,
+        confidence: analysis.confidence,
+        action: analysis.action,
+        metrics: metrics
+      };
+    } catch (error) {
+      console.error('Error analyzing market:', error);
+      return {
+        shouldTrade: false,
+        confidence: 0,
+        action: 'HOLD',
+        metrics: metrics
+      };
+    }
   }
 
   async generateMemeContent(prompt?: string): Promise<MemeResponse> {
