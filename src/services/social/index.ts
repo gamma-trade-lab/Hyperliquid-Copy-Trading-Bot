@@ -1,18 +1,9 @@
-import { TwitterService } from './twitter';
+import { TwitterService, TwitterConfig } from './twitter';
 import { DiscordService } from './discord';
 import { TwitterApiTokens } from 'twitter-api-v2';
 import { AgentTwitterClientService } from './agentTwitterClient.js';
 import { AIService } from '../ai/ai';
 import { MarketData } from '../../types/market';
-
-interface TwitterConfig {
-  credentials: {
-    username: string;
-    password: string;
-    email: string;
-  };
-  aiService?: AIService;
-}
 
 export interface SocialMetrics {
   followers: number;
@@ -66,12 +57,18 @@ export class SocialService {
       this.twitterService = new TwitterService(twitterConfig);
     }
 
-    if (config.discord) {
-      this.discordService = new DiscordService({
-        token: config.discord.token,
-        guildId: config.discord.guildId,
-        aiService: config.services.ai
-      });
+    // Discord service initialization is optional
+    if (config.discord?.token && config.discord?.guildId) {
+      try {
+        this.discordService = new DiscordService({
+          token: config.discord.token,
+          guildId: config.discord.guildId,
+          aiService: config.services.ai
+        });
+      } catch (error) {
+        console.warn('Failed to initialize Discord service:', error);
+        // Continue without Discord
+      }
     }
   }
 

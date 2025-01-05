@@ -1,5 +1,13 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-import { Client as DiscordClient, Message } from 'discord.js';
+// Discord imports are optional
+let DiscordClient, Message;
+try {
+  const discord = await import('discord.js');
+  DiscordClient = discord.Client;
+  Message = discord.Message;
+} catch (error) {
+  console.warn('Discord.js not available:', error);
+}
 import Groq from "groq-sdk";
 import { CONFIG } from './config/settings';
 import { elizaLogger } from "@ai16z/eliza";

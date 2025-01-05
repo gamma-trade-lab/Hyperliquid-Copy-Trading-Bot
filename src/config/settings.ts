@@ -14,10 +14,9 @@ console.log('Loaded .env file from:', process.cwd() + '/.env');
 const requiredEnvVars = [
     'SOLANA_PRIVATE_KEY',
     'GROQ_API_KEY',
-    'TWITTER_API_KEY',
+    'TWITTER_USERNAME',
     'TWITTER_PASSWORD',
-    'TWITTER_EMAIL',
-    'DISCORD_TOKEN'
+    'TWITTER_EMAIL'
 ];
 
 for (const envVar of requiredEnvVars) {
@@ -81,16 +80,16 @@ export const CONFIG = {
             email: getRequiredEnvVar('TWITTER_EMAIL')
         },
         DISCORD: {
-            TOKEN: getRequiredEnvVar('DISCORD_TOKEN'),
-            GUILD_ID: getRequiredEnvVar('DISCORD_GUILD_ID'),
-            COMMAND_PREFIX: getRequiredEnvVar('DISCORD_COMMAND_PREFIX')
+            TOKEN: process.env.DISCORD_TOKEN || '',
+            GUILD_ID: process.env.DISCORD_GUILD_ID || '',
+            COMMAND_PREFIX: process.env.DISCORD_COMMAND_PREFIX || '!'
         }
     },
 
     AUTOMATION: {
-        CONTENT_GENERATION_INTERVAL: parseInt(getRequiredEnvVar('CONTENT_GENERATION_INTERVAL')),
-        MARKET_MONITORING_INTERVAL: parseInt(getRequiredEnvVar('MARKET_MONITORING_INTERVAL')),
-        COMMUNITY_ENGAGEMENT_INTERVAL: parseInt(getRequiredEnvVar('COMMUNITY_ENGAGEMENT_INTERVAL'))
+        CONTENT_GENERATION_INTERVAL: parseInt(process.env.CONTENT_GENERATION_INTERVAL || '300000'), // 5 minutes default
+        MARKET_MONITORING_INTERVAL: parseInt(process.env.MARKET_MONITORING_INTERVAL || '60000'),    // 1 minute default
+        COMMUNITY_ENGAGEMENT_INTERVAL: parseInt(process.env.COMMUNITY_ENGAGEMENT_INTERVAL || '900000') // 15 minutes default
     },
 
     // Market Analysis Settings
@@ -169,7 +168,7 @@ function isValidPrivateKey(key: string): boolean {
 validateConfig();
 validateSolanaConfig({
   ...CONFIG.SOLANA,
-  PUBLIC_KEY: CONFIG.SOLANA.PUBLIC_KEY,
+  PUBKEY: CONFIG.SOLANA.PUBKEY,
 });
 
 export default CONFIG;
@@ -226,9 +225,7 @@ function validateConfig() {
     if (!CONFIG.SOCIAL.TWITTER.email) {
         throw new Error('Invalid Twitter email.');
     }
-    if (!CONFIG.SOCIAL.DISCORD.GUILD_ID) {
-        throw new Error('Invalid Discord guild ID.');
-    }
+    // Discord validation removed as it's optional
 
     // Validate automation intervals
     if (isNaN(CONFIG.AUTOMATION.CONTENT_GENERATION_INTERVAL) || CONFIG.AUTOMATION.CONTENT_GENERATION_INTERVAL <= 0) {
