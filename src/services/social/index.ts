@@ -17,7 +17,11 @@ export interface SocialConfig {
     guildId: string;
   };
   twitter: {
-    tokens: TwitterApiTokens;
+    credentials: {
+      username: string;
+      password: string;
+      email: string;
+    };
   };
 }
 
@@ -26,15 +30,17 @@ export class SocialService {
   private discordService?: DiscordService;
 
   constructor(config: SocialConfig) {
-    if (config.twitter?.tokens) {
+    if (config.twitter?.credentials) {
       const twitterConfig = {
-        appKey: config.twitter.tokens.appKey ?? '',
-        appSecret: config.twitter.tokens.appSecret ?? '',
-        accessToken: config.twitter.tokens.accessToken ?? '',
-        accessSecret: config.twitter.tokens.accessSecret ?? ''
+        credentials: {
+          username: config.twitter.credentials.username,
+          password: config.twitter.credentials.password,
+          email: config.twitter.credentials.email
+        },
+        aiService: config.services.ai
       };
       
-      this.twitterService = new TwitterService(twitterConfig, config.services.ai);
+      this.twitterService = new TwitterService(twitterConfig);
     }
 
     if (config.discord) {
