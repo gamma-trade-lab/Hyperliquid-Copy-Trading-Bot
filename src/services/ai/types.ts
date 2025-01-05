@@ -40,6 +40,37 @@ export interface MarketData {
     generateMarketAnalysis(): Promise<string>;
   }
   // src/services/ai/types.ts
+export interface ChatRequest {
+  messages: { role: string; content: string }[];
+  model: string;
+  temperature?: number;
+  max_tokens?: number;
+  stream?: boolean;
+}
+
+export interface ChatResponse {
+  id: string;
+  object: string;
+  created: number;
+  choices: Array<{
+    message: { role: string; content: string };
+    finish_reason: string;
+  }>;
+}
+
+export interface LLMProvider {
+  chatCompletion(request: ChatRequest): Promise<ChatResponse>;
+}
+
+export interface AIServiceConfig {
+  useDeepSeek?: boolean;
+  deepSeekApiKey?: string;
+  groqApiKey?: string;
+  defaultModel: string;
+  maxTokens: number;
+  temperature: number;
+}
+
 export interface AIService {
   generateResponse(params: {
     content: string;
