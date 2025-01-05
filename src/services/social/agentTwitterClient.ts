@@ -50,8 +50,15 @@ export class AgentTwitterClientService {
 
         console.log(`Attempting login with username: ${this.username}`);
         
+        // Set essential cookies for authentication
         await this.scraper.withCookie('att=1;');
         await this.scraper.withCookie('lang=en;');
+        
+        console.log('Setting up authentication with credentials:', {
+          username: !!this.username,
+          email: !!this.email,
+          hasPassword: !!this.password
+        });
         
         await this.scraper.login(
           this.username,
@@ -83,10 +90,24 @@ export class AgentTwitterClientService {
         
         const errorObj = error as any;
         if (errorObj?.errors?.[0]?.code === 399) {
-          console.log('Twitter anti-automation check triggered (ACID challenge). Waiting longer...');
-          await new Promise(resolve => setTimeout(resolve, 15000 + Math.random() * 15000));
+          console.log('Twitter ACID challenge detected. Details:', {
+            code: errorObj?.errors?.[0]?.code,
+            message: errorObj?.errors?.[0]?.message,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Handle ACID challenge with longer delays
+          const waitTime = 30000 + Math.random() * 30000;
+          console.log(`Waiting ${Math.round(waitTime)}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          
+          console.log('Clearing cookies and preparing fresh session...');
           await this.scraper.clearCookies();
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          
+          // Set essential cookies
+          await this.scraper.withCookie('att=1;');
+          await this.scraper.withCookie('lang=en;');
         } else if (errorObj?.errors?.[0]?.code === 366) {
           console.log('Missing data error. Retrying with clean session...');
           await this.scraper.clearCookies();
