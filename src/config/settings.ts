@@ -70,10 +70,10 @@ export const CONFIG = {
     SOCIAL: {
         TWITTER: {
             tokens: {
-                appKey: getRequiredEnvVar('TWITTER_API_KEY'),
-                appSecret: getRequiredEnvVar('TWITTER_API_SECRET'),
-                accessToken: getRequiredEnvVar('TWITTER_ACCESS_TOKEN'),
-                accessSecret: getRequiredEnvVar('TWITTER_ACCESS_SECRET')
+                appKey: process.env.TWITTER_API_KEY || '',
+                appSecret: process.env.TWITTER_API_SECRET || '',
+                accessToken: process.env.TWITTER_ACCESS_TOKEN || '',
+                accessSecret: process.env.TWITTER_ACCESS_SECRET || ''
             },
             username: getRequiredEnvVar('TWITTER_USERNAME'),
             password: getRequiredEnvVar('TWITTER_PASSWORD'),
@@ -215,17 +215,12 @@ function validateConfig() {
         throw new Error('Invalid AI default temperature.');
     }
 
-    // Validate social media settings
-    if (!CONFIG.SOCIAL.TWITTER.username) {
-        throw new Error('Invalid Twitter username.');
+    // Validate Twitter credentials
+    const { username, password, email } = CONFIG.SOCIAL.TWITTER;
+    if (!username || !password || !email) {
+        throw new Error('Missing required Twitter credentials');
     }
-    if (!CONFIG.SOCIAL.TWITTER.password) {
-        throw new Error('Invalid Twitter password.');
-    }
-    if (!CONFIG.SOCIAL.TWITTER.email) {
-        throw new Error('Invalid Twitter email.');
-    }
-    // Discord validation removed as it's optional
+    // Discord is optional, no validation needed
 
     // Validate automation intervals
     if (isNaN(CONFIG.AUTOMATION.CONTENT_GENERATION_INTERVAL) || CONFIG.AUTOMATION.CONTENT_GENERATION_INTERVAL <= 0) {
