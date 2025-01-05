@@ -1,5 +1,13 @@
 import { MarketAction } from "@/config/constants";
 
+export interface AIServiceConfig {
+  useDeepSeek: boolean;
+  deepSeekApiKey: string;
+  defaultModel: string;
+  maxTokens: number;
+  temperature: number;
+}
+
 export interface LLMProvider {
   chatCompletion(request: ChatRequest): Promise<ChatResponse>;
 }

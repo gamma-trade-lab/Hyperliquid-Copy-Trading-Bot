@@ -34,7 +34,7 @@ class MemeAgentInfluencer {
   private connection: Connection;
   private groq: Groq;
   private twitterStreamHandler?: TwitterStreamHandler;
-  private discord: DiscordClient;
+  private discord?: typeof DiscordClient;
   private aiService: AIService;
   public socialService: SocialService;
   private tradingService: TradingService;
@@ -44,9 +44,16 @@ class MemeAgentInfluencer {
   constructor() {
     this.connection = new Connection(CONFIG.SOLANA.RPC_URL);
     this.groq = new Groq({ apiKey: CONFIG.AI.GROQ.API_KEY });
-    this.discord = new DiscordClient({
-      intents: ["GuildMessages", "DirectMessages", "MessageContent"]
-    });
+    // Discord is optional
+    if (CONFIG.SOCIAL.DISCORD.TOKEN) {
+      try {
+        this.discord = new DiscordClient({
+          intents: ["GuildMessages", "DirectMessages", "MessageContent"]
+        });
+      } catch (error) {
+        console.warn('Failed to initialize Discord client:', error);
+      }
+    }
     
     this.aiService = new AIService({
       groqApiKey: CONFIG.AI.GROQ.API_KEY,
@@ -55,12 +62,11 @@ class MemeAgentInfluencer {
       temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
     });
 
-    // Initialize social service
     // Initialize social service with Twitter client
     const twitterClient = new AgentTwitterClientService(
-      process.env.twitter_account_Twitter_username || '',
-      process.env.twitter_account_Twitter_password || '',
-      process.env.twitter_account_Twitter_email || '',
+      CONFIG.SOCIAL.TWITTER.username,
+      CONFIG.SOCIAL.TWITTER.password,
+      CONFIG.SOCIAL.TWITTER.email,
       this.aiService
     );
     
@@ -139,8 +145,10 @@ class MemeAgentInfluencer {
   }
 
   private async setupMessageHandling(): Promise<void> {
-    this.discord.on('messageCreate', async (message: Message) => {
-      if (message.author.bot) return;
+    // Setup Discord message handling if available
+    if (this.discord) {
+      this.discord.on('messageCreate', async (message: typeof Message) => {
+        if (message.author.bot) return;
 
       try {
         const parsedCommand = Parser.parseCommand(message.content);
@@ -162,7 +170,8 @@ class MemeAgentInfluencer {
         elizaLogger.error('Error handling Discord command:', error);
         await message.reply('Sorry, there was an error processing your command.');
       }
-    });
+      });
+    }
 
     await this.setupTwitterStream();
   }
@@ -475,7 +484,7 @@ async function initializeSolanaConnection() {
 async function validateWalletBalance(connection: Connection) {
   console.log('Checking wallet balance...');
   try {
-    const publicKey = new PublicKey(CONFIG.SOLANA.PUBKEY);
+    const publicKey = new PublicKey(CONFIG.SOLANA.PUBLIC_KEY);
     const balance = await connection.getBalance(publicKey);
     console.log('Wallet balance:', balance / 1e9, 'SOL');
     return balance;
@@ -545,7 +554,7 @@ async function main() {
     console.log('Configuration loaded:', {
       network: CONFIG.SOLANA.NETWORK,
       rpcUrl: CONFIG.SOLANA.RPC_URL,
-      pubkey: CONFIG.SOLANA.PUBKEY
+      pubkey: CONFIG.SOLANA.PUBLIC_KEY
     });
 
     // Initialize Solana connection

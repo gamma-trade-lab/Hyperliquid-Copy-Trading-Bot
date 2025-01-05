@@ -1,7 +1,7 @@
 // src/actions/uploadToIpfs.ts
 
 import fs from 'fs';
-import { FleekSdk, PersonalAccessTokenService } from '@fleekxyz/sdk';
+import { FleekSdk, PersonalAccessTokenService } from '@fleek-platform/sdk';
 import dotenv from 'dotenv';
 import { TokenMetadata } from './metadata';
 

@@ -27,7 +27,7 @@ describe('TweetGenerator', () => {
 
       const tweet = await generator.generateTweetContent(context);
       expect(tweet).toBeDefined();
-      expect(tweet.length).toBeLessThanOrEqual(280);
+      expect(tweet.content.length).toBeLessThanOrEqual(280);
     });
 
     it('should generate tweet content without market data', async () => {
@@ -42,7 +42,7 @@ describe('TweetGenerator', () => {
 
       const tweet = await generator.generateTweetContent(context);
       expect(tweet).toBeDefined();
-      expect(tweet.length).toBeLessThanOrEqual(280);
+      expect(tweet.content.length).toBeLessThanOrEqual(280);
     });
   });
 
