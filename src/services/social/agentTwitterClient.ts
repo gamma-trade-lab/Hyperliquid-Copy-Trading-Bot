@@ -1,14 +1,18 @@
 import { Scraper } from 'agent-twitter-client';
 import { TwitterStreamEvent } from '../../types/twitter';
+import { TwitterStreamHandler } from './TwitterStreamHandler';
+import { AIService } from '../ai/ai';
 
 export class AgentTwitterClientService {
   private scraper: Scraper | null = null;
   private isInitialized = false;
+  private streamHandler: TwitterStreamHandler | null = null;
 
   constructor(
     private readonly username: string,
     private readonly password: string,
-    private readonly email: string
+    private readonly email: string,
+    private readonly aiService: AIService
   ) {}
 
   public async initialize(): Promise<void> {
@@ -20,6 +24,9 @@ export class AgentTwitterClientService {
         this.password,
         this.email
       );
+      
+      // Initialize stream handler
+      this.streamHandler = new TwitterStreamHandler(this, this.aiService);
       
       this.isInitialized = true;
       console.log('AgentTwitterClientService initialized successfully');
