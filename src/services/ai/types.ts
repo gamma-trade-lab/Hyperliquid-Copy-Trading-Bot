@@ -65,3 +65,24 @@ export interface AIService {
     content?: string;
   }>;
 }
+
+export interface TweetGenerationError extends Error {
+  code: 'CONTENT_GENERATION_FAILED' | 'MARKET_DATA_INVALID' | 'RATE_LIMIT_EXCEEDED';
+  context?: any;
+}
+
+export interface TweetGenerationResult {
+  content: string;
+  metadata: {
+    generatedAt: Date;
+    context: {
+      marketCondition?: string;
+      topics?: string[];
+      style?: {
+        tone: 'bullish' | 'bearish' | 'neutral';
+        humor: number;
+        formality: number;
+      };
+    };
+  };
+}
