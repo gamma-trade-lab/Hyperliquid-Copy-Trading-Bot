@@ -18,6 +18,10 @@ export class AgentTwitterClientService {
     private readonly aiService: AIService
   ) {}
 
+  private getSanitizedUsername(): string {
+    return this.username.startsWith('@') ? this.username.substring(1) : this.username;
+  }
+
   private async loadCookies(): Promise<boolean> {
     try {
       if (!this.scraper) return false;
@@ -48,7 +52,7 @@ export class AgentTwitterClientService {
         await this.scraper.clearCookies();
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        console.log(`Attempting login with username: ${this.username}`);
+        console.log(`Attempting login with username: ${this.getSanitizedUsername()}`);
         
         // Set essential cookies for authentication
         await this.scraper.withCookie('att=1;');
@@ -61,7 +65,7 @@ export class AgentTwitterClientService {
         });
         
         await this.scraper.login(
-          this.username,
+          this.getSanitizedUsername(),
           this.password,
           this.email
         );
