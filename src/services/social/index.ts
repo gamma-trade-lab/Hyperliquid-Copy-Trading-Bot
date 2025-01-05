@@ -176,6 +176,6 @@ export class SocialService {
 export { TwitterService } from './twitter';
 export { DiscordService } from './discord';
 export { AgentTwitterClientService } from './agentTwitterClient.js';
-export * from './twitter.d';
+export * from './twitter.types';
 export * from './agentTwitterClient.types';
 export default SocialService;
