@@ -62,9 +62,12 @@ importers:
       '@solana/web3.js':
         specifier: ^1.87.6
         version: 1.87.6(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      agent-twitter-client:
+        specifier: ^0.0.18
+        version: 0.0.18(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       axios:
         specifier: ^1.7.9
-        version: 1.7.9
+        version: 1.7.9(debug@4.4.0)
       better-sqlite3:
         specifier: ^11.7.0
         version: 11.7.0
@@ -2171,6 +2174,34 @@ packages:
   '@remusao/trie@1.5.0':
     resolution: {integrity: sha512-UX+3utJKgwCsg6sUozjxd38gNMVRXrY4TNX9VvCdSrlZBS1nZjRPi98ON3QjRAdf6KCguJFyQARRsulTeqQiPg==}
 
+  '@roamhq/wrtc-darwin-arm64@0.8.0':
+    resolution: {integrity: sha512-OtV2KWO7zOG3L8TF3KCt9aucynVCD/ww2xeXXgg+FLkya3ca0uzehN8EQJ3BL4tkInksbFJ2ssyu9cehfJ3ZuA==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@roamhq/wrtc-darwin-x64@0.8.0':
+    resolution: {integrity: sha512-VY7Vzt/SDDDCpW//h8GW9bOZrOr8gWXPZVD9473ypl4jyBIoO57yyLbHzd1G0vBUkS6szsHlQCz1WwpI30YL+g==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@roamhq/wrtc-linux-arm64@0.8.1':
+    resolution: {integrity: sha512-FBJLLazlWkGQUXaokC/rTbrUQbb0CNFYry52fZGstufrGLTWu+g4HcwXdVvxh1tnVtVMvkQGk+mlOL52sCxw0A==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@roamhq/wrtc-linux-x64@0.8.1':
+    resolution: {integrity: sha512-I9oWG7b4uvWO1IOR/aF34n+ID6TKVuSs0jd19h5KdhfRtw7FFh9xxuwN9rONPxLVa6fS0q+MCZgAf8Scz89L8Q==}
+    cpu: [x64]
+    os: [linux]
+
+  '@roamhq/wrtc-win32-x64@0.8.0':
+    resolution: {integrity: sha512-R2fxl41BLWPiP4eaTHGLzbbVvRjx1mV/OsgINCvawO7Hwz5Zx9I45+Fhrw3hd4n5amIeSG9VIF7Kz8eeTFXTGQ==}
+    cpu: [x64]
+    os: [win32]
+
+  '@roamhq/wrtc@0.8.0':
+    resolution: {integrity: sha512-C0V/nqc4/2xzORI5qa4mIeN/8UO3ywN1kInrJ9u6GljFx0D18JMUJEqe8yYHa61RrEeoWN3PKdW++k8TocSx/A==}
+
   '@rollup/plugin-commonjs@28.0.2':
     resolution: {integrity: sha512-BEFI2EDqzl+vA1rl97IDRZ61AIwGH093d9nz8+dThxJNH8oSoB7MjWvPCX3dkaK1/RCJ/1v/R1XB15FuSs0fQw==}
     engines: {node: '>=16.0.0 || 14 >= 14.17'}
@@ -2409,6 +2440,9 @@ packages:
 
   '@sideway/pinpoint@2.0.0':
     resolution: {integrity: sha512-RNiOoTPkptFtSVzQevY/yWtZwf/RxyVnPy/OcA9HBM3MlGDnBEYL5B41H0MTn0Uec8Hi+2qUtTfG2WWZBmMejQ==}
+
+  '@sinclair/typebox@0.32.35':
+    resolution: {integrity: sha512-Ul3YyOTU++to8cgNkttakC0dWvpERr6RYoHO2W47DLbFvrwBDJUY31B1sImH6JZSYc4Kt4PyHtoPNu+vL2r2dA==}
 
   '@smithy/abort-controller@3.1.9':
     resolution: {integrity: sha512-yiW0WI30zj8ZKoSYNx90no7ugVn3khlyH/z5W8qtKBtVE6awRALbhSG+2SAHA1r6bO/6M9utxYKVZ3PCJ1rWxw==}
@@ -3164,6 +3198,9 @@ packages:
     resolution: {integrity: sha512-jRR5wdylq8CkOe6hei19GGZnxM6rBGwFl3Bg0YItGDimvjGtAvdZk4Pu6Cl4u4Igsws4a1fd1Vq3ezrhn4KmFw==}
     engines: {node: '>= 14'}
 
+  agent-twitter-client@0.0.18:
+    resolution: {integrity: sha512-HncH5mlFcGYLEl5wNEkwtdolcmdxqEMIsqO4kTqiTp5P19O25Zr4P6LNJZz1UTjPRyXDxj+BLmmk/Ou7O0QzEg==}
+
   agentkeepalive@4.6.0:
     resolution: {integrity: sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==}
     engines: {node: '>= 8.0.0'}
@@ -3873,6 +3910,10 @@ packages:
   data-uri-to-buffer@0.0.3:
     resolution: {integrity: sha512-Cp+jOa8QJef5nXS5hU7M1DWzXPEIoVR3kbV0dQuVGwROZg8bGf1DcCnkmajBTnvghTtSNMUdRrPjgaT6ZQucbw==}
 
+  data-uri-to-buffer@4.0.1:
+    resolution: {integrity: sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A==}
+    engines: {node: '>= 12'}
+
   data-uri-to-buffer@6.0.2:
     resolution: {integrity: sha512-7hvf7/GW8e86rW0ptuwS3OcBGDjIi6SZva7hCyWC0yYry2cOPmLIjXAUHI6DK2HsnwJd9ifmt57i8eV2n4YNpw==}
     engines: {node: '>= 14'}
@@ -4072,6 +4113,11 @@ packages:
 
   domelementtype@2.3.0:
     resolution: {integrity: sha512-OLETBj6w0OsagBwdXnPdN0cnMfF9opN69co+7ZrbfPGrdpPVNBUj02spi6B1N7wChLQiPn4CSH/zJvXw56gmHw==}
+
+  domexception@4.0.0:
+    resolution: {integrity: sha512-A2is4PLG+eeSfoTMA95/s4pvAoSo2mKtiM5jlHkAVewmiO8ISFTFKZjH7UAM1Atli/OT/7JHOrJRJiMKUZKYBw==}
+    engines: {node: '>=12'}
+    deprecated: Use your platform's native DOMException instead
 
   domhandler@5.0.3:
     resolution: {integrity: sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w==}
@@ -4451,6 +4497,10 @@ packages:
   fecha@4.2.3:
     resolution: {integrity: sha512-OP2IUU6HeYKJi3i0z4A19kHMQoLVs4Hc+DPqqxI2h/DPZHTm/vjsfC6P0b4jCMy14XizLBqvndQ+UilD7707Jw==}
 
+  fetch-blob@3.2.0:
+    resolution: {integrity: sha512-7yAQpD2UMJzLi1Dqv7qFYnPbaPx7ZfFK6PiIxQ4PfkGPyNyl2Ugx+a/umUonmKqjhM4DnfbMvdX6otXq83soQQ==}
+    engines: {node: ^12.20 || >= 14.13}
+
   fetch-cookie@3.1.0:
     resolution: {integrity: sha512-s/XhhreJpqH0ftkGVcQt8JE9bqk+zRn4jF5mPJXWZeQMCI5odV9K+wEWYbnzFPHgQZlvPSMjS4n4yawWE8RINw==}
 
@@ -4565,6 +4615,10 @@ packages:
   formdata-node@6.0.3:
     resolution: {integrity: sha512-8e1++BCiTzUno9v5IZ2J6bv4RU+3UKDmqWUQD0MIMVCd9AdhWkO1gw57oo1mNEX1dMq2EGI+FbWz4B92pscSQg==}
     engines: {node: '>= 18'}
+
+  formdata-polyfill@4.0.10:
+    resolution: {integrity: sha512-buewHzMvYL29jdeQTVILecSaZKnt/RJWjoZCF5OW60Z67/GmSLBkOFM7qh1PI3zFNtJbaZL5eQu1vLfazOwj4g==}
+    engines: {node: '>=12.20.0'}
 
   forwarded@0.2.0:
     resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
@@ -4795,6 +4849,9 @@ packages:
   hasown@2.0.2:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
+
+  headers-polyfill@3.3.0:
+    resolution: {integrity: sha512-5e57etwBpNcDc0b6KCVWEh/Ro063OxPvzVimUdM0/tsYM/T7Hfy3kknIGj78SFTOhNd8AZY41U8mOHoO4LzmIQ==}
 
   hmac-drbg@1.0.1:
     resolution: {integrity: sha512-Tti3gMqLdZfhOQY1Mzf/AanLiqh1WTiJgEj26ZuYQ9fbkLomzGchCws4FyrSd4VkpBfiNhaE1On+lOz894jvXg==}
@@ -5041,6 +5098,9 @@ packages:
   isarray@1.0.0:
     resolution: {integrity: sha512-VLghIWNM6ELQzo7zwmcg0NmTVyWKYjvIeM83yjp0wRDTmUnrM678fQbcKBo6n2CJEF0szoG//ytg+TKla89ALQ==}
 
+  isarray@2.0.5:
+    resolution: {integrity: sha512-xHjhDr3cNBK0BzdUJSPXZntQUx/mwMS5Rw4A7lPJ90XGAO6ISP/ePDNuo0vhqOZU+UD5JoodwCAAoZQd3FeAKw==}
+
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
@@ -5179,6 +5239,10 @@ packages:
   json-stable-stringify-without-jsonify@1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
 
+  json-stable-stringify@1.2.1:
+    resolution: {integrity: sha512-Lp6HbbBgosLmJbjx0pBLbgvx68FaFU1sdkmBuckmhhJ88kL13OA51CDtR2yJB50eCNMH9wRqtQNNiAqQH4YXnA==}
+    engines: {node: '>= 0.4'}
+
   json-stringify-safe@5.0.1:
     resolution: {integrity: sha512-ZClg6AaYvamvYEE82d3Iyd3vSSIjQ+odgjaTzRuO3s7toCdFKczob2i0zCh7JE8kWn17yvAWhUVxvqGwUalsRA==}
 
@@ -5197,6 +5261,9 @@ packages:
 
   jsonfile@6.1.0:
     resolution: {integrity: sha512-5dgndWOriYSm5cnYaJNhalLNDKOqFwyDB/rr1E9ZsGciGvKPs8R2xYGCacuf3z6K1YKDz182fd+fY3cn3pMqXQ==}
+
+  jsonify@0.0.1:
+    resolution: {integrity: sha512-2/Ki0GcmuqSrgFyelQq9M05y7PS0mEwuIzrf3f1fPqkVDVRvZrPZtVSMHxdgo8Aq0sxAOb/cr2aqqA3LeWHVPg==}
 
   jsonparse@1.3.1:
     resolution: {integrity: sha512-POQXvpdL69+CluYsillJ7SUhKvytYjW9vG/GKpnf+xP8UWgYEM/RaMzHHofbALDiKbbP1W8UEYmgGl39WkPZsg==}
@@ -5754,6 +5821,10 @@ packages:
       encoding:
         optional: true
 
+  node-fetch@3.3.2:
+    resolution: {integrity: sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+
   node-gyp-build@4.8.4:
     resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
     hasBin: true
@@ -5940,6 +6011,9 @@ packages:
   ora@8.1.1:
     resolution: {integrity: sha512-YWielGi1XzG1UTvOaCFaNgEnuhZVMSHYkW/FQ7UX8O26PtlpdM84c0f7wLPlkvx2RfiQmnzd61d/MGxmpQeJPw==}
     engines: {node: '>=18'}
+
+  otpauth@9.3.6:
+    resolution: {integrity: sha512-eIcCvuEvcAAPHxUKC9Q4uCe0Fh/yRc5jv9z+f/kvyIF2LPrhgAOuLB7J9CssGYhND/BL8M9hlHBTFmffpoQlMQ==}
 
   ox@0.1.2:
     resolution: {integrity: sha512-ak/8K0Rtphg9vnRJlbOdaX9R7cmxD2MiSthjWGaQdMk3D7hrAlDoM+6Lxn7hN52Za3vrXfZ7enfke/5WjolDww==}
@@ -6441,6 +6515,9 @@ packages:
     resolution: {integrity: sha512-qxXIEh4pCGfHICj1mAJQ2/2XVZkjCDTcEgfoSQxc/fYivUZxTkk7L3bDBJSoNrEzXI17oUO5Dp07ktqE5KzczA==}
     engines: {node: '>=0.6'}
 
+  querystringify@2.2.0:
+    resolution: {integrity: sha512-FIqgj2EUvTa7R50u0rGsyTftzjYmv/a3hO345bZNrqabNqjtgiDMgmo4mkUjd+nzU5oF3dClKqFIPUKybUyqoQ==}
+
   quick-lru@5.1.1:
     resolution: {integrity: sha512-WuyALRjWPDGtt/wzJiadO5AXY+8hZ80hVpe6MyivgraREW751X3SbhRvG3eLKOYN+8VEvqLcf3wdnt44Z4S4SA==}
     engines: {node: '>=10'}
@@ -6533,6 +6610,9 @@ packages:
   require-in-the-middle@5.2.0:
     resolution: {integrity: sha512-efCx3b+0Z69/LGJmm9Yvi4cqEdxnoGnxYxGxBghkkTTFeXRtTCmmhO0AnAfHz59k957uTSuy8WaHqOs8wbYUWg==}
     engines: {node: '>=6'}
+
+  requires-port@1.0.0:
+    resolution: {integrity: sha512-KigOCHcocU3XODJxsu8i/j8T9tzT4adHiecwORRQ0ZZFcp7ahwXuRU1m+yuO90C5ZUyGeGfocHDI14M3L3yDAQ==}
 
   resolve-from@4.0.0:
     resolution: {integrity: sha512-pb/MYmXstAkysRFx8piNI1tGFNQIFA3vkE3Gq4EuA1dF6gHp/+vgZqsCGJapvy8N3Q+4o7FwvquPJcnZ7RYy4g==}
@@ -7149,6 +7229,10 @@ packages:
     resolution: {integrity: sha512-nlLsUzgm1kfLXSXfRZMc1KLAugd4hqJHDTvc2hDIwS3mZAfMEuMbc03SujMF+GEcpaX/qboeycw6iO8JwVv2+g==}
     engines: {node: '>=0.8'}
 
+  tough-cookie@4.1.4:
+    resolution: {integrity: sha512-Loo5UUvLD9ScZ6jh8beX1T6sO1w2/MpCRpEP7V280GKMVUQ0Jzar2U3UJPsrdbziLEMMhu3Ujnq//rhiFuIeag==}
+    engines: {node: '>=6'}
+
   tough-cookie@5.0.0:
     resolution: {integrity: sha512-FRKsF7cz96xIIeMZ82ehjC3xW2E+O2+v11udrDYewUbszngYhsGa8z6YUMMzO9QJZzzyd0nGGXnML/TReX6W8Q==}
     engines: {node: '>=16'}
@@ -7354,6 +7438,10 @@ packages:
   universal-user-agent@7.0.2:
     resolution: {integrity: sha512-0JCqzSKnStlRRQfCdowvqy3cy0Dvtlb8xecj/H8JFZuCze4rwjPZQOgvFvn0Ws/usCHQFGpyr+pB9adaGwXn4Q==}
 
+  universalify@0.2.0:
+    resolution: {integrity: sha512-CJ1QgKmNg3CwvAv/kOFmtnEN05f0D/cn9QntgNOQlQF9dgvVTHj3t+8JPdjqawCHk7V/KA+fbUqzZ9XWhcqPUg==}
+    engines: {node: '>= 4.0.0'}
+
   universalify@2.0.1:
     resolution: {integrity: sha512-gptHNQghINnc/vTGIk0SOFGFNXw7JVrlRUtConJRlvaw6DuX0wO5Jeko9sWrMBhh+PsYAZ7oXAiOnf/UKogyiw==}
     engines: {node: '>= 10.0.0'}
@@ -7367,6 +7455,9 @@ packages:
 
   url-join@4.0.1:
     resolution: {integrity: sha512-jk1+QP6ZJqyOiuEI9AEWQfju/nB2Pw466kbA0LEZljHwKeMgd9WrAEgEGxjPDD2+TNbbb37rTyhEfrCXfuKXnA==}
+
+  url-parse@1.5.10:
+    resolution: {integrity: sha512-WypcfiRhfeUP9vvF0j6rw0J3hrWrw6iZv3+22h6iRMJ/8z1Tj6XfLP4DsUix5MhMPnXpiHDoKyoZ/bdCkwBCiQ==}
 
   use-sync-external-store@1.4.0:
     resolution: {integrity: sha512-9WXSPC5fMv61vaupRkCKCxsPxBocVnwakBEkMIHHpkTTg6icbJtg6jzgtLDm4bl3cSHAca52rYWih0k4K3PfHw==}
@@ -7572,6 +7663,10 @@ packages:
     resolution: {integrity: sha512-/OBiAALgWU24IG7sC84cDO/KfFuvajWc5Uec0oV2zrpOOZZDgGdOwHwgEzOrwh8jkubBk7PtZfQBIcI1OaE5Ng==}
     engines: {node: '>=8'}
     hasBin: true
+
+  web-streams-polyfill@3.3.3:
+    resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
+    engines: {node: '>= 8'}
 
   web-streams-polyfill@4.0.0-beta.3:
     resolution: {integrity: sha512-QW95TCTaHmsYfHDybGMwO5IJIM93I/6vTRk+daHTWFPhwh+C8Cg7j7XyKrwrj8Ib6vYXe0ocYNrmzY4xAAN6ug==}
@@ -9322,7 +9417,7 @@ snapshots:
       big.js: 6.2.2
       bn.js: 5.2.1
       buffer-layout: 1.2.2
-      cross-fetch: 3.1.6
+      cross-fetch: 3.2.0
       dotenv: 10.0.0
       toformat: 2.0.0
       yargs: 17.7.2
@@ -9370,7 +9465,7 @@ snapshots:
       bs58: 4.0.1
       buffer-layout: 1.2.2
       camelcase: 6.3.0
-      cross-fetch: 3.1.6
+      cross-fetch: 3.2.0
       crypto-hash: 1.3.0
       eventemitter3: 4.0.7
       js-sha256: 0.9.0
@@ -9392,7 +9487,7 @@ snapshots:
       bs58: 4.0.1
       buffer-layout: 1.2.2
       camelcase: 6.3.0
-      cross-fetch: 3.1.6
+      cross-fetch: 3.2.0
       crypto-hash: 1.3.0
       eventemitter3: 4.0.7
       js-sha256: 0.9.0
@@ -10564,7 +10659,7 @@ snapshots:
   '@mercurial-finance/frakt-sdk@0.0.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@project-serum/anchor': 0.24.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
-      axios: 1.7.9
+      axios: 1.7.9(debug@4.4.0)
     transitivePeerDependencies:
       - bufferutil
       - debug
@@ -10584,7 +10679,7 @@ snapshots:
       big.js: 6.2.2
       binance-api-node: 0.12.9(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       bs58: 5.0.0
-      cross-fetch: 3.1.6
+      cross-fetch: 3.2.0
       dotenv: 16.4.7
       node-kraken-api: 2.2.2(buffer@6.0.3)
     transitivePeerDependencies:
@@ -10674,7 +10769,7 @@ snapshots:
       '@solana/spl-token-registry': 0.2.1105
       '@solana/web3.js': 1.72.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       bn.js: 5.2.1
-      cross-fetch: 3.1.6
+      cross-fetch: 3.2.0
       decimal.js: 10.3.1
       jsbi: 4.3.0
     transitivePeerDependencies:
@@ -11149,7 +11244,7 @@ snapshots:
       bs58: 4.0.1
       buffer-layout: 1.2.2
       camelcase: 5.3.1
-      cross-fetch: 3.1.6
+      cross-fetch: 3.2.0
       crypto-hash: 1.3.0
       eventemitter3: 4.0.7
       find: 0.3.0
@@ -11171,7 +11266,7 @@ snapshots:
       bs58: 4.0.1
       buffer-layout: 1.2.2
       camelcase: 5.3.1
-      cross-fetch: 3.1.6
+      cross-fetch: 3.2.0
       crypto-hash: 1.3.0
       eventemitter3: 4.0.7
       find: 0.3.0
@@ -11215,7 +11310,7 @@ snapshots:
       bs58: 4.0.1
       buffer-layout: 1.2.2
       camelcase: 5.3.1
-      cross-fetch: 3.1.6
+      cross-fetch: 3.2.0
       crypto-hash: 1.3.0
       eventemitter3: 4.0.7
       js-sha256: 0.9.0
@@ -11236,7 +11331,7 @@ snapshots:
       bs58: 4.0.1
       buffer-layout: 1.2.2
       camelcase: 5.3.1
-      cross-fetch: 3.1.6
+      cross-fetch: 3.2.0
       crypto-hash: 1.3.0
       eventemitter3: 4.0.7
       js-sha256: 0.9.0
@@ -11258,7 +11353,7 @@ snapshots:
       bs58: 4.0.1
       buffer-layout: 1.2.2
       camelcase: 5.3.1
-      cross-fetch: 3.1.6
+      cross-fetch: 3.2.0
       crypto-hash: 1.3.0
       eventemitter3: 4.0.7
       js-sha256: 0.9.0
@@ -11280,7 +11375,7 @@ snapshots:
       bs58: 4.0.1
       buffer-layout: 1.2.2
       camelcase: 6.3.0
-      cross-fetch: 3.1.6
+      cross-fetch: 3.2.0
       crypto-hash: 1.3.0
       eventemitter3: 4.0.7
       js-sha256: 0.9.0
@@ -11440,7 +11535,7 @@ snapshots:
       '@solana/buffer-layout': 4.0.1
       '@solana/spl-token': 0.4.9(@solana/web3.js@1.98.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.7.2)(utf-8-validate@6.0.5)
       '@solana/web3.js': 1.98.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
-      axios: 1.7.9
+      axios: 1.7.9(debug@4.4.0)
       big.js: 6.2.2
       bn.js: 5.2.1
       dayjs: 1.11.13
@@ -11508,6 +11603,30 @@ snapshots:
       '@remusao/smaz-decompress': 1.10.0
 
   '@remusao/trie@1.5.0': {}
+
+  '@roamhq/wrtc-darwin-arm64@0.8.0':
+    optional: true
+
+  '@roamhq/wrtc-darwin-x64@0.8.0':
+    optional: true
+
+  '@roamhq/wrtc-linux-arm64@0.8.1':
+    optional: true
+
+  '@roamhq/wrtc-linux-x64@0.8.1':
+    optional: true
+
+  '@roamhq/wrtc-win32-x64@0.8.0':
+    optional: true
+
+  '@roamhq/wrtc@0.8.0':
+    optionalDependencies:
+      '@roamhq/wrtc-darwin-arm64': 0.8.0
+      '@roamhq/wrtc-darwin-x64': 0.8.0
+      '@roamhq/wrtc-linux-arm64': 0.8.1
+      '@roamhq/wrtc-linux-x64': 0.8.1
+      '@roamhq/wrtc-win32-x64': 0.8.0
+      domexception: 4.0.0
 
   '@rollup/plugin-commonjs@28.0.2(rollup@4.29.1)':
     dependencies:
@@ -11790,6 +11909,8 @@ snapshots:
   '@sideway/formula@3.0.1': {}
 
   '@sideway/pinpoint@2.0.0': {}
+
+  '@sinclair/typebox@0.32.35': {}
 
   '@smithy/abort-controller@3.1.9':
     dependencies:
@@ -12429,7 +12550,7 @@ snapshots:
       borsh: 0.4.0
       bs58: 4.0.1
       buffer: 6.0.1
-      cross-fetch: 3.1.6
+      cross-fetch: 3.2.0
       jayson: 3.7.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       js-sha3: 0.8.0
       rpc-websockets: 7.5.1
@@ -13048,6 +13169,24 @@ snapshots:
 
   agent-base@7.1.3: {}
 
+  agent-twitter-client@0.0.18(bufferutil@4.0.9)(utf-8-validate@6.0.5):
+    dependencies:
+      '@roamhq/wrtc': 0.8.0
+      '@sinclair/typebox': 0.32.35
+      headers-polyfill: 3.3.0
+      json-stable-stringify: 1.2.1
+      node-fetch: 3.3.2
+      otpauth: 9.3.6
+      set-cookie-parser: 2.7.1
+      tough-cookie: 4.1.4
+      tslib: 2.8.1
+      twitter-api-v2: 1.19.0
+      undici: 7.2.0
+      ws: 8.18.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   agentkeepalive@4.6.0:
     dependencies:
       humanize-ms: 1.2.1
@@ -13201,18 +13340,17 @@ snapshots:
 
   aws4@1.13.2: {}
 
-  axios@0.27.2(debug@4.3.4):
+  axios@0.27.2:
     dependencies:
-      follow-redirects: 1.15.9(debug@4.3.4)
+      follow-redirects: 1.15.9(debug@4.4.0)
       form-data: 4.0.1
     transitivePeerDependencies:
       - debug
 
-  axios@1.7.9:
+  axios@0.27.2(debug@4.3.4):
     dependencies:
       follow-redirects: 1.15.9(debug@4.3.4)
       form-data: 4.0.1
-      proxy-from-env: 1.1.0
     transitivePeerDependencies:
       - debug
 
@@ -13482,7 +13620,7 @@ snapshots:
 
   capsolver-npm@2.0.2:
     dependencies:
-      axios: 0.27.2(debug@4.3.4)
+      axios: 0.27.2
       dotenv: 16.4.7
     transitivePeerDependencies:
       - debug
@@ -13798,6 +13936,8 @@ snapshots:
 
   data-uri-to-buffer@0.0.3: {}
 
+  data-uri-to-buffer@4.0.1: {}
+
   data-uri-to-buffer@6.0.2: {}
 
   data-urls@5.0.0:
@@ -13978,6 +14118,11 @@ snapshots:
       entities: 4.5.0
 
   domelementtype@2.3.0: {}
+
+  domexception@4.0.0:
+    dependencies:
+      webidl-conversions: 7.0.0
+    optional: true
 
   domhandler@5.0.3:
     dependencies:
@@ -14527,6 +14672,11 @@ snapshots:
 
   fecha@4.2.3: {}
 
+  fetch-blob@3.2.0:
+    dependencies:
+      node-domexception: 1.0.0
+      web-streams-polyfill: 3.3.3
+
   fetch-cookie@3.1.0:
     dependencies:
       set-cookie-parser: 2.7.1
@@ -14679,6 +14829,10 @@ snapshots:
       web-streams-polyfill: 4.0.0-beta.3
 
   formdata-node@6.0.3: {}
+
+  formdata-polyfill@4.0.10:
+    dependencies:
+      fetch-blob: 3.2.0
 
   forwarded@0.2.0: {}
 
@@ -14963,6 +15117,8 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
+  headers-polyfill@3.3.0: {}
+
   hmac-drbg@1.0.1:
     dependencies:
       hash.js: 1.1.7
@@ -15211,6 +15367,8 @@ snapshots:
 
   isarray@1.0.0: {}
 
+  isarray@2.0.5: {}
+
   isexe@2.0.0: {}
 
   isexe@3.1.1: {}
@@ -15410,6 +15568,14 @@ snapshots:
 
   json-stable-stringify-without-jsonify@1.0.1: {}
 
+  json-stable-stringify@1.2.1:
+    dependencies:
+      call-bind: 1.0.8
+      call-bound: 1.0.3
+      isarray: 2.0.5
+      jsonify: 0.0.1
+      object-keys: 1.1.1
+
   json-stringify-safe@5.0.1: {}
 
   json5@2.2.3: {}
@@ -15427,6 +15593,8 @@ snapshots:
       universalify: 2.0.1
     optionalDependencies:
       graceful-fs: 4.2.11
+
+  jsonify@0.0.1: {}
 
   jsonparse@1.3.1: {}
 
@@ -15488,7 +15656,7 @@ snapshots:
       zod: 3.23.8
       zod-to-json-schema: 3.24.1(zod@3.23.8)
     optionalDependencies:
-      axios: 1.7.9
+      axios: 1.7.9(debug@4.4.0)
       handlebars: 4.7.8
     transitivePeerDependencies:
       - encoding
@@ -15903,6 +16071,12 @@ snapshots:
     dependencies:
       whatwg-url: 5.0.0
 
+  node-fetch@3.3.2:
+    dependencies:
+      data-uri-to-buffer: 4.0.1
+      fetch-blob: 3.2.0
+      formdata-polyfill: 4.0.10
+
   node-gyp-build@4.8.4: {}
 
   node-kraken-api@2.2.2(buffer@6.0.3):
@@ -16128,7 +16302,7 @@ snapshots:
 
   open-jsonrpc-provider@0.2.1(bufferutil@4.0.9)(utf-8-validate@6.0.5):
     dependencies:
-      axios: 0.27.2(debug@4.3.4)
+      axios: 0.27.2
       reconnecting-websocket: 4.4.0
       websocket: 1.0.35
       ws: 8.18.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -16188,6 +16362,10 @@ snapshots:
       stdin-discarder: 0.2.2
       string-width: 7.2.0
       strip-ansi: 7.1.0
+
+  otpauth@9.3.6:
+    dependencies:
+      '@noble/hashes': 1.6.1
 
   ox@0.1.2(typescript@5.7.2)(zod@3.23.8):
     dependencies:
@@ -16731,7 +16909,7 @@ snapshots:
 
   puppeteer-extra-plugin-capsolver@2.0.1(bufferutil@4.0.9)(puppeteer-core@19.11.1(bufferutil@4.0.9)(typescript@5.7.2)(utf-8-validate@6.0.5))(typescript@5.7.2)(utf-8-validate@6.0.5):
     dependencies:
-      axios: 1.7.9
+      axios: 1.7.9(debug@4.4.0)
       capsolver-npm: 2.0.2
       puppeteer: 19.11.1(bufferutil@4.0.9)(typescript@5.7.2)(utf-8-validate@6.0.5)
       puppeteer-extra: 3.3.6(puppeteer-core@19.11.1(bufferutil@4.0.9)(typescript@5.7.2)(utf-8-validate@6.0.5))(puppeteer@19.11.1(bufferutil@4.0.9)(typescript@5.7.2)(utf-8-validate@6.0.5))
@@ -16788,6 +16966,8 @@ snapshots:
       side-channel: 1.1.0
 
   qs@6.5.3: {}
+
+  querystringify@2.2.0: {}
 
   quick-lru@5.1.1: {}
 
@@ -16919,6 +17099,8 @@ snapshots:
       resolve: 1.22.10
     transitivePeerDependencies:
       - supports-color
+
+  requires-port@1.0.0: {}
 
   resolve-from@4.0.0: {}
 
@@ -17658,6 +17840,13 @@ snapshots:
       psl: 1.15.0
       punycode: 2.3.1
 
+  tough-cookie@4.1.4:
+    dependencies:
+      psl: 1.15.0
+      punycode: 2.3.1
+      universalify: 0.2.0
+      url-parse: 1.5.10
+
   tough-cookie@5.0.0:
     dependencies:
       tldts: 6.1.70
@@ -17847,6 +18036,8 @@ snapshots:
 
   universal-user-agent@7.0.2: {}
 
+  universalify@0.2.0: {}
+
   universalify@2.0.1: {}
 
   unpipe@1.0.0: {}
@@ -17856,6 +18047,11 @@ snapshots:
       punycode: 2.3.1
 
   url-join@4.0.1: {}
+
+  url-parse@1.5.10:
+    dependencies:
+      querystringify: 2.2.0
+      requires-port: 1.0.0
 
   use-sync-external-store@1.4.0(react@18.3.1):
     dependencies:
@@ -18094,6 +18290,8 @@ snapshots:
       - supports-color
 
   wavefile@11.0.0: {}
+
+  web-streams-polyfill@3.3.3: {}
 
   web-streams-polyfill@4.0.0-beta.3: {}
 
