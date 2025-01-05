@@ -48,7 +48,13 @@ class MemeAgentInfluencer {
         token: CONFIG.SOCIAL.DISCORD.TOKEN,
         guildId: CONFIG.SOCIAL.DISCORD.GUILD_ID
       },
-      twitter: CONFIG.SOCIAL.TWITTER
+      twitter: {
+        credentials: {
+          username: CONFIG.SOCIAL.TWITTER.USERNAME,
+          password: process.env.TWITTER_PASSWORD!,
+          email: process.env.TWITTER_EMAIL!
+        }
+      }
     });
 
     this.tradingService = new TradingService(CONFIG.SOLANA.RPC_URL);
@@ -313,7 +319,7 @@ async function initializeSolanaConnection() {
 async function validateWalletBalance(connection: Connection) {
   console.log('Checking wallet balance...');
   try {
-    const publicKey = new PublicKey(CONFIG.SOLANA.PUBKEY);
+    const publicKey = new PublicKey(CONFIG.SOLANA.PUBLIC_KEY);
     const balance = await connection.getBalance(publicKey);
     console.log('Wallet balance:', balance / 1e9, 'SOL');
     return balance;
@@ -333,7 +339,7 @@ async function main() {
     console.log('Configuration loaded:', {
       network: CONFIG.SOLANA.NETWORK,
       rpcUrl: CONFIG.SOLANA.RPC_URL,
-      pubkey: CONFIG.SOLANA.PUBKEY
+      pubkey: CONFIG.SOLANA.PUBLIC_KEY
     });
 
     // Initialize Solana connection
