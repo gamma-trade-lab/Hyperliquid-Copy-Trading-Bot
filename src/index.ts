@@ -144,7 +144,7 @@ class MemeAgentInfluencer {
       const rules = await this.twitter.v2.streamRules();
       if (!rules.data?.length) {
         await this.twitter.v2.updateStreamRules({
-          add: [{ value: `@${CONFIG.SOCIAL.TWITTER.USERNAME}` }]
+          add: [{ value: `@${CONFIG.SOCIAL.TWITTER.username}` }]
         });
       }
 

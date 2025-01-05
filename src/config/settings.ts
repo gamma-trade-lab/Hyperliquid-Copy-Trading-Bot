@@ -76,9 +76,9 @@ export const CONFIG = {
                 accessToken: getRequiredEnvVar('TWITTER_ACCESS_TOKEN'),
                 accessSecret: getRequiredEnvVar('TWITTER_ACCESS_SECRET')
             },
-            USERNAME: getRequiredEnvVar('TWITTER_USERNAME'),
-            PASSWORD: getRequiredEnvVar('TWITTER_PASSWORD'),
-            EMAIL: getRequiredEnvVar('TWITTER_EMAIL')
+            username: getRequiredEnvVar('TWITTER_USERNAME'),
+            password: getRequiredEnvVar('TWITTER_PASSWORD'),
+            email: getRequiredEnvVar('TWITTER_EMAIL')
         },
         DISCORD: {
             TOKEN: getRequiredEnvVar('DISCORD_TOKEN'),
@@ -214,13 +214,13 @@ function validateConfig() {
     }
 
     // Validate social media settings
-    if (!CONFIG.SOCIAL.TWITTER.USERNAME) {
+    if (!CONFIG.SOCIAL.TWITTER.username) {
         throw new Error('Invalid Twitter username.');
     }
-    if (!CONFIG.SOCIAL.TWITTER.PASSWORD) {
+    if (!CONFIG.SOCIAL.TWITTER.password) {
         throw new Error('Invalid Twitter password.');
     }
-    if (!CONFIG.SOCIAL.TWITTER.EMAIL) {
+    if (!CONFIG.SOCIAL.TWITTER.email) {
         throw new Error('Invalid Twitter email.');
     }
     if (!CONFIG.SOCIAL.DISCORD.GUILD_ID) {
