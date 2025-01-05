@@ -16,14 +16,15 @@
 import { Scraper, Tweet } from 'agent-twitter-client';
 import { AIService } from '../ai/types';
 import { MarketAction } from '../../config/constants';
+import { MarketData } from '../../types/market';
 
-interface TwitterConfig {
+export interface TwitterConfig {
   credentials: {
     username: string;
     password: string;
     email: string;
   };
-  aiService: AIService;
+  aiService?: AIService;
 }
 
 interface TweetOptions {
@@ -201,10 +202,10 @@ export class TwitterService {
     return '';
   }
 
-  async tweet(content: string, options: TweetOptions = {}): Promise<string> {
+  async tweet(content: string, options: TweetOptions = {}): Promise<{ success: boolean; error?: Error; tweetId?: string }> {
     try {
       if (!this.isInitialized) {
-        throw new Error('Twitter service not initialized');
+        return { success: false, error: new Error('Twitter service not initialized') };
       }
 
       let result: unknown;
@@ -218,12 +219,12 @@ export class TwitterService {
 
       const tweetId = this.getTweetId(result);
       if (!tweetId) {
-        throw new Error('Failed to get tweet ID from response');
+        return { success: false, error: new Error('Failed to get tweet ID from response') };
       }
-      return tweetId;
+      return { success: true, tweetId };
     } catch (error) {
       console.error('Error sending tweet:', error);
-      throw error;
+      return { success: false, error: error as Error };
     }
   }
 
@@ -282,7 +283,7 @@ export class TwitterService {
     }
   }
 
-  async publishMarketUpdate(action: MarketAction, data: Record<string, unknown>): Promise<string> {
+  async publishMarketUpdate(action: MarketAction, data: MarketData): Promise<string> {
     try {
       if (!this.isInitialized) {
         throw new Error('Twitter service not initialized');
@@ -294,7 +295,11 @@ export class TwitterService {
         platform: 'twitter'
       });
 
-      return await this.tweet(content);
+      const result = await this.tweet(content);
+      if (!result.success || !result.tweetId) {
+        throw result.error || new Error('Failed to publish market update');
+      }
+      return result.tweetId;
     } catch (error) {
       console.error('Error publishing market update:', error);
       throw error;

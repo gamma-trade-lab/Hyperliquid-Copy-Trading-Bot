@@ -1,4 +1,4 @@
-import { Scraper } from 'agent-twitter-client';
+import { Scraper, SearchMode } from 'agent-twitter-client';
 import { TwitterStreamEvent } from '../../types/twitter';
 import { TwitterStreamHandler } from './TwitterStreamHandler';
 import { AIService } from '../ai/ai';
@@ -6,6 +6,8 @@ import { AIService } from '../ai/ai';
 export class AgentTwitterClientService {
   private scraper: Scraper | null = null;
   private isInitialized = false;
+  private monitoringInterval: NodeJS.Timeout | null = null;
+  private isMonitoring = false;
   private streamHandler: TwitterStreamHandler | null = null;
 
   constructor(
@@ -17,6 +19,7 @@ export class AgentTwitterClientService {
 
   public async initialize(): Promise<void> {
     try {
+      console.log('Initializing Twitter client...');
       this.scraper = new Scraper();
       
       await this.scraper.login(
@@ -28,10 +31,24 @@ export class AgentTwitterClientService {
       // Initialize stream handler
       this.streamHandler = new TwitterStreamHandler(this, this.aiService);
       
+      // Start the stream
+      await this.startStream();
+      
       this.isInitialized = true;
-      console.log('AgentTwitterClientService initialized successfully');
+      console.log('Twitter client initialized successfully', {
+        username: this.username,
+        hasPassword: !!this.password,
+        hasEmail: !!this.email,
+        isAuthenticated: true,
+        streamActive: true
+      });
     } catch (error) {
-      console.error('Failed to initialize AgentTwitterClientService:', error);
+      console.error('Failed to initialize Twitter client:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        username: this.username,
+        hasPassword: !!this.password,
+        hasEmail: !!this.email
+      });
       throw new Error(`Twitter client initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -47,7 +64,7 @@ export class AgentTwitterClientService {
     try {
       if (this.scraper) {
         await this.scraper.sendTweet(content);
-        console.log('Tweet sent successfully');
+        console.log('Tweet sent successfully', { contentLength: content.length });
       }
     } catch (error) {
       console.error('Failed to send tweet:', error);
@@ -98,6 +115,65 @@ export class AgentTwitterClientService {
     } catch (error) {
       console.error('Failed to retweet:', error);
       throw new Error(`Failed to retweet: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async startStream(): Promise<void> {
+    if (!this.scraper || !this.streamHandler) {
+      throw new Error('Cannot start stream: Twitter client or stream handler not initialized');
+    }
+
+    try {
+      console.log('Starting Twitter monitoring...');
+      
+      // Initialize last checked timestamp
+      let lastChecked = Date.now();
+      let isMonitoring = true;
+      
+      // Poll for new tweets every 30 seconds
+      const pollInterval = setInterval(async () => {
+        if (!isMonitoring) return;
+        
+        try {
+          const tweetGenerator = this.scraper.searchTweets('', 20, SearchMode.Latest);
+          
+          // Process tweets from the generator
+          for await (const tweet of tweetGenerator) {
+            if (!isMonitoring) break;
+            
+            const tweetTimestamp = Date.now(); // Use current time for polling
+            
+            // Only process tweets newer than our last check
+            if (tweetTimestamp > lastChecked) {
+              const tweetEvent = {
+                id: tweet.id.toString(),
+                text: tweet.text || '',
+                created_at: new Date(tweetTimestamp).toISOString()
+              };
+              
+              await this.streamHandler?.handleTweetEvent(tweetEvent);
+            }
+          }
+          
+          lastChecked = Date.now();
+        } catch (error) {
+          console.error('Error polling tweets:', {
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }, 30000);
+      
+      // Store interval for cleanup
+      this.monitoringInterval = pollInterval;
+      this.isMonitoring = isMonitoring;
+
+      console.log('Twitter monitoring started successfully');
+
+    } catch (error) {
+      console.error('Failed to start Twitter stream:', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
     }
   }
 
