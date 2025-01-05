@@ -15,6 +15,8 @@ const requiredEnvVars = [
     'SOLANA_PRIVATE_KEY',
     'GROQ_API_KEY',
     'TWITTER_API_KEY',
+    'TWITTER_PASSWORD',
+    'TWITTER_EMAIL',
     'DISCORD_TOKEN'
 ];
 
@@ -38,7 +40,7 @@ export const CONFIG = {
         NETWORK: getRequiredEnvVar('NETWORK_TYPE', 'devnet') as NetworkType,
         RPC_URL: getRequiredEnvVar('RPC_ENDPOINT', 'https://api.devnet.solana.com'),
         PRIVATE_KEY: getRequiredEnvVar('SOLANA_PRIVATE_KEY'),
-        PUBLIC_KEY: getRequiredEnvVar('SOLANA_PUBLIC_KEY'), // Changed from SOLANA_PUBKEY
+        PUBKEY: getRequiredEnvVar('SOLANA_PUBLIC_KEY'), // Using PUBKEY to match validator interface
         TOKEN_SETTINGS: {
             NAME: getRequiredEnvVar('TOKEN_NAME', 'Meme Token'),
             SYMBOL: getRequiredEnvVar('TOKEN_SYMBOL', 'MEME'),
@@ -74,7 +76,9 @@ export const CONFIG = {
                 accessToken: getRequiredEnvVar('TWITTER_ACCESS_TOKEN'),
                 accessSecret: getRequiredEnvVar('TWITTER_ACCESS_SECRET')
             },
-            USERNAME: getRequiredEnvVar('TWITTER_USERNAME')
+            USERNAME: getRequiredEnvVar('TWITTER_USERNAME'),
+            PASSWORD: getRequiredEnvVar('TWITTER_PASSWORD'),
+            EMAIL: getRequiredEnvVar('TWITTER_EMAIL')
         },
         DISCORD: {
             TOKEN: getRequiredEnvVar('DISCORD_TOKEN'),
@@ -175,7 +179,7 @@ function validateConfig() {
 
     // Validate Solana public key
     try {
-        new PublicKey(CONFIG.SOLANA.PUBLIC_KEY);
+        new PublicKey(CONFIG.SOLANA.PUBKEY);
     } catch (error) {
         throw new Error('Invalid Solana public key format.');
     }
@@ -212,6 +216,12 @@ function validateConfig() {
     // Validate social media settings
     if (!CONFIG.SOCIAL.TWITTER.USERNAME) {
         throw new Error('Invalid Twitter username.');
+    }
+    if (!CONFIG.SOCIAL.TWITTER.PASSWORD) {
+        throw new Error('Invalid Twitter password.');
+    }
+    if (!CONFIG.SOCIAL.TWITTER.EMAIL) {
+        throw new Error('Invalid Twitter email.');
     }
     if (!CONFIG.SOCIAL.DISCORD.GUILD_ID) {
         throw new Error('Invalid Discord guild ID.');
