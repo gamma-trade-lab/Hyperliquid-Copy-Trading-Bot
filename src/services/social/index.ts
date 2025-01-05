@@ -1,11 +1,18 @@
 import { TwitterService } from './twitter';
 import { DiscordService } from './discord';
 import { TwitterApiTokens } from 'twitter-api-v2';
-import { AgentTwitterClientService } from './agentTwitterClient';
-import { MarketTweetCron } from './MarketTweetCron';
-import { TweetGenerator } from '../ai/tweetGenerator';
-import { TradingService } from '../blockchain/trading';
-import { CONFIG } from '../../config/settings';
+import { AgentTwitterClientService } from './agentTwitterClient.js';
+import { AIService } from '../ai/ai';
+import { MarketData } from '../../types/market';
+
+interface TwitterConfig {
+  credentials: {
+    username: string;
+    password: string;
+    email: string;
+  };
+  aiService?: AIService;
+}
 
 export interface SocialMetrics {
   followers: number;
@@ -21,40 +28,42 @@ export interface SocialConfig {
     token: string;
     guildId: string;
   };
-  twitter: {
-    tokens: TwitterApiTokens;
-    username: string;
-    password: string;
-    email: string;
+  twitter?: {
+    tokens?: TwitterApiTokens;
+    credentials?: {
+      username: string;
+      password: string;
+      email: string;
+    };
   };
+  twitterClient?: AgentTwitterClientService;
 }
 
 export class SocialService {
   private twitterService?: TwitterService;
   private agentTwitter?: AgentTwitterClientService;
   private discordService?: DiscordService;
-  private marketTweetCron?: MarketTweetCron;
 
   constructor(config: SocialConfig) {
-    if (config.twitter?.tokens) {
+    // Initialize Twitter client if provided
+    if (config.twitterClient) {
+      this.agentTwitter = config.twitterClient;
+    } else if (config.twitter?.tokens && config.twitter.credentials) {
       // Initialize agent-twitter-client service
-      if (config.twitter.username && config.twitter.password && config.twitter.email) {
-        this.agentTwitter = new AgentTwitterClientService(
-          config.twitter.username,
-          config.twitter.password,
-          config.twitter.email
-        );
-      }
+      this.agentTwitter = new AgentTwitterClientService(
+        config.twitter.credentials.username,
+        config.twitter.credentials.password,
+        config.twitter.credentials.email,
+        config.services.ai
+      );
 
       // Keep legacy Twitter service for now during migration
-      const twitterConfig = {
-        appKey: config.twitter.tokens.appKey ?? '',
-        appSecret: config.twitter.tokens.appSecret ?? '',
-        accessToken: config.twitter.tokens.accessToken ?? '',
-        accessSecret: config.twitter.tokens.accessSecret ?? ''
+      const twitterConfig: TwitterConfig = {
+        credentials: config.twitter.credentials,
+        aiService: config.services.ai
       };
       
-      this.twitterService = new TwitterService(twitterConfig, config.services.ai);
+      this.twitterService = new TwitterService(twitterConfig);
     }
 
     if (config.discord) {
@@ -71,13 +80,6 @@ export class SocialService {
     
     if (this.agentTwitter) {
       initPromises.push(this.agentTwitter.initialize());
-      
-      // Initialize market tweet cron after Twitter client is ready
-      this.marketTweetCron = new MarketTweetCron(
-        new TweetGenerator(),
-        new TradingService(CONFIG.SOLANA.RPC_URL),
-        this.agentTwitter
-      );
     }
     
     if (this.twitterService) {
@@ -90,11 +92,10 @@ export class SocialService {
     }
     
     await Promise.all(initPromises);
-    
-    // Start market tweet cron if available
-    if (this.marketTweetCron) {
-      this.marketTweetCron.start();
-    }
+  }
+
+  async getTwitterClient(): Promise<AgentTwitterClientService | undefined> {
+    return this.agentTwitter;
   }
 
   async getCommunityMetrics(): Promise<SocialMetrics> {
@@ -105,11 +106,38 @@ export class SocialService {
     };
   }
 
+  async postTweet(content: string): Promise<{ success: boolean; error?: Error }> {
+    if (!content) {
+      return { success: false, error: new Error('Tweet content cannot be empty') };
+    }
+
+    if (content.length > 280) {
+      return { success: false, error: new Error('Tweet content exceeds maximum length of 280 characters') };
+    }
+
+    try {
+      if (this.agentTwitter) {
+        const result = await this.agentTwitter.sendTweet(content);
+        console.log('Successfully posted tweet using AgentTwitterClient');
+        return result;
+      } else if (this.twitterService) {
+        const result = await this.twitterService.tweet(content);
+        console.log('Successfully posted tweet using legacy TwitterClient');
+        return { success: result.success, error: result.error };
+      } else {
+        return { success: false, error: new Error('No Twitter client available') };
+      }
+    } catch (error) {
+      console.error('Error posting tweet:', error);
+      return { success: false, error: error as Error };
+    }
+  }
+
   async send(content: string): Promise<void> {
     const promises: Promise<void>[] = [];
 
     if (this.agentTwitter) {
-      promises.push(this.agentTwitter.sendTweet(content));
+      promises.push(this.agentTwitter.sendTweet(content).then(() => {}));
     } else if (this.twitterService) {
       promises.push(this.twitterService.tweet(content).then(() => {}));
     }
@@ -150,4 +178,7 @@ export class SocialService {
 
 export { TwitterService } from './twitter';
 export { DiscordService } from './discord';
+export { AgentTwitterClientService } from './agentTwitterClient.js';
+export * from './twitter.d';
+export * from './agentTwitterClient.types';
 export default SocialService;

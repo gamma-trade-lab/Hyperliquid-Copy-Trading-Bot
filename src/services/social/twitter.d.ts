@@ -6,7 +6,7 @@ export interface TwitterConfig {
     password: string;
     email: string;
   };
-  aiService: AIService;
+  aiService?: AIService;
 }
 
 export interface TweetOptions {
@@ -14,8 +14,5 @@ export interface TweetOptions {
   quoteTweetId?: string;
 }
 
-export interface TwitterStreamEvent {
-  id: string;
-  text: string;
-  created_at: string;
-}
+import { TwitterStreamEvent as BaseTwitterStreamEvent } from '../../types/twitter';
+export { BaseTwitterStreamEvent as TwitterStreamEvent };

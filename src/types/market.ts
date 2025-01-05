@@ -2,8 +2,11 @@ export interface MarketData {
   price: number;
   volume24h: number;
   marketCap: number;
-  priceChange24h: number;
-  topHolders: string[];
+  priceChange24h: number;  // Required for tweet generation
+  topHolders: Array<{      // Required for tweet generation
+    address: string;
+    balance: number;
+  }>;
 }
 
 export interface MarketAnalysis {

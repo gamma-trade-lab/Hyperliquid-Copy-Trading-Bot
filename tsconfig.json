@@ -28,7 +28,12 @@
     "noImplicitAny": false,
     "strictNullChecks": false
   },
-  "include": ["src/**/*", "src/**/*.d.ts", "test-twitter.ts"],
+  "include": [
+    "src/**/*",
+    "src/**/*.d.ts",
+    "src/services/social/*.d.ts",
+    "test-twitter.ts"
+  ],
   "exclude": ["node_modules", "dist"],
   "ts-node": {
     "esm": true,

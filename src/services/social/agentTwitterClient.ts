@@ -1,5 +1,6 @@
-import { Scraper, SearchMode } from 'agent-twitter-client';
+import { Scraper, SearchMode, Profile } from 'agent-twitter-client';
 import { TwitterStreamEvent } from '../../types/twitter';
+import type { TwitterResponse, TwitterProfile, TwitterCookies } from './agentTwitterClient.types';
 import { TwitterStreamHandler } from './TwitterStreamHandler';
 import { AIService } from '../ai/ai';
 
@@ -59,66 +60,74 @@ export class AgentTwitterClientService {
     }
   }
 
-  public async sendTweet(content: string): Promise<void> {
-    this.ensureInitialized();
+  public async sendTweet(content: string): Promise<{ success: boolean; error?: Error }> {
     try {
+      this.ensureInitialized();
       if (this.scraper) {
         await this.scraper.sendTweet(content);
         console.log('Tweet sent successfully', { contentLength: content.length });
+        return { success: true };
       }
+      return { success: false, error: new Error('Scraper not initialized') };
     } catch (error) {
       console.error('Failed to send tweet:', error);
-      throw new Error(`Failed to send tweet: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return { success: false, error: error instanceof Error ? error : new Error('Unknown error') };
     }
   }
 
   // Alias for sendTweet to maintain compatibility with MarketTweetCron
-  public async postTweet(content: string): Promise<void> {
+  public async postTweet(content: string): Promise<{ success: boolean; error?: Error }> {
     return this.sendTweet(content);
   }
 
-  public async replyToTweet(tweetId: string, content: string, username: string): Promise<void> {
-    this.ensureInitialized();
+  public async replyToTweet(tweetId: string, content: string, username: string): Promise<{ success: boolean; error?: Error }> {
     try {
+      this.ensureInitialized();
       if (this.scraper) {
         // Format the reply with the username mention
         const replyContent = username.startsWith('@') ? `${username} ${content}` : `@${username} ${content}`;
         await this.scraper.sendTweet(replyContent);
         console.log('Reply sent successfully');
+        return { success: true };
       }
+      return { success: false, error: new Error('Scraper not initialized') };
     } catch (error) {
       console.error('Failed to send reply:', error);
-      throw new Error(`Failed to send reply: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return { success: false, error: error instanceof Error ? error : new Error('Unknown error') };
     }
   }
 
-  public async likeTweet(tweetId: string): Promise<void> {
-    this.ensureInitialized();
+  public async likeTweet(tweetId: string): Promise<{ success: boolean; error?: Error }> {
     try {
+      this.ensureInitialized();
       if (this.scraper) {
         await this.scraper.likeTweet(tweetId);
         console.log('Tweet liked successfully');
+        return { success: true };
       }
+      return { success: false, error: new Error('Scraper not initialized') };
     } catch (error) {
       console.error('Failed to like tweet:', error);
-      throw new Error(`Failed to like tweet: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return { success: false, error: error instanceof Error ? error : new Error('Unknown error') };
     }
   }
 
-  public async retweet(tweetId: string): Promise<void> {
-    this.ensureInitialized();
+  public async retweet(tweetId: string): Promise<{ success: boolean; error?: Error }> {
     try {
+      this.ensureInitialized();
       if (this.scraper) {
         await this.scraper.retweet(tweetId);
         console.log('Retweet sent successfully');
+        return { success: true };
       }
+      return { success: false, error: new Error('Scraper not initialized') };
     } catch (error) {
       console.error('Failed to retweet:', error);
-      throw new Error(`Failed to retweet: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return { success: false, error: error instanceof Error ? error : new Error('Unknown error') };
     }
   }
 
-  private async startStream(): Promise<void> {
+  public async startStream(): Promise<void> {
     if (!this.scraper || !this.streamHandler) {
       throw new Error('Cannot start stream: Twitter client or stream handler not initialized');
     }
@@ -177,12 +186,24 @@ export class AgentTwitterClientService {
     }
   }
 
-  public async getProfile(username: string): Promise<any> {
+  public async getProfile(username: string): Promise<{
+    id: string;
+    username: string;
+    name?: string;
+    followers_count?: number;
+    following_count?: number;
+  }> {
     this.ensureInitialized();
     try {
       if (this.scraper) {
-        const profile = await this.scraper.getProfile(username);
-        return profile;
+        const profile: Profile = await this.scraper.getProfile(username);
+        return {
+          id: profile.userId?.toString() || '',
+          username: profile.username || '',
+          name: profile.name,
+          followers_count: profile.followersCount,
+          following_count: profile.friendsCount
+        };
       }
       throw new Error('Scraper not initialized');
     } catch (error) {

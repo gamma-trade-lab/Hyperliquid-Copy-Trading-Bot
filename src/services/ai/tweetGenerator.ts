@@ -52,6 +52,13 @@ export class TweetGenerator {
         constraints = { maxLength: this.DEFAULT_MAX_LENGTH, includeTickers: true, includeMetrics: true }
       } = context;
 
+      console.log('Generating tweet with context:', {
+        marketCondition: marketData ? this.determineMarketCondition(marketData) : 'unknown',
+        style,
+        hasMetrics: !!marketData,
+        hasCommunityData: !!communityMetrics
+      });
+
       if (marketData && (isNaN(marketData.price) || isNaN(marketData.volume24h))) {
         const error: TweetGenerationError = {
           name: 'TweetGenerationError',
@@ -121,7 +128,7 @@ export class TweetGenerator {
   }
 
   private buildPrompt(context: TweetContext): string {
-    const { marketData, style, constraints } = context;
+    const { marketData, style, constraints, communityMetrics } = context;
     
     let prompt = `Generate a tweet that is:
 - Engaging and authentic
@@ -131,11 +138,25 @@ export class TweetGenerator {
 
     if (marketData && constraints?.includeMetrics) {
       prompt += `Market Context:
-- Price: $${marketData.price}
-- 24h Change: ${marketData.priceChange24h}%
-- Volume: $${marketData.volume24h}
-- Market Cap: $${marketData.marketCap}\n\n`;
+- Price: $${marketData.price.toFixed(4)}
+- 24h Change: ${marketData.priceChange24h.toFixed(2)}%
+- Volume: $${(marketData.volume24h / 1000000).toFixed(2)}M
+- Market Cap: $${(marketData.marketCap / 1000000).toFixed(2)}M
+- Top Holders: ${marketData.topHolders.length} addresses\n\n`;
     }
+
+    if (communityMetrics) {
+      prompt += `Community Context:
+- Total Followers: ${communityMetrics.totalFollowers}
+- Active Users (24h): ${communityMetrics.activeUsers24h}
+- Sentiment Score: ${communityMetrics.sentimentScore.toFixed(2)}\n\n`;
+    }
+
+    prompt += `Style Guidelines:
+- Keep it concise and impactful
+- Use emojis sparingly but effectively
+- Include relevant $MEME cashtag
+- Maintain the ${style?.tone || 'neutral'} sentiment\n`;
 
     return prompt;
   }

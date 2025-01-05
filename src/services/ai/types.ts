@@ -44,16 +44,8 @@ export interface MarketAnalysis {
 }
 
 
-export interface MarketData {
-    price: number;
-    volume24h: number;
-    marketCap: number;
-    priceChange24h: number;
-    topHolders: Array<{
-      address: string;
-      balance: number;
-    }>;
-  }
+import { MarketData } from '../../types/market';
+export { MarketData };
   
   export interface CommunityMetrics {
     totalFollowers: number;

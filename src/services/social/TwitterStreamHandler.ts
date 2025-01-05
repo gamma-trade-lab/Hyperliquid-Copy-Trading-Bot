@@ -37,6 +37,18 @@ export class TwitterStreamHandler extends EventEmitter {
     }, 60 * 1000);
   }
 
+  public async initialize(): Promise<void> {
+    try {
+      // Start the Twitter stream via the client
+      await this.twitterClient.startStream();
+      this.emit('streamInitialized');
+    } catch (error) {
+      console.error('Failed to initialize Twitter stream:', error);
+      this.emit('streamError', error);
+      throw error;
+    }
+  }
+
   public async handleTweetEvent(event: TwitterStreamEvent): Promise<void> {
     try {
       // Skip if we've hit rate limit

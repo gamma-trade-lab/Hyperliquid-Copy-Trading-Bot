@@ -27,7 +27,7 @@ export class MarketTweetCron {
     // Schedule periodic updates using configured interval
     this.intervalId = setInterval(
       () => this.postMarketUpdate(),
-      CONFIG.AUTOMATION.MARKET_MONITORING_INTERVAL
+      30 * 60 * 1000 // 30 minutes
     );
   }
 
@@ -39,32 +39,48 @@ export class MarketTweetCron {
   }
 
   private async postMarketUpdate(): Promise<void> {
-    try {
-      // Get latest market data
-      const marketData: MarketData = await this.tradingService.getMarketData();
+    const maxRetries = 3;
+    const retryDelay = 5000; // 5 seconds
 
-      // Generate tweet content
-      const tweet = await this.tweetGenerator.generateTweetContent({
-        marketData,
-        style: {
-          tone: this.determineMarketTone(marketData),
-          humor: 0.7,
-          formality: 0.5
-        },
-        constraints: {
-          maxLength: 280,
-          includeTickers: true,
-          includeMetrics: true
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Get latest market data
+        const marketData: MarketData = await this.tradingService.getMarketData();
+        console.log('Market data fetched:', marketData);
+
+        // Generate tweet content
+        const tweet = await this.tweetGenerator.generateTweetContent({
+          marketData,
+          style: {
+            tone: this.determineMarketTone(marketData),
+            humor: 0.7,
+            formality: 0.5
+          },
+          constraints: {
+            maxLength: 280,
+            includeTickers: true,
+            includeMetrics: true
+          }
+        });
+        console.log('Tweet content generated:', tweet.content);
+
+        // Post the tweet
+        await this.twitterClient.postTweet(tweet.content);
+        console.log('Market update tweet posted successfully:', tweet.content);
+        
+        // If successful, exit retry loop
+        return;
+      } catch (error) {
+        const isLastAttempt = attempt === maxRetries;
+        console.error(`Market update attempt ${attempt}/${maxRetries} failed:`, error);
+        
+        if (isLastAttempt) {
+          console.error('All retry attempts failed for market update tweet');
+        } else {
+          console.log(`Retrying in ${retryDelay/1000} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
-      });
-
-      // Post the tweet
-      await this.twitterClient.postTweet(tweet.content);
-
-      console.log('Market update tweet posted successfully:', tweet.content);
-    } catch (error) {
-      console.error('Failed to post market update tweet:', error);
-      // Don't throw - we want the cron to continue running even if one update fails
+      }
     }
   }
 

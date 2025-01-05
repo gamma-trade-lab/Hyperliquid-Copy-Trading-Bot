@@ -9,15 +9,25 @@ const __dirname = dirname(__filename);
 
 export default [
   {
-    files: ['src/**/*.ts'],
-    ignores: ['dist/**/*', 'node_modules/**/*'],
+    files: [
+      'src/**/*.ts',
+      'src/**/*.d.ts',
+      'src/services/social/*.d.ts'
+    ],
+    ignores: [
+      'dist/**/*',
+      'node_modules/**/*'
+    ],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
         ecmaVersion: 2020,
         sourceType: 'module',
-        project: './tsconfig.json',
-        tsconfigRootDir: __dirname,
+        project: ['/home/ubuntu/repos/meme-agent/tsconfig.json'],
+        tsconfigRootDir: '/home/ubuntu/repos/meme-agent',
+        paths: {
+          "@/*": ["/home/ubuntu/repos/meme-agent/src/*"]
+        },
       },
     },
     plugins: {
