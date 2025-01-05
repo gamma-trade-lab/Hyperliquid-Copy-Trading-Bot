@@ -300,6 +300,21 @@ export class AgentTwitterClientService {
     }
   }
 
+  public async stopStream(): Promise<void> {
+    console.log('Stopping Twitter stream...');
+    
+    // Clear the monitoring interval if it exists
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+      this.monitoringInterval = null;
+    }
+    
+    // Update monitoring state
+    this.isMonitoring = false;
+    
+    console.log('Twitter stream stopped successfully');
+  }
+
   public async getProfile(username: string): Promise<{
     id: string;
     username: string;

@@ -13,10 +13,7 @@ console.log('Loaded .env file from:', process.cwd() + '/.env');
 // Validate required environment variables
 const requiredEnvVars = [
     'SOLANA_PRIVATE_KEY',
-    'GROQ_API_KEY',
-    'TWITTER_USERNAME',
-    'TWITTER_PASSWORD',
-    'TWITTER_EMAIL'
+    'GROQ_API_KEY'
 ];
 
 for (const envVar of requiredEnvVars) {
@@ -87,9 +84,10 @@ export const CONFIG = {
     },
 
     AUTOMATION: {
-        CONTENT_GENERATION_INTERVAL: parseInt(process.env.CONTENT_GENERATION_INTERVAL || '300000'), // 5 minutes default
-        MARKET_MONITORING_INTERVAL: parseInt(process.env.MARKET_MONITORING_INTERVAL || '60000'),    // 1 minute default
-        COMMUNITY_ENGAGEMENT_INTERVAL: parseInt(process.env.COMMUNITY_ENGAGEMENT_INTERVAL || '900000') // 15 minutes default
+        CONTENT_GENERATION_INTERVAL: parseInt(process.env.CONTENT_GENERATION_INTERVAL || '120000'), // 2 minutes default
+        MARKET_MONITORING_INTERVAL: parseInt(process.env.MARKET_MONITORING_INTERVAL || '30000'),    // 30 seconds default
+        COMMUNITY_ENGAGEMENT_INTERVAL: parseInt(process.env.COMMUNITY_ENGAGEMENT_INTERVAL || '180000'), // 3 minutes default
+        TWEET_INTERVAL: parseInt(process.env.TWEET_INTERVAL || '300000') // 5 minutes default
     },
 
     // Market Analysis Settings

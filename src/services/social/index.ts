@@ -15,9 +15,9 @@ export interface SocialConfig {
   services: {
     ai: any; // Let the concrete implementations handle AI type checking
   };
-  discord: {
-    token: string;
-    guildId: string;
+  discord?: {
+    token?: string;
+    guildId?: string;
   };
   twitter?: {
     tokens?: TwitterApiTokens;

@@ -1,13 +1,5 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-// Discord imports are optional
-let DiscordClient, Message;
-try {
-  const discord = await import('discord.js');
-  DiscordClient = discord.Client;
-  Message = discord.Message;
-} catch (error) {
-  console.warn('Discord.js not available:', error);
-}
+// No Discord imports needed
 import Groq from "groq-sdk";
 import { CONFIG } from './config/settings';
 import { elizaLogger } from "@ai16z/eliza";
@@ -34,7 +26,6 @@ class MemeAgentInfluencer {
   private connection: Connection;
   private groq: Groq;
   private twitterStreamHandler?: TwitterStreamHandler;
-  private discord?: typeof DiscordClient;
   private aiService: AIService;
   public socialService: SocialService;
   private tradingService: TradingService;
@@ -44,16 +35,7 @@ class MemeAgentInfluencer {
   constructor() {
     this.connection = new Connection(CONFIG.SOLANA.RPC_URL);
     this.groq = new Groq({ apiKey: CONFIG.AI.GROQ.API_KEY });
-    // Discord is optional
-    if (CONFIG.SOCIAL.DISCORD.TOKEN) {
-      try {
-        this.discord = new DiscordClient({
-          intents: ["GuildMessages", "DirectMessages", "MessageContent"]
-        });
-      } catch (error) {
-        console.warn('Failed to initialize Discord client:', error);
-      }
-    }
+    // No Discord initialization needed
     
     this.aiService = new AIService({
       groqApiKey: CONFIG.AI.GROQ.API_KEY,
@@ -145,34 +127,7 @@ class MemeAgentInfluencer {
   }
 
   private async setupMessageHandling(): Promise<void> {
-    // Setup Discord message handling if available
-    if (this.discord) {
-      this.discord.on('messageCreate', async (message: typeof Message) => {
-        if (message.author.bot) return;
-
-      try {
-        const parsedCommand = Parser.parseCommand(message.content);
-        if (!parsedCommand) return;
-
-        const command: AgentCommand = {
-          ...parsedCommand,
-          type: parsedCommand.command,
-          raw: message.content
-        };
-
-        await this.handleCommand(command, {
-          platform: 'discord',
-          channelId: message.channel.id,
-          messageId: message.id,
-          author: message.author.tag
-        });
-      } catch (error) {
-        elizaLogger.error('Error handling Discord command:', error);
-        await message.reply('Sorry, there was an error processing your command.');
-      }
-      });
-    }
-
+    // Only handle Twitter messages now
     await this.setupTwitterStream();
   }
 
@@ -457,8 +412,10 @@ class MemeAgentInfluencer {
 
   async shutdown(): Promise<void> {
     try {
-      // TODO: Add agent-twitter-client cleanup if needed
-      this.discord.destroy();
+      // Clean up Twitter stream if active
+      if (this.twitterStreamHandler) {
+        await this.twitterStreamHandler.cleanup();
+      }
       this.isInitialized = false;
       elizaLogger.success('Agent shutdown complete');
     } catch (error) {
