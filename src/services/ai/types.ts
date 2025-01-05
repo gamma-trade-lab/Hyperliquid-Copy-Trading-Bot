@@ -20,6 +20,7 @@ export interface ChatRequest {
   model: string;
   temperature?: number;
   max_tokens?: number;
+  stream?: boolean;
 }
 
 export interface ChatResponse {
@@ -90,6 +91,8 @@ export interface AIService {
     content?: string;
     confidence?: number;
   }>;
+
+  generateMarketAnalysis(): Promise<string>;
 }
 
 export interface TweetGenerationError extends Error {

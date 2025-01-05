@@ -1,6 +1,6 @@
-import { TwitterService } from './src/services/social/twitter';
-import { AIService, Tweet } from './src/services/ai/types';
-import { MarketAction } from './src/config/constants';
+import { TwitterService } from '../services/social/twitter';
+import { AIService, Tweet } from '../services/ai/types';
+import { MarketAction } from '../config/constants';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -22,6 +22,13 @@ const mockAIService: AIService = {
   determineEngagementAction: async (tweet: Tweet) => ({
     type: 'like',
     content: 'Mock engagement response'
+  }),
+
+  analyzeMarket: async (data: any) => ({
+    shouldTrade: true,
+    confidence: 0.8,
+    action: 'BUY',
+    metrics: data
   })
 };
 
