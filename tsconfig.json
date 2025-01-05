@@ -32,7 +32,8 @@
     "src/**/*",
     "src/**/*.d.ts",
     "src/services/social/*.d.ts",
-    "test-twitter.ts"
+    "src/**/*.ts",
+    "test/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"],
   "ts-node": {
