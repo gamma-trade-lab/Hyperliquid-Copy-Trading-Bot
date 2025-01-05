@@ -24,10 +24,14 @@
     "types": ["node"],
     "allowImportingTsExtensions": true,
     "emitDeclarationOnly": true,
-    "noEmit": true,
+    "noEmit": false,
     "noImplicitAny": false,
     "strictNullChecks": false
   },
-  "include": ["src/**/*", "src/**/*.d.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*", "src/**/*.d.ts", "test-twitter.ts"],
+  "exclude": ["node_modules", "dist"],
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  }
 }

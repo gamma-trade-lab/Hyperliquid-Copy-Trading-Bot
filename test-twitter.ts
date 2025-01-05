@@ -1,60 +1,73 @@
-import { AIService } from './src/services/ai/ai';
 import { TwitterService } from './src/services/social/twitter';
-import { Platform } from './src/personality/traits/responsePatterns';
+import { AIService, Tweet } from './src/services/ai/types';
+import { MarketAction } from './src/config/constants';
 import dotenv from 'dotenv';
+
+// Load environment variables
 dotenv.config();
 
-// Verify environment variables
-const requiredEnvVars = {
-  DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
-  TWITTER_USERNAME: process.env.TWITTER_USERNAME,
-  TWITTER_PASSWORD: process.env.TWITTER_PASSWORD,
-  TWITTER_EMAIL: process.env.TWITTER_EMAIL
+const mockAIService: AIService = {
+  generateResponse: async (params: { content: string; author: string; channel?: string; platform: string }) => 
+    'Mock response',
+  
+  generateMarketUpdate: async (params: { action: MarketAction; data: any; platform: string }) => 
+    'Mock market update',
+  
+  generateMarketAnalysis: async () => 
+    'Mock market analysis',
+  
+  shouldEngageWithContent: async (params: { text: string; author: string; platform: string }) => 
+    true,
+  
+  determineEngagementAction: async (tweet: Tweet) => ({
+    type: 'like',
+    content: 'Mock engagement response'
+  })
 };
 
-// Check for missing environment variables
-const missingVars = Object.entries(requiredEnvVars)
-  .filter(([key, value]) => !value)
-  .map(([key]) => key);
+async function testTwitterLogin() {
+  const twitter = new TwitterService({
+    credentials: {
+      username: process.env.TWITTER_USERNAME!,
+      password: process.env.TWITTER_PASSWORD!,
+      email: process.env.TWITTER_EMAIL!
+    },
+    aiService: mockAIService
+  });
 
-if (missingVars.length > 0) {
-  throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
-}
-
-async function testTwitterIntegration() {
   try {
-    // Initialize AI Service with DeepSeek
-    const aiService = new AIService({
-      useDeepSeek: true,
-      deepSeekApiKey: process.env.DEEPSEEK_API_KEY,
-      defaultModel: 'deepseek-chat',
-      maxTokens: 280,
-      temperature: 0.7
-    });
-
-    // Initialize Twitter Service
-    const twitterService = new TwitterService({
-      credentials: {
-        username: process.env.TWITTER_USERNAME!,
-        password: process.env.TWITTER_PASSWORD!,
-        email: process.env.TWITTER_EMAIL!
-      },
-      aiService
-    });
-
-    console.log('Initializing Twitter service...');
-    await twitterService.initialize();
-    console.log('Twitter login successful!');
-
-    // Send test tweet
-    console.log('Sending test tweet: "hello world"...');
-    const tweetId = await twitterService.tweet('hello world');
-    console.log(`Test tweet sent successfully! Tweet ID: ${tweetId}`);
-
+    console.log('Starting Twitter authentication test...');
+    
+    // Test initialization and login
+    await twitter.initialize();
+    console.log('✓ Twitter login successful!');
+    
+    // Test basic tweet functionality
+    console.log('Attempting to send test tweet...');
+    const tweetId = await twitter.tweet('hello world');
+    console.log(`✓ Test tweet sent successfully! Tweet ID: ${tweetId}`);
+    
+    return true;
   } catch (error) {
-    console.error('Test failed:', error);
-    process.exit(1);
+    console.error('❌ Test failed:', error);
+    throw error;
+  } finally {
+    try {
+      await twitter.cleanup();
+      console.log('✓ Cleanup completed');
+    } catch (cleanupError) {
+      console.error('❌ Cleanup failed:', cleanupError);
+    }
   }
 }
 
-testTwitterIntegration();
+// Run the test
+testTwitterLogin()
+  .then(() => {
+    console.log('🎉 All tests passed successfully!');
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('💥 Tests failed:', error);
+    process.exit(1);
+  });
