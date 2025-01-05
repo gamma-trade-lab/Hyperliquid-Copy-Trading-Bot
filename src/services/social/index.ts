@@ -2,6 +2,10 @@ import { TwitterService } from './twitter';
 import { DiscordService } from './discord';
 import { TwitterApiTokens } from 'twitter-api-v2';
 import { AgentTwitterClientService } from './agentTwitterClient';
+import { MarketTweetCron } from './MarketTweetCron';
+import { TweetGenerator } from '../ai/tweetGenerator';
+import { TradingService } from '../blockchain/trading';
+import { CONFIG } from '../../config/settings';
 
 export interface SocialMetrics {
   followers: number;
@@ -29,6 +33,7 @@ export class SocialService {
   private twitterService?: TwitterService;
   private agentTwitter?: AgentTwitterClientService;
   private discordService?: DiscordService;
+  private marketTweetCron?: MarketTweetCron;
 
   constructor(config: SocialConfig) {
     if (config.twitter?.tokens) {
@@ -66,6 +71,13 @@ export class SocialService {
     
     if (this.agentTwitter) {
       initPromises.push(this.agentTwitter.initialize());
+      
+      // Initialize market tweet cron after Twitter client is ready
+      this.marketTweetCron = new MarketTweetCron(
+        new TweetGenerator(),
+        new TradingService(CONFIG.SOLANA.RPC_URL),
+        this.agentTwitter
+      );
     }
     
     if (this.twitterService) {
@@ -78,6 +90,11 @@ export class SocialService {
     }
     
     await Promise.all(initPromises);
+    
+    // Start market tweet cron if available
+    if (this.marketTweetCron) {
+      this.marketTweetCron.start();
+    }
   }
 
   async getCommunityMetrics(): Promise<SocialMetrics> {

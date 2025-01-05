@@ -48,6 +48,11 @@ export class AgentTwitterClientService {
     }
   }
 
+  // Alias for sendTweet to maintain compatibility with MarketTweetCron
+  public async postTweet(content: string): Promise<void> {
+    return this.sendTweet(content);
+  }
+
   public async replyToTweet(tweetId: string, content: string, username: string): Promise<void> {
     this.ensureInitialized();
     try {
