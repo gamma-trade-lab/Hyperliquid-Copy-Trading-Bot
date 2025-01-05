@@ -13,11 +13,7 @@ console.log('Loaded .env file from:', process.cwd() + '/.env');
 // Validate required environment variables
 const requiredEnvVars = [
     'SOLANA_PRIVATE_KEY',
-    'GROQ_API_KEY',
-    'TWITTER_API_KEY',
-    'TWITTER_PASSWORD',
-    'TWITTER_EMAIL',
-    'DISCORD_TOKEN'
+    'GROQ_API_KEY'
 ];
 
 for (const envVar of requiredEnvVars) {
@@ -40,7 +36,7 @@ export const CONFIG = {
         NETWORK: getRequiredEnvVar('NETWORK_TYPE', 'devnet') as NetworkType,
         RPC_URL: getRequiredEnvVar('RPC_ENDPOINT', 'https://api.devnet.solana.com'),
         PRIVATE_KEY: getRequiredEnvVar('SOLANA_PRIVATE_KEY'),
-        PUBKEY: getRequiredEnvVar('SOLANA_PUBLIC_KEY'), // Using PUBKEY to match validator interface
+        PUBLIC_KEY: getRequiredEnvVar('SOLANA_PUBLIC_KEY'),
         TOKEN_SETTINGS: {
             NAME: getRequiredEnvVar('TOKEN_NAME', 'Meme Token'),
             SYMBOL: getRequiredEnvVar('TOKEN_SYMBOL', 'MEME'),
@@ -71,26 +67,27 @@ export const CONFIG = {
     SOCIAL: {
         TWITTER: {
             tokens: {
-                appKey: getRequiredEnvVar('TWITTER_API_KEY'),
-                appSecret: getRequiredEnvVar('TWITTER_API_SECRET'),
-                accessToken: getRequiredEnvVar('TWITTER_ACCESS_TOKEN'),
-                accessSecret: getRequiredEnvVar('TWITTER_ACCESS_SECRET')
+                appKey: process.env.TWITTER_API_KEY || '',
+                appSecret: process.env.TWITTER_API_SECRET || '',
+                accessToken: process.env.TWITTER_ACCESS_TOKEN || '',
+                accessSecret: process.env.TWITTER_ACCESS_SECRET || ''
             },
             username: getRequiredEnvVar('TWITTER_USERNAME'),
             password: getRequiredEnvVar('TWITTER_PASSWORD'),
             email: getRequiredEnvVar('TWITTER_EMAIL')
         },
         DISCORD: {
-            TOKEN: getRequiredEnvVar('DISCORD_TOKEN'),
-            GUILD_ID: getRequiredEnvVar('DISCORD_GUILD_ID'),
-            COMMAND_PREFIX: getRequiredEnvVar('DISCORD_COMMAND_PREFIX')
+            TOKEN: process.env.DISCORD_TOKEN || '',
+            GUILD_ID: process.env.DISCORD_GUILD_ID || '',
+            COMMAND_PREFIX: process.env.DISCORD_COMMAND_PREFIX || '!'
         }
     },
 
     AUTOMATION: {
-        CONTENT_GENERATION_INTERVAL: parseInt(getRequiredEnvVar('CONTENT_GENERATION_INTERVAL')),
-        MARKET_MONITORING_INTERVAL: parseInt(getRequiredEnvVar('MARKET_MONITORING_INTERVAL')),
-        COMMUNITY_ENGAGEMENT_INTERVAL: parseInt(getRequiredEnvVar('COMMUNITY_ENGAGEMENT_INTERVAL'))
+        CONTENT_GENERATION_INTERVAL: parseInt(process.env.CONTENT_GENERATION_INTERVAL || '120000'), // 2 minutes default
+        MARKET_MONITORING_INTERVAL: parseInt(process.env.MARKET_MONITORING_INTERVAL || '30000'),    // 30 seconds default
+        COMMUNITY_ENGAGEMENT_INTERVAL: parseInt(process.env.COMMUNITY_ENGAGEMENT_INTERVAL || '180000'), // 3 minutes default
+        TWEET_INTERVAL: parseInt(process.env.TWEET_INTERVAL || '300000') // 5 minutes default
     },
 
     // Market Analysis Settings
@@ -182,7 +179,7 @@ function validateConfig() {
 
     // Validate Solana public key
     try {
-        new PublicKey(CONFIG.SOLANA.PUBKEY);
+        new PublicKey(CONFIG.SOLANA.PUBLIC_KEY);
     } catch (error) {
         throw new Error('Invalid Solana public key format.');
     }
@@ -216,19 +213,12 @@ function validateConfig() {
         throw new Error('Invalid AI default temperature.');
     }
 
-    // Validate social media settings
-    if (!CONFIG.SOCIAL.TWITTER.username) {
-        throw new Error('Invalid Twitter username.');
+    // Validate Twitter credentials
+    const { username, password, email } = CONFIG.SOCIAL.TWITTER;
+    if (!username || !password || !email) {
+        throw new Error('Missing required Twitter credentials');
     }
-    if (!CONFIG.SOCIAL.TWITTER.password) {
-        throw new Error('Invalid Twitter password.');
-    }
-    if (!CONFIG.SOCIAL.TWITTER.email) {
-        throw new Error('Invalid Twitter email.');
-    }
-    if (!CONFIG.SOCIAL.DISCORD.GUILD_ID) {
-        throw new Error('Invalid Discord guild ID.');
-    }
+    // Discord is optional, no validation needed
 
     // Validate automation intervals
     if (isNaN(CONFIG.AUTOMATION.CONTENT_GENERATION_INTERVAL) || CONFIG.AUTOMATION.CONTENT_GENERATION_INTERVAL <= 0) {

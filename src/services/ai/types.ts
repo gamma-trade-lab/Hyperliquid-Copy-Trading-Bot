@@ -1,5 +1,13 @@
 import { MarketAction } from "@/config/constants";
 
+export interface AIServiceConfig {
+  useDeepSeek: boolean;
+  deepSeekApiKey: string;
+  defaultModel: string;
+  maxTokens: number;
+  temperature: number;
+}
+
 export interface LLMProvider {
   chatCompletion(request: ChatRequest): Promise<ChatResponse>;
 }
@@ -12,6 +20,7 @@ export interface ChatRequest {
   model: string;
   temperature?: number;
   max_tokens?: number;
+  stream?: boolean;
 }
 
 export interface ChatResponse {
@@ -82,6 +91,8 @@ export interface AIService {
     content?: string;
     confidence?: number;
   }>;
+
+  generateMarketAnalysis(): Promise<string>;
 }
 
 export interface TweetGenerationError extends Error {

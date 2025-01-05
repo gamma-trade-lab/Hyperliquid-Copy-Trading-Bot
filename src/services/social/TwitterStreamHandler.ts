@@ -15,6 +15,7 @@ export class TwitterStreamHandler extends EventEmitter {
   private aiService: AIService;
   private replyCount: number = 0;
   private lastReplyReset: number = Date.now();
+  private resetInterval?: NodeJS.Timeout;
 
   private config: StreamConfig = {
     replyThreshold: 0.5,  // Adjusted threshold as per requirements
@@ -31,7 +32,7 @@ export class TwitterStreamHandler extends EventEmitter {
     this.sentimentAnalyzer = new SentimentAnalyzer(aiService);
 
     // Reset reply counter every minute
-    setInterval(() => {
+    this.resetInterval = setInterval(() => {
       this.replyCount = 0;
       this.lastReplyReset = Date.now();
     }, 60 * 1000);
@@ -133,5 +134,28 @@ export class TwitterStreamHandler extends EventEmitter {
     }
     
     return this.replyCount < this.config.maxRepliesPerMinute;
+  }
+
+  public async cleanup(): Promise<void> {
+    try {
+      // Clear the reset interval
+      if (this.resetInterval) {
+        clearInterval(this.resetInterval);
+        this.resetInterval = undefined;
+      }
+
+      // Stop the Twitter stream if it's running
+      await this.twitterClient.stopStream?.();
+
+      // Reset counters
+      this.replyCount = 0;
+      this.lastReplyReset = Date.now();
+
+      // Remove all listeners
+      this.removeAllListeners();
+    } catch (error) {
+      console.error('Error during TwitterStreamHandler cleanup:', error);
+      throw error;
+    }
   }
 }

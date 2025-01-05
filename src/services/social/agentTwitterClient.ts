@@ -18,17 +18,135 @@ export class AgentTwitterClientService {
     private readonly aiService: AIService
   ) {}
 
+  private getSanitizedUsername(): string {
+    return this.username.startsWith('@') ? this.username.substring(1) : this.username;
+  }
+
+  private async loadCookies(): Promise<boolean> {
+    try {
+      if (!this.scraper) return false;
+      const cookies = await this.scraper.getCookies();
+      if (cookies && cookies.length > 0) {
+        await this.scraper.setCookies(cookies);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.warn('Failed to load cookies:', error);
+      return false;
+    }
+  }
+
+  private async attemptLogin(retries = 5): Promise<void> {
+    if (!this.scraper) throw new Error('Scraper not initialized');
+    
+    let lastError: unknown;
+    for (let i = 0; i < retries; i++) {
+      try {
+        if (i > 0) {
+          const delay = Math.min(5000 * Math.pow(2, i) + Math.random() * 5000, 30000);
+          console.log(`Waiting ${Math.round(delay)}ms before attempt ${i + 1}...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        await this.scraper.clearCookies();
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        console.log(`Attempting login with username: ${this.getSanitizedUsername()}`);
+        
+        // Set essential cookies for authentication
+        await this.scraper.withCookie('att=1;');
+        await this.scraper.withCookie('lang=en;');
+        
+        console.log('Setting up authentication with credentials:', {
+          username: !!this.username,
+          email: !!this.email,
+          hasPassword: !!this.password
+        });
+        
+        await this.scraper.login(
+          this.getSanitizedUsername(),
+          this.password,
+          this.email
+        );
+
+        await new Promise(resolve => setTimeout(resolve, 5000));
+
+        let loginVerified = false;
+        for (let verifyAttempt = 0; verifyAttempt < 3; verifyAttempt++) {
+          const isLoggedIn = await this.scraper.isLoggedIn();
+          if (isLoggedIn) {
+            loginVerified = true;
+            break;
+          }
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+        if (!loginVerified) {
+          throw new Error('Login appeared successful but verification failed');
+        }
+
+        console.log('Login successful and verified');
+        return;
+      } catch (error) {
+        console.warn(`Login attempt ${i + 1} failed:`, error);
+        lastError = error;
+        
+        const errorObj = error as any;
+        if (errorObj?.errors?.[0]?.code === 399) {
+          console.log('Twitter ACID challenge detected. Details:', {
+            code: errorObj?.errors?.[0]?.code,
+            message: errorObj?.errors?.[0]?.message,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Handle ACID challenge with longer delays
+          const waitTime = 30000 + Math.random() * 30000;
+          console.log(`Waiting ${Math.round(waitTime)}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          
+          console.log('Clearing cookies and preparing fresh session...');
+          await this.scraper.clearCookies();
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          
+          // Set essential cookies
+          await this.scraper.withCookie('att=1;');
+          await this.scraper.withCookie('lang=en;');
+        } else if (errorObj?.errors?.[0]?.code === 366) {
+          console.log('Missing data error. Retrying with clean session...');
+          await this.scraper.clearCookies();
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+      }
+    }
+    throw lastError;
+  }
+
   public async initialize(): Promise<void> {
     try {
       console.log('Initializing Twitter client...');
+      if (this.isInitialized) return;
+      
       this.scraper = new Scraper();
       
-      await this.scraper.login(
-        this.username,
-        this.password,
-        this.email
-      );
-      
+      const hasCookies = await this.loadCookies();
+      if (!hasCookies) {
+        await this.attemptLogin();
+        if (this.scraper) {
+          const cookies = await this.scraper.getCookies();
+          if (cookies && cookies.length > 0) {
+            await this.scraper.setCookies(cookies);
+          }
+        }
+      }
+
+      if (!this.scraper) throw new Error('Scraper initialization failed');
+      const isLoggedIn = await this.scraper.isLoggedIn();
+      if (!isLoggedIn) {
+        throw new Error('Failed to verify Twitter login status');
+      }
+
+
       // Initialize stream handler
       this.streamHandler = new TwitterStreamHandler(this, this.aiService);
       
@@ -38,19 +156,15 @@ export class AgentTwitterClientService {
       this.isInitialized = true;
       console.log('Twitter client initialized successfully', {
         username: this.username,
-        hasPassword: !!this.password,
-        hasEmail: !!this.email,
         isAuthenticated: true,
         streamActive: true
       });
     } catch (error) {
       console.error('Failed to initialize Twitter client:', {
         error: error instanceof Error ? error.message : 'Unknown error',
-        username: this.username,
-        hasPassword: !!this.password,
-        hasEmail: !!this.email
+        username: this.username
       });
-      throw new Error(`Twitter client initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error;
     }
   }
 
@@ -184,6 +298,21 @@ export class AgentTwitterClientService {
       });
       throw error;
     }
+  }
+
+  public async stopStream(): Promise<void> {
+    console.log('Stopping Twitter stream...');
+    
+    // Clear the monitoring interval if it exists
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+      this.monitoringInterval = null;
+    }
+    
+    // Update monitoring state
+    this.isMonitoring = false;
+    
+    console.log('Twitter stream stopped successfully');
   }
 
   public async getProfile(username: string): Promise<{
