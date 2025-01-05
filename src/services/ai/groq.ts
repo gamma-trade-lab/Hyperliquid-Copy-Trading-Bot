@@ -1,5 +1,4 @@
 import { Groq } from "groq-sdk";
-import { TwitterApi } from "twitter-api-v2";
 
 interface TweetAnalysis {
   sentiment: number;
@@ -9,25 +8,13 @@ interface TweetAnalysis {
 
 export class GroqAIService {
   private groq: Groq;
-  private twitter: TwitterApi;
   private systemPrompt: string;
 
   constructor(config: {
     groqApiKey: string;
-    twitterApiKey: string;
-    twitterApiSecret: string;
-    twitterAccessToken: string;
-    twitterAccessSecret: string;
   }) {
     this.groq = new Groq({
       apiKey: config.groqApiKey
-    });
-
-    this.twitter = new TwitterApi({
-      appKey: config.twitterApiKey,
-      appSecret: config.twitterApiSecret,
-      accessToken: config.twitterAccessToken,
-      accessSecret: config.twitterAccessSecret,
     });
 
     this.systemPrompt = `You are a crypto-native AI agent specializing in memecoin community management and social engagement.
@@ -70,15 +57,8 @@ export class GroqAIService {
   }
 
   async analyzeTweets(query: string, count: number = 100): Promise<TweetAnalysis> {
-    // Fetch recent tweets
-    const tweets = await this.twitter.v2.search({
-      query,
-      max_results: count,
-      "tweet.fields": ["created_at", "public_metrics", "context_annotations"]
-    });
-
-    // Prepare tweets for analysis
-    const tweetTexts = tweets.data.data.map(tweet => tweet.text).join('\n');
+    // TODO: Implement tweet fetching using agent-twitter-client
+    const tweetTexts = "Sample tweet text for analysis";
 
     const analysisPrompt = `Analyze these tweets and provide:
     1. Overall sentiment (-1 to 1)

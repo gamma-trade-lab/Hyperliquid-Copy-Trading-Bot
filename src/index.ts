@@ -1,5 +1,4 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-import { TwitterApi, TweetV2SingleStreamResult } from 'twitter-api-v2';
 import { Client as DiscordClient, Message } from 'discord.js';
 import Groq from "groq-sdk";
 import { CONFIG } from './config/settings';
@@ -20,7 +19,6 @@ import { SocialMetrics } from './services/social';
 class MemeAgentInfluencer {
   private connection: Connection;
   private groq: Groq;
-  private twitter: TwitterApi;
   private discord: DiscordClient;
   private aiService: AIService;
   private socialService: SocialService;
@@ -31,7 +29,6 @@ class MemeAgentInfluencer {
   constructor() {
     this.connection = new Connection(CONFIG.SOLANA.RPC_URL);
     this.groq = new Groq({ apiKey: CONFIG.AI.GROQ.API_KEY });
-    this.twitter = new TwitterApi(CONFIG.SOCIAL.TWITTER.tokens);
     this.discord = new DiscordClient({
       intents: ["GuildMessages", "DirectMessages", "MessageContent"]
     });
@@ -141,34 +138,8 @@ class MemeAgentInfluencer {
 
   private async setupTwitterStream(): Promise<void> {
     try {
-      const rules = await this.twitter.v2.streamRules();
-      if (!rules.data?.length) {
-        await this.twitter.v2.updateStreamRules({
-          add: [{ value: `@${CONFIG.SOCIAL.TWITTER.USERNAME}` }]
-        });
-      }
-
-      const stream = await this.twitter.v2.searchStream({
-        'tweet.fields': ['referenced_tweets', 'author_id'],
-        expansions: ['referenced_tweets.id']
-      });
-
-      stream.on('data', async (tweet: TweetV2SingleStreamResult) => {
-        try {
-          const sentiment = await this.aiService.analyzeSentiment(tweet.data.text);
-          if (sentiment > 0.5) {
-            const response = await this.aiService.generateResponse({
-              content: tweet.data.text,
-              platform: 'twitter',
-              author: tweet.data.author_id || 'unknown',
-              channel: tweet.data.id
-            });
-            await this.twitter.v2.reply(response, tweet.data.id);
-          }
-        } catch (error) {
-          elizaLogger.error('Error handling tweet:', error);
-        }
-      });
+      // TODO: Implement Twitter stream setup using agent-twitter-client
+      elizaLogger.info('Twitter stream setup will be implemented with agent-twitter-client');
     } catch (error) {
       elizaLogger.error('Error setting up Twitter stream:', error);
     }
@@ -315,9 +286,7 @@ class MemeAgentInfluencer {
 
   async shutdown(): Promise<void> {
     try {
-      await this.twitter.v2.updateStreamRules({
-        delete: { ids: ['*'] }
-      });
+      // TODO: Add agent-twitter-client cleanup if needed
       this.discord.destroy();
       this.isInitialized = false;
       elizaLogger.success('Agent shutdown complete');
