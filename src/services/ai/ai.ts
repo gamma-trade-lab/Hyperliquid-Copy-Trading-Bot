@@ -490,11 +490,26 @@ export class AIService {
   }
 }
 
-// Export singleton instance
-export const aiService = new AIService({
-  groqApiKey: CONFIG.AI.GROQ.API_KEY,
-  defaultModel: CONFIG.AI.GROQ.MODEL,
-  maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
-  temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
-});
-export default aiService;
+// Export class and create default instance if config is available
+export const createDefaultAIService = () => {
+  if (!CONFIG.AI?.GROQ) {
+    throw new Error('GROQ configuration is required but not found');
+  }
+  return new AIService({
+    groqApiKey: CONFIG.AI.GROQ.API_KEY,
+    defaultModel: CONFIG.AI.GROQ.MODEL,
+    maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
+    temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
+  });
+};
+
+// Only create singleton if config exists
+let defaultInstance: AIService | undefined;
+try {
+  defaultInstance = createDefaultAIService();
+} catch (error) {
+  console.warn('Failed to create default AI service instance:', error);
+}
+
+export const aiService = defaultInstance;
+export default AIService;
