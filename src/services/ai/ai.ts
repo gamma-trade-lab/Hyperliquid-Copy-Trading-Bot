@@ -4,7 +4,7 @@ import { Groq } from 'groq-sdk';
 import { randomBytes } from 'crypto';
 import { MarketAction } from '../../config/constants';
 import { DeepSeekProvider } from './providers/deepSeekProvider';
-import { LLMProvider, ChatRequest, ChatResponse } from './types';
+import { LLMProvider, ChatRequest, ChatResponse, Tweet } from './types';
 import CONFIG from '../../config/settings';
 import personalityConfig from '../../config/personality';
 
@@ -56,14 +56,31 @@ export class AIService {
     } else if (config.groqApiKey) {
       const groq = new Groq({ apiKey: config.groqApiKey });
       this.provider = {
-        chatCompletion: async (request) => {
-          return await groq.chat.completions.create({
-            messages: request.messages,
+        chatCompletion: async (request: ChatRequest): Promise<ChatResponse> => {
+          const messages = request.messages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          }));
+
+          const completion = await groq.chat.completions.create({
+            messages,
             model: request.model,
-            temperature: request.temperature,
-            max_tokens: request.max_tokens,
-            stream: request.stream
+            temperature: request.temperature || 0.7,
+            max_tokens: request.max_tokens || 100
           });
+          
+          return {
+            id: completion.id || randomBytes(16).toString('hex'),
+            object: 'chat.completion',
+            created: Date.now(),
+            choices: [{
+              message: {
+                role: completion.choices[0].message.role as 'system' | 'user' | 'assistant',
+                content: completion.choices[0].message.content || ''
+              },
+              finish_reason: completion.choices[0].finish_reason || 'stop'
+            }]
+          };
         }
       };
     } else {
@@ -316,7 +333,7 @@ export class AIService {
     }
   }
 
-  async determineEngagementAction(tweet: TweetV2): Promise<{ type: string; content?: string }> {
+  async determineEngagementAction(tweet: Tweet): Promise<{ type: string; content?: string }> {
     try {
       const prompt = `Determine the optimal engagement action for the following tweet:
         ${JSON.stringify(tweet)}
@@ -329,7 +346,7 @@ export class AIService {
         
         Response format: { "type": "reply" | "retweet" | "like", "content"?: string }`;
 
-      const response: { choices: { message: { content: string | null } }[] } = await this.groq.chat.completions.create({
+      const response = await this.provider.chatCompletion({
         messages: [
           { role: "system", content: this.personality.core.voice.tone },
           { role: "user", content: prompt }

@@ -40,8 +40,13 @@ export interface MarketData {
     generateMarketAnalysis(): Promise<string>;
   }
   // src/services/ai/types.ts
+export type ChatMessage = {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+};
+
 export interface ChatRequest {
-  messages: { role: string; content: string }[];
+  messages: ChatMessage[];
   model: string;
   temperature?: number;
   max_tokens?: number;
@@ -71,6 +76,17 @@ export interface AIServiceConfig {
   temperature: number;
 }
 
+export interface Tweet {
+  id: string;
+  text: string;
+  author: string;
+  metrics?: {
+    retweets: number;
+    likes: number;
+    replies: number;
+  };
+}
+
 export interface AIService {
   generateResponse(params: {
     content: string;
@@ -91,7 +107,7 @@ export interface AIService {
     platform: string;
   }): Promise<boolean>;
   
-  determineEngagementAction(tweet: any): Promise<{
+  determineEngagementAction(tweet: Tweet): Promise<{
     type: string;
     content?: string;
   }>;
