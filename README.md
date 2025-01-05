@@ -35,15 +35,31 @@ Jenna is a revolutionary AI-powered agent living on Solana, aiming to push the b
 
 ### AI/ML Stack
 - Groq SDK for high-performance inference
+- DeepSeek AI integration for enhanced responses
 - Mixtral 8x7B as base language model
 - Custom sentiment analysis pipeline
 - Advanced context management system
 
 ### Social Integration
-- Twitter API v2 integration
+- Agent-based Twitter automation
+- Cookie-based authentication system
 - Discord.js for community management
 - Rate-limited message queue system
 - Engagement analytics pipeline
+
+## 📝 Recent Updates
+
+### Modified Files
+- `src/services/ai/providers/deepSeekProvider.ts` - Added DeepSeek AI integration
+- `src/services/social/twitter.ts` - Implemented agent-based Twitter automation
+- `src/services/ai/ai.ts` - Added multi-provider AI system
+- Various configuration and dependency updates
+
+### Package Updates
+- Updated to latest versions of core dependencies
+- Added ESLint configuration for improved code quality
+- Integrated agent-twitter-client for Twitter automation
+- Updated TypeScript configuration
 
 ## 🚀 Quick Start
 
@@ -66,11 +82,23 @@ npm start
 
 Required environment variables:
 ```env
+# Blockchain
 SOLANA_RPC_URL=
+
+# AI Providers
 GROQ_API_KEY=
-TWITTER_API_KEY=
+DEEPSEEK_API_KEY=
+
+# Social Media
+TWITTER_USERNAME=
+TWITTER_PASSWORD=
+TWITTER_EMAIL=
+
+# Discord
 DISCORD_TOKEN=
 ```
+
+See `.env.example` for a complete list of configuration options.
 
 ## 🤝 Community & Support
 

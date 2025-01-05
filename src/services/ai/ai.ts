@@ -1,4 +1,17 @@
-// src/services/ai.ts
+/**
+ * AI Service Implementation
+ * 
+ * This module provides AI capabilities through multiple LLM providers (Groq and DeepSeek).
+ * It handles various AI tasks including content generation, sentiment analysis, and market analysis.
+ * 
+ * Features:
+ * - Multiple LLM provider support (Groq, DeepSeek)
+ * - Context-aware response generation
+ * - Market analysis and trading signals
+ * - Meme content generation with sentiment analysis
+ * 
+ * @module AIService
+ */
 
 import { Groq } from 'groq-sdk';
 import { randomBytes } from 'crypto';
@@ -50,6 +63,13 @@ export class AIService {
   private contextMemory: Map<string, string[]> = new Map();
   private maxMemoryItems: number = 10;
 
+  /**
+   * Initializes the AI service with the specified configuration
+   * Supports multiple LLM providers (DeepSeek and Groq)
+   * 
+   * @param config - Configuration object containing API keys and model settings
+   * @throws Error if no valid AI provider configuration is found
+   */
   constructor(config: AIServiceConfig) {
     if (config.useDeepSeek && config.deepSeekApiKey) {
       this.provider = new DeepSeekProvider(config.deepSeekApiKey);
@@ -90,6 +110,17 @@ export class AIService {
     this.personality = personalityConfig;
   }
 
+  /**
+   * Generates an AI response based on the given context
+   * Uses the configured LLM provider (DeepSeek or Groq)
+   * 
+   * @param context - Context for response generation
+   * @param context.content - Input content to respond to
+   * @param context.platform - Platform where the response will be posted
+   * @param context.author - Original content author (optional)
+   * @param context.channel - Channel/thread identifier (optional)
+   * @returns Promise resolving to the generated response text
+   */
   async generateResponse(context: ResponseContext): Promise<string> {
     try {
       const prompt = this.buildResponsePrompt(context);
@@ -415,6 +446,13 @@ export class AIService {
     }
   }
 
+  /**
+   * Builds a prompt for response generation
+   * Incorporates personality traits and context
+   * 
+   * @param context - Response context including platform and content
+   * @returns Formatted prompt string for the LLM
+   */
   private buildResponsePrompt(context: ResponseContext): string {
     const basePrompt = `Generate a response considering:
       Content: ${context.content || ''}
