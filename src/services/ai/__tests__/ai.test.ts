@@ -1,9 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { AIService } from '../ai';
 import { AIServiceConfig } from '../types';
-import dotenv from 'dotenv';
 
-dotenv.config();
+// Mock the settings import
+vi.mock('@/config/settings', () => ({
+  default: {
+    ai: {
+      defaultModel: 'deepseek-chat',
+      maxTokens: 100,
+      temperature: 0.7
+    }
+  }
+}));
 
 describe('AIService', () => {
   it('should initialize with DeepSeek provider and generate responses', async () => {
