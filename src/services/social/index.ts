@@ -79,11 +79,11 @@ export class SocialService {
     const promises: Promise<void>[] = [];
 
     if (this.twitterService) {
-      promises.push(this.twitterService.tweet(content).then(() => {}));
+      promises.push(this.twitterService.tweet(content).then(() => { /* success */ }));
     }
     
     if (this.discordService) {
-      promises.push(this.discordService.sendMessage('System', content).then(() => {}));
+      promises.push(this.discordService.sendMessage('System', content).then(() => { /* success */ }));
     }
     
     await Promise.all(promises);

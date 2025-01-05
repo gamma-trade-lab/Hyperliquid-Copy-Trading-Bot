@@ -87,7 +87,7 @@ export class TwitterService {
     }
   }
 
-  async reply(tweetId: string, content: string): Promise<string> {
+  async reply(tweetId: string, _content: string): Promise<string> {
     try {
       if (!this.isInitialized) {
         throw new Error('Twitter service not initialized');
