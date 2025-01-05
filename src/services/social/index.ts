@@ -1,6 +1,7 @@
 import { TwitterService } from './twitter';
 import { DiscordService } from './discord';
 import { TwitterApiTokens } from 'twitter-api-v2';
+import { AgentTwitterClientService } from './agentTwitterClient';
 
 export interface SocialMetrics {
   followers: number;
@@ -18,15 +19,29 @@ export interface SocialConfig {
   };
   twitter: {
     tokens: TwitterApiTokens;
+    username: string;
+    password: string;
+    email: string;
   };
 }
 
 export class SocialService {
   private twitterService?: TwitterService;
+  private agentTwitter?: AgentTwitterClientService;
   private discordService?: DiscordService;
 
   constructor(config: SocialConfig) {
     if (config.twitter?.tokens) {
+      // Initialize agent-twitter-client service
+      if (config.twitter.username && config.twitter.password && config.twitter.email) {
+        this.agentTwitter = new AgentTwitterClientService(
+          config.twitter.username,
+          config.twitter.password,
+          config.twitter.email
+        );
+      }
+
+      // Keep legacy Twitter service for now during migration
       const twitterConfig = {
         appKey: config.twitter.tokens.appKey ?? '',
         appSecret: config.twitter.tokens.appSecret ?? '',
@@ -48,6 +63,10 @@ export class SocialService {
 
   async initialize(): Promise<void> {
     const initPromises: Promise<void>[] = [];
+    
+    if (this.agentTwitter) {
+      initPromises.push(this.agentTwitter.initialize());
+    }
     
     if (this.twitterService) {
       initPromises.push(this.twitterService.initialize());
@@ -72,7 +91,9 @@ export class SocialService {
   async send(content: string): Promise<void> {
     const promises: Promise<void>[] = [];
 
-    if (this.twitterService) {
+    if (this.agentTwitter) {
+      promises.push(this.agentTwitter.sendTweet(content));
+    } else if (this.twitterService) {
       promises.push(this.twitterService.tweet(content).then(() => {}));
     }
     
@@ -86,7 +107,10 @@ export class SocialService {
   async sendMessage(platform: string, messageId: string, content: string): Promise<void> {
     switch (platform.toLowerCase()) {
       case 'twitter':
-        if (this.twitterService) {
+        if (this.agentTwitter) {
+          const username = await this.getTweetAuthor(messageId);
+          await this.agentTwitter.replyToTweet(messageId, content, username);
+        } else if (this.twitterService) {
           await this.twitterService.reply(messageId, content);
         }
         break;
@@ -98,6 +122,12 @@ export class SocialService {
       default:
         throw new Error(`Unsupported platform: ${platform}`);
     }
+  }
+
+  private async getTweetAuthor(tweetId: string): Promise<string> {
+    // For now, return a default username since we don't have access to tweet data
+    // This should be implemented properly in a future update
+    return 'unknown_user';
   }
 }
 
