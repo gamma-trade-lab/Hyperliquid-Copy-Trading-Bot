@@ -1,14 +1,46 @@
 import { MarketAction } from "@/config/constants";
 
+export interface LLMProvider {
+  chatCompletion(request: ChatRequest): Promise<ChatResponse>;
+}
+
+export interface ChatRequest {
+  messages: Array<{
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+  }>;
+  model: string;
+  temperature?: number;
+  max_tokens?: number;
+}
+
+export interface ChatResponse {
+  id: string;
+  object: string;
+  created: number;
+  choices: Array<{
+    message: {
+      role: 'system' | 'user' | 'assistant';
+      content: string;
+    };
+    finish_reason: string;
+  }>;
+}
+
+export interface Tweet {
+  id: string;
+  text: string;
+  author?: {
+    id: string;
+    username: string;
+  };
+}
+
 export interface MarketAnalysis {
   shouldTrade: boolean;
   confidence: number;
   action: 'BUY' | 'SELL' | 'HOLD';
-  metrics?: {
-    price: number;
-    volume24h: number;
-    marketCap: number;
-  };
+  metrics?: MarketData;
 }
 
 
@@ -30,15 +62,6 @@ export interface MarketData {
     topInfluencers: string[];
   }
 
-  export interface AIService {
-    generateResponse(params: {
-      content: string;
-      author: string;
-      channel: string;
-      platform: string;
-    }): Promise<string>;
-    generateMarketAnalysis(): Promise<string>;
-  }
   // src/services/ai/types.ts
 export interface AIService {
   generateResponse(params: {
@@ -50,9 +73,11 @@ export interface AIService {
   
   generateMarketUpdate(params: {
     action: MarketAction;
-    data: any;
+    data: MarketData;
     platform: string;
   }): Promise<string>;
+  
+  analyzeMarket(data: MarketData): Promise<MarketAnalysis>;
   
   shouldEngageWithContent(params: {
     text: string;
@@ -61,8 +86,9 @@ export interface AIService {
   }): Promise<boolean>;
   
   determineEngagementAction(tweet: any): Promise<{
-    type: string;
+    type: 'reply' | 'retweet' | 'like' | 'ignore';
     content?: string;
+    confidence?: number;
   }>;
 }
 

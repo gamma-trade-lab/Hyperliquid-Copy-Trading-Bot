@@ -167,7 +167,10 @@ function isValidPrivateKey(key: string): boolean {
 
 // Initialize configuration
 validateConfig();
-validateSolanaConfig(CONFIG.SOLANA);
+validateSolanaConfig({
+  ...CONFIG.SOLANA,
+  PUBLIC_KEY: CONFIG.SOLANA.PUBLIC_KEY,
+});
 
 export default CONFIG;
 

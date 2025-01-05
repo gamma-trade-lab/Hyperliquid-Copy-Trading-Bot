@@ -4,8 +4,20 @@ import bs58 from 'bs58';
 
 export function validateSolanaConfig(config: {
   PRIVATE_KEY: string;
-  PUBKEY: string;
+  PUBLIC_KEY: string;
   RPC_URL: string;
+  NETWORK: string;
+  TOKEN_SETTINGS: {
+    NAME: string;
+    SYMBOL: string;
+    DECIMALS: number;
+    METADATA: any;
+  };
+  TRADING: {
+    BASE_AMOUNT: number;
+    MIN_CONFIDENCE: number;
+    SLIPPAGE: number;
+  };
 }) {
   try {
     console.log('Validating Solana configuration...');
@@ -17,7 +29,7 @@ export function validateSolanaConfig(config: {
 
     // Validate public key
     try {
-      new PublicKey(config.PUBKEY);
+      new PublicKey(config.PUBLIC_KEY);
       console.log('Public key is valid');
     } catch {
       throw new Error('Invalid public key format');
@@ -38,7 +50,7 @@ export function validateSolanaConfig(config: {
       const keypair = Keypair.fromSecretKey(privateKeyBytes);
       const derivedPubkey = keypair.publicKey.toString();
       
-      if (derivedPubkey !== config.PUBKEY) {
+      if (derivedPubkey !== config.PUBLIC_KEY) {
         throw new Error('Private key does not match public key');
       }
       console.log('Private key is valid and matches public key');

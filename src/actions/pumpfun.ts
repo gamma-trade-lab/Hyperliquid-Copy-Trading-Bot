@@ -409,14 +409,14 @@ export class PumpFunSDK {
 
   async createTokenMetadata(create: CreateTokenMetadata) {
     let formData = new FormData();
-    formData.append("file", create.file),
-      formData.append("name", create.name),
-      formData.append("symbol", create.symbol),
-      formData.append("description", create.description),
-      formData.append("twitter", create.twitter || ""),
-      formData.append("telegram", create.telegram || ""),
-      formData.append("website", create.website || ""),
-      formData.append("showName", "true");
+    formData.append("file", create.file);
+    formData.append("name", create.name);
+    formData.append("symbol", create.symbol);
+    formData.append("description", create.description);
+    formData.append("twitter", create.twitter || "");
+    formData.append("telegram", create.telegram || "");
+    formData.append("website", create.website || "");
+    formData.append("showName", "true");
 
     setGlobalDispatcher(new Agent({ connect: { timeout: 60_000 } }));
     

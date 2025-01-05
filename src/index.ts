@@ -1,5 +1,4 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-import { TwitterApi, TweetV2SingleStreamResult } from 'twitter-api-v2';
 import { Client as DiscordClient, Message } from 'discord.js';
 import Groq from "groq-sdk";
 import { CONFIG } from './config/settings';
@@ -16,11 +15,11 @@ import { AIService } from './services/ai';
 // Types
 import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext } from './services/blockchain/types';
 import { SocialMetrics } from './services/social';
+import { TwitterStreamHandler } from './services/social/TwitterStreamHandler';
 
 class MemeAgentInfluencer {
   private connection: Connection;
   private groq: Groq;
-  private twitter: TwitterApi;
   private discord: DiscordClient;
   private aiService: AIService;
   private socialService: SocialService;
@@ -31,7 +30,6 @@ class MemeAgentInfluencer {
   constructor() {
     this.connection = new Connection(CONFIG.SOLANA.RPC_URL);
     this.groq = new Groq({ apiKey: CONFIG.AI.GROQ.API_KEY });
-    this.twitter = new TwitterApi(CONFIG.SOCIAL.TWITTER.tokens);
     this.discord = new DiscordClient({
       intents: ["GuildMessages", "DirectMessages", "MessageContent"]
     });
@@ -51,7 +49,13 @@ class MemeAgentInfluencer {
         token: CONFIG.SOCIAL.DISCORD.TOKEN,
         guildId: CONFIG.SOCIAL.DISCORD.GUILD_ID
       },
-      twitter: CONFIG.SOCIAL.TWITTER
+      twitter: {
+        credentials: {
+          username: CONFIG.SOCIAL.TWITTER.username,
+          password: CONFIG.SOCIAL.TWITTER.password,
+          email: CONFIG.SOCIAL.TWITTER.email
+        }
+      }
     });
 
     this.tradingService = new TradingService(CONFIG.SOLANA.RPC_URL);
@@ -141,34 +145,20 @@ class MemeAgentInfluencer {
 
   private async setupTwitterStream(): Promise<void> {
     try {
-      const rules = await this.twitter.v2.streamRules();
-      if (!rules.data?.length) {
-        await this.twitter.v2.updateStreamRules({
-          add: [{ value: `@${CONFIG.SOCIAL.TWITTER.username}` }]
-        });
+      // Get Twitter client from social service
+      const twitterClient = await this.socialService.getTwitterClient();
+      
+      if (twitterClient) {
+        // Initialize Twitter stream handler
+        const streamHandler = new TwitterStreamHandler(
+          twitterClient,
+          this.aiService
+        );
+        await streamHandler.initialize();
+        elizaLogger.success('Twitter stream handler initialized');
+      } else {
+        elizaLogger.warn('Twitter stream setup skipped - no Twitter client available');
       }
-
-      const stream = await this.twitter.v2.searchStream({
-        'tweet.fields': ['referenced_tweets', 'author_id'],
-        expansions: ['referenced_tweets.id']
-      });
-
-      stream.on('data', async (tweet: TweetV2SingleStreamResult) => {
-        try {
-          const sentiment = await this.aiService.analyzeSentiment(tweet.data.text);
-          if (sentiment > 0.5) {
-            const response = await this.aiService.generateResponse({
-              content: tweet.data.text,
-              platform: 'twitter',
-              author: tweet.data.author_id || 'unknown',
-              channel: tweet.data.id
-            });
-            await this.twitter.v2.reply(response, tweet.data.id);
-          }
-        } catch (error) {
-          elizaLogger.error('Error handling tweet:', error);
-        }
-      });
     } catch (error) {
       elizaLogger.error('Error setting up Twitter stream:', error);
     }
@@ -246,16 +236,24 @@ class MemeAgentInfluencer {
   }
 
   private async analyzeMarket(): Promise<MarketAnalysis> {
-    const metrics = await this.tradingService.getMarketData(this.tokenAddress);
-    const aiAnalysis = await this.aiService.analyzeMarket(metrics);
-    
-    // Return a properly formatted MarketAnalysis object
-    return {
-      shouldTrade: aiAnalysis.shouldTrade,
-      confidence: aiAnalysis.confidence,
-      action: aiAnalysis.action,
-      metrics: aiAnalysis.metrics
-    };
+    try {
+      const metrics = await this.tradingService.getMarketData();
+      return await this.aiService.analyzeMarket(metrics);
+    } catch (error) {
+      console.error('Error analyzing market:', error);
+      return {
+        shouldTrade: false,
+        confidence: 0,
+        action: 'HOLD',
+        metrics: {
+          price: 0,
+          volume24h: 0,
+          marketCap: 0,
+          priceChange24h: 0,
+          topHolders: []
+        }
+      };
+    }
   }
 
   private async executeTrade(analysis: MarketAnalysis): Promise<TradeResult> {
@@ -301,7 +299,7 @@ class MemeAgentInfluencer {
         const price = await this.getCurrentPrice();
         return `Current price: ${price} SOL`;
       case 'stats':
-        const metrics = await this.tradingService.getMarketData(this.tokenAddress);
+        const metrics = await this.tradingService.getMarketData();
         return `24h Volume: ${metrics.volume24h}\nMarket Cap: ${metrics.marketCap}`;
       default:
         return await this.aiService.generateResponse({
@@ -315,9 +313,7 @@ class MemeAgentInfluencer {
 
   async shutdown(): Promise<void> {
     try {
-      await this.twitter.v2.updateStreamRules({
-        delete: { ids: ['*'] }
-      });
+      // TODO: Add agent-twitter-client cleanup if needed
       this.discord.destroy();
       this.isInitialized = false;
       elizaLogger.success('Agent shutdown complete');
