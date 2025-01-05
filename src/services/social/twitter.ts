@@ -1,6 +1,6 @@
 // src/services/social/twitter.ts
 
-import { Scraper, Tweet, TweetResponse } from 'agent-twitter-client';
+import { Scraper, Tweet } from 'agent-twitter-client';
 import { AIService } from '../ai/types';
 import { MarketAction } from '../../config/constants';
 
@@ -47,22 +47,40 @@ export class TwitterService {
     }
   }
 
+  private getTweetId(response: unknown): string {
+    if (typeof response === 'object' && response !== null) {
+      // Try different possible response structures
+      const resp = response as Record<string, unknown>;
+      return String(
+        resp.tweet_id || 
+        resp.id || 
+        (resp.data && typeof resp.data === 'object' ? (resp.data as Record<string, unknown>).id : '') ||
+        ''
+      );
+    }
+    return '';
+  }
+
   async tweet(content: string, options: TweetOptions = {}): Promise<string> {
     try {
       if (!this.isInitialized) {
         throw new Error('Twitter service not initialized');
       }
 
+      let result: unknown;
       if (options.replyToTweet) {
-        const response = await this.scraper.sendTweet(content, options.replyToTweet) as TweetResponse;
-        return response.tweet_id;
+        result = await this.scraper.sendTweet(content, options.replyToTweet);
       } else if (options.quoteTweetId) {
-        const response = await this.scraper.sendQuoteTweet(content, options.quoteTweetId) as TweetResponse;
-        return response.tweet_id;
+        result = await this.scraper.sendQuoteTweet(content, options.quoteTweetId);
       } else {
-        const response = await this.scraper.sendTweet(content) as TweetResponse;
-        return response.tweet_id;
+        result = await this.scraper.sendTweet(content);
       }
+
+      const tweetId = this.getTweetId(result);
+      if (!tweetId) {
+        throw new Error('Failed to get tweet ID from response');
+      }
+      return tweetId;
     } catch (error) {
       console.error('Error sending tweet:', error);
       throw error;
@@ -76,15 +94,22 @@ export class TwitterService {
       }
 
       const tweet = await this.scraper.getTweet(tweetId) as Tweet;
+      const tweetText = tweet?.text || '';
+      const tweetUsername = tweet?.username || 'unknown';
+
       const response = await this.aiService.generateResponse({
-        content: tweet.text || '',
-        author: tweet.user?.screen_name || 'unknown',
+        content: tweetText,
+        author: tweetUsername,
         platform: 'twitter',
-        channel: tweet.id_str || tweetId
+        channel: tweetId
       });
 
-      const result = await this.scraper.sendTweet(response, tweetId) as TweetResponse;
-      return result.tweet_id;
+      const result = await this.scraper.sendTweet(response, tweetId);
+      const responseTweetId = this.getTweetId(result);
+      if (!responseTweetId) {
+        throw new Error('Failed to get tweet ID from response');
+      }
+      return responseTweetId;
     } catch (error) {
       console.error('Error replying to tweet:', error);
       throw error;
