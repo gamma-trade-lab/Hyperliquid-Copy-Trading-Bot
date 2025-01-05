@@ -100,4 +100,18 @@ export class AgentTwitterClientService {
       throw new Error(`Failed to retweet: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
+  public async getProfile(username: string): Promise<any> {
+    this.ensureInitialized();
+    try {
+      if (this.scraper) {
+        const profile = await this.scraper.getProfile(username);
+        return profile;
+      }
+      throw new Error('Scraper not initialized');
+    } catch (error) {
+      console.error('Failed to get profile:', error);
+      throw new Error(`Failed to get profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 }
