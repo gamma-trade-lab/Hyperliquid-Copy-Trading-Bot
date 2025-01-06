@@ -7,4 +7,3 @@ Current status:
 - Authentication confirmed ✓
 - PR creation failed due to permissions ✗
 
-Could you please verify and adjust the repository permissions for the devin-ai-integration[bot] to allow PR creation? Once the permissions are updated, I can proceed with creating the pull request.
