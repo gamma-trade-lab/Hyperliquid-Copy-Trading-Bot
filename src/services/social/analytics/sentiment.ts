@@ -68,11 +68,10 @@ export class SentimentAnalyzer extends EventEmitter {
       // Get AI response
       const response = await this.aiService.generateResponse({
         content: prompt,
-        context: {
-          type: 'sentiment_analysis',
-          metadata
-        } as ResponseContext
-      } as AIServiceRequest);
+        author: 'system',
+        channel: 'sentiment',
+        platform: 'sentiment'
+      });
 
       // Parse AI response into sentiment data
       const sentimentData = this.parseSentimentResponse(response);

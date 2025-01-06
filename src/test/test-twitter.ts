@@ -1,12 +1,12 @@
 import { TwitterService } from '../services/social/twitter';
-import { AIService, Tweet } from '../services/ai/types';
+import { IAIService, Tweet } from '../services/ai/types';
 import { MarketAction } from '../config/constants';
 import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
 
-const mockAIService: AIService = {
+const mockAIService: IAIService = {
   generateResponse: async (params: { content: string; author: string; channel?: string; platform: string }) => 
     'Mock response',
   

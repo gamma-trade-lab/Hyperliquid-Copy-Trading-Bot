@@ -115,7 +115,7 @@ export class SocialService {
 
     try {
       if (this.agentTwitter) {
-        const result = await this.agentTwitter.sendTweet(content);
+        const result = await this.agentTwitter.postTweet(content);
         console.log('Successfully posted tweet using AgentTwitterClient');
         return result;
       } else if (this.twitterService) {
@@ -135,7 +135,7 @@ export class SocialService {
     const promises: Promise<void>[] = [];
 
     if (this.agentTwitter) {
-      promises.push(this.agentTwitter.sendTweet(content).then(() => {
+      promises.push(this.agentTwitter.postTweet(content).then(() => {
         console.log('Tweet sent successfully via AgentTwitterClient');
       }));
     } else if (this.twitterService) {
@@ -158,7 +158,7 @@ export class SocialService {
       case 'twitter':
         if (this.agentTwitter) {
           const username = await this.getTweetAuthor(messageId);
-          await this.agentTwitter.replyToTweet(messageId, content, username);
+          await this.agentTwitter.replyToTweet(messageId, content);
         } else if (this.twitterService) {
           await this.twitterService.reply(messageId, content);
         }

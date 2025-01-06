@@ -1,5 +1,20 @@
 import { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
 
+export interface JupiterPrice {
+  id: string;
+  mintSymbol: string;
+  vsToken: string;
+  vsTokenSymbol: string;
+  price: number;
+  confidence: number;
+}
+
+export interface JupiterPriceResponse {
+  data: {
+    [tokenAddress: string]: JupiterPrice;
+  };
+}
+
 export interface RouteInfo {
   inAmount: bigint;
   outAmount: bigint;

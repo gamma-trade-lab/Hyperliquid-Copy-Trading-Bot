@@ -1,5 +1,5 @@
 import { TraitManager } from './traitManager';
-import { AIService } from '../../services/ai/ai';
+import { IAIService } from '../../services/ai/types';
 import { EventEmitter } from 'events';
 
 interface MemeTemplate {
@@ -17,7 +17,7 @@ interface MemeTemplate {
   successRate?: number;
 }
 
-interface MemeContext {
+export interface MemeContext {
   marketCondition: 'bullish' | 'bearish' | 'neutral';
   recentEvents: string[];
   communityMood: number;
@@ -44,12 +44,12 @@ interface ResponseContext {
 
 export class MemeGenerator extends EventEmitter {
   private traitManager: TraitManager;
-  private aiService: AIService;
+  private aiService: IAIService;
   private templates: Map<string, MemeTemplate>;
   recentMemes: GeneratedMeme[] = [];
   private readonly MAX_RECENT_MEMES = 100;
 
-  constructor(traitManager: TraitManager, aiService: AIService) {
+  constructor(traitManager: TraitManager, aiService: IAIService) {
     super();
     this.traitManager = traitManager;
     this.aiService = aiService;
@@ -118,13 +118,10 @@ export class MemeGenerator extends EventEmitter {
     const activeTraits = this.traitManager.getActiveTraits();
     const responseContent: string = await this.aiService.generateResponse({
       content: prompt,
-      context: {
-        ...context,
-        traits: activeTraits,
-        metrics: this.getLatestMetrics()
-      },
-      platform: "yourPlatform"
-    } as ResponseContext);
+      author: "system",
+      platform: "yourPlatform",
+      channel: "meme-generation"
+    });
 
     const content = responseContent;
 

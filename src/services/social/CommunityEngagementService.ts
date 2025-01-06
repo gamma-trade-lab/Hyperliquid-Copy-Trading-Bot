@@ -48,7 +48,7 @@ export class CommunityEngagementService extends EventEmitter {
         });
 
         // Post engagement content
-        await this.twitterClient.sendTweet(content);
+        await this.twitterClient.postTweet(content);
 
         // Update metrics
         this.emit('engagement', {

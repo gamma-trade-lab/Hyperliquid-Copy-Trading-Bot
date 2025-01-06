@@ -2,11 +2,11 @@
 
 import { EventEmitter } from 'events';
 import { Platform } from '../../../personality/traits/responsePatterns';
-import { AIService, ChatResponse } from '../../ai/types';
+import { IAIService, ChatResponse } from '../../ai/types';
 import { TwitterService } from '../twitter';
 
 interface PostQueueConfig {
-  aiService: AIService;
+  aiService: IAIService;
   twitterService: TwitterService;
 }
 
@@ -42,7 +42,7 @@ export class PostQueue extends EventEmitter {
   private readonly MAX_QUEUE_SIZE = 1000;
   private readonly PROCESSING_INTERVAL = 1000; // 1 second
 
-  private aiService: AIService;
+  private aiService: IAIService;
   private twitterService: TwitterService;
 
   constructor(config: PostQueueConfig) {

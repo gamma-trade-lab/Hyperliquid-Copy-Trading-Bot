@@ -27,17 +27,28 @@ interface PersonalityConfig {
 
 export interface ResponseContext {
   content: string;
+  author: string;  // Required for response generation
   context?: Record<string, any>;
-  platform: string; // Add the platform property
+  platform: string;
+  marketCondition?: string;
 }
 
 // Example usage of ResponseContext
 const exampleResponse: ResponseContext = {
   content: "This is an example response",
+  author: "jenna",
   context: {
-    key: "value"
+    key: "value",
+    traits: ["friendly", "knowledgeable"],
+    metrics: {
+      sentiment: 0.8,
+      viralPotential: 0.6,
+      communityResponse: 0.7,
+      timestamp: Date.now()
+    }
   },
-  platform: "examplePlatform"
+  platform: "twitter",
+  marketCondition: "bullish"
 };
 
 // Add any additional code or exports as needed
@@ -103,13 +114,14 @@ export class PersonalityService extends EventEmitter {
       
       const response = await this.aiService.generateResponse({
         content: prompt,
+        author: 'jenna',
         context: {
           ...context,
-          traits: activeTraits,
+          traits: activeTraits.map(t => t.name),
           metrics: this.getLatestMetrics()
         },
-        platform: "yourPlatform" // Add the platform property
-      } as ResponseContext);
+        platform: "twitter"
+      });
 
       this.updateMetricsFromResponse(response);
       return response;

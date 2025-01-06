@@ -1,4 +1,4 @@
-import { AIService } from '../ai/types';
+import { IAIService } from '../ai/types';
 import type { Scraper, Profile } from 'agent-twitter-client';
 
 export interface TwitterResponse {
@@ -30,7 +30,7 @@ export declare class AgentTwitterClientService {
     username: string,
     password: string,
     email: string,
-    aiService: AIService
+    aiService: IAIService
   );
 
   initialize(): Promise<void>;

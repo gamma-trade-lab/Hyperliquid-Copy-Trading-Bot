@@ -20,6 +20,7 @@ interface TweetContext {
     maxLength: number;
     includeTickers: boolean;
     includeMetrics: boolean;
+    truncateIfNeeded?: boolean;
   };
 }
 
@@ -83,12 +84,42 @@ export class TweetGenerator {
         recentTrends: trendingTopics
       });
 
-      if (!content || content.length > this.DEFAULT_MAX_LENGTH) {
+      if (!content) {
+        const error: TweetGenerationError = {
+          name: 'TweetGenerationError',
+          message: 'No content generated',
+          code: 'CONTENT_GENERATION_FAILED',
+          context: { content }
+        };
+        throw error;
+      }
+
+      // Handle tweet length
+      if (content.length > this.DEFAULT_MAX_LENGTH) {
+        // Option 1: Truncate with ellipsis
+        if (constraints?.truncateIfNeeded) {
+          const truncated = content.substring(0, this.DEFAULT_MAX_LENGTH - 3) + '...';
+          return {
+            content: truncated,
+            metadata: {
+              generatedAt: new Date(),
+              context: {
+                marketCondition: this.determineMarketCondition(marketData),
+                topics: trendingTopics,
+                style,
+                truncated: true,
+                originalLength: content.length
+              }
+            }
+          };
+        }
+        
+        // Option 2: Throw error
         const error: TweetGenerationError = {
           name: 'TweetGenerationError',
           message: 'Generated content exceeds tweet length limit',
-          code: 'CONTENT_GENERATION_FAILED',
-          context: { content, length: content?.length }
+          code: 'CONTENT_LENGTH_EXCEEDED',
+          context: { content, length: content.length, maxLength: this.DEFAULT_MAX_LENGTH }
         };
         throw error;
       }
