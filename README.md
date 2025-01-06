@@ -42,9 +42,32 @@ Key dependencies include:
   "agent-twitter-client": "latest",
   "@jup-ag/core": "latest",
   "@solana/web3.js": "latest",
-  "groq-sdk": "0.9.1"
+  "groq-sdk": "0.9.1",
+  "deepseek-api": "latest"     // DeepSeek API integration
 }
 ```
+
+### DeepSeek API Integration
+The project integrates with DeepSeek's AI models for enhanced natural language processing:
+
+- **Base URL Options**: 
+  - Primary: `https://api.deepseek.com`
+  - OpenAI Compatible: `https://api.deepseek.com/v1`
+
+- **Model Information**:
+  - Default Model: DeepSeek-V3 (deepseek-chat)
+  - Compatibility: OpenAI API format
+  - Features: Streaming support, temperature control
+
+- **Configuration**:
+  Configure DeepSeek in your `.env` file using the environment variables defined in `.env.example`:
+  ```plaintext
+  DEEPSEEK_BASE_URL=https://api.deepseek.com
+  DEEPSEEK_API_VERSION=v1
+  DEEPSEEK_MODEL=deepseek-chat
+  ```
+
+For API key acquisition and detailed documentation, visit the [DeepSeek API Documentation](https://api-docs.deepseek.com/)
 
 ## Configuration
 
@@ -56,9 +79,11 @@ cp .env.example .env
 2. Configure required environment variables in `.env`:
 ```plaintext
 # AI Configuration
-- GROQ_API_KEY
-- AI_MODEL
-- AI_TEMPERATURE
+- GROQ_API_KEY          # Groq API authentication
+- DEEPSEEK_API_KEY      # DeepSeek API authentication
+- DEEPSEEK_BASE_URL     # DeepSeek API endpoint
+- DEEPSEEK_MODEL        # Model selection (default: deepseek-chat)
+- DEEPSEEK_TEMPERATURE  # Response temperature control
 
 # Blockchain Configuration
 - SOLANA_RPC_URL
