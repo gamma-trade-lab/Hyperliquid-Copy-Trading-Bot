@@ -46,25 +46,31 @@ export class AgentTwitterClientService {
     }
   }
 
-  private async attemptLogin(retries = 5): Promise<void> {
+  private async attemptLogin(retries = 3): Promise<void> {
     if (!this.scraper) throw new Error('Scraper not initialized');
     
     let lastError: unknown;
     for (let i = 0; i < retries; i++) {
       try {
+        // Clear any existing session
+        await this.scraper.clearCookies();
+        
+        // Add longer initial delay between attempts
         if (i > 0) {
-          const baseDelay = Math.min(30000 * Math.pow(2, i), 120000);
-          const jitter = Math.random() * 15000;
+          // Exponential backoff with much longer delays for ACID challenges
+          const baseDelay = Math.min(120000 * Math.pow(2, i), 600000); // Max 10 minutes
+          const jitter = Math.random() * 30000; // More jitter
           const delay = baseDelay + jitter;
-          console.log(`Waiting ${Math.round(delay)}ms before attempt ${i + 1}...`);
+          console.log(`Waiting ${Math.round(delay / 1000)} seconds before attempt ${i + 1}...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
 
-        await this.scraper.clearCookies();
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        // Always wait before attempting login to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 15000));
 
         console.log(`Attempting login with username: ${this.getSanitizedUsername()}`);
         
+        // Try to use existing session first
         const existingCookies = await this.loadCookies();
         if (existingCookies) {
           console.log('Attempting to use existing session...');
@@ -79,21 +85,24 @@ export class AgentTwitterClientService {
           }
         }
 
-        console.log('Setting up authentication with credentials:', {
-          username: !!this.username,
-          email: !!this.email,
-          hasPassword: !!this.password
-        });
-
+        // Attempt fresh login
         try {
+          console.log('Setting up fresh authentication...');
+          
+          // Add delay before login attempt
+          await new Promise(resolve => setTimeout(resolve, 10000));
+          
+          
           await this.scraper.login(
             this.getSanitizedUsername(),
             this.password,
             this.email
           );
           
-          await new Promise(resolve => setTimeout(resolve, 10000));
+          // Longer wait after login attempt
+          await new Promise(resolve => setTimeout(resolve, 30000));
           
+          // Multiple verification attempts with increasing delays
           let loginVerified = false;
           for (let verifyAttempt = 0; verifyAttempt < 3; verifyAttempt++) {
             try {
@@ -105,7 +114,8 @@ export class AgentTwitterClientService {
             } catch (error) {
               console.warn(`Login verification attempt ${verifyAttempt + 1} failed:`, error);
             }
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            // Increase delay between verification attempts
+            await new Promise(resolve => setTimeout(resolve, 15000 * (verifyAttempt + 1)));
           }
           
           if (!loginVerified) {
@@ -118,8 +128,10 @@ export class AgentTwitterClientService {
           console.warn(`Login attempt ${i + 1} failed:`, error);
           
           if (error?.message?.includes('code":399')) {
-            console.log('ACID challenge detected, adding delay before retry...');
-            await new Promise(resolve => setTimeout(resolve, 15000 + Math.random() * 10000));
+            console.log('ACID challenge detected, implementing extended delay...');
+            // Much longer delay for ACID challenges
+            const acidDelay = 180000 + Math.random() * 120000; // 3-5 minutes
+            await new Promise(resolve => setTimeout(resolve, acidDelay));
           }
           
           lastError = error;
