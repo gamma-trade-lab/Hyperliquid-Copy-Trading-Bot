@@ -81,7 +81,8 @@ export class JupiterPriceV2 {
       } catch (error) {
         attempts++;
         if (attempts === this.MAX_RETRIES) {
-          throw new Error(`Failed to fetch prices after ${this.MAX_RETRIES} attempts: ${error.message}`);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          throw new Error(`Failed to fetch prices after ${this.MAX_RETRIES} attempts: ${errorMessage}`);
         }
         await sleep(1000 * attempts); // Exponential backoff
       }
