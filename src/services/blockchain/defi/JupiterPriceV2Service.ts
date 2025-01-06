@@ -8,10 +8,35 @@ export class JupiterPriceV2Service {
   private static readonly MIN_CONFIDENCE = 0.5;
   private static readonly CACHE_TTL = 300; // 5 minutes
   private static readonly MAX_RETRIES = 3;
+  private static readonly RATE_LIMIT = 600; // requests per minute
+  private static readonly RATE_WINDOW = 60000; // 1 minute in milliseconds
+
   private cache: RedisCache;
+  private requestCount: number;
+  private windowStart: number;
 
   constructor() {
     this.cache = new RedisCache('jupiter');
+    this.requestCount = 0;
+    this.windowStart = Date.now();
+  }
+
+  private async checkRateLimit(): Promise<void> {
+    const now = Date.now();
+    if (now - this.windowStart >= JupiterPriceV2Service.RATE_WINDOW) {
+      // Reset window
+      this.windowStart = now;
+      this.requestCount = 0;
+    }
+
+    if (this.requestCount >= JupiterPriceV2Service.RATE_LIMIT) {
+      const waitTime = JupiterPriceV2Service.RATE_WINDOW - (now - this.windowStart);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      this.windowStart = Date.now();
+      this.requestCount = 0;
+    }
+
+    this.requestCount++;
   }
 
   public async getPrices(tokenMints: string[]): Promise<JupiterPriceResponse> {
