@@ -64,7 +64,7 @@ export { MarketData };
   }
 
   // src/services/ai/types.ts
-export interface AIService {
+export interface IAIService {
   generateResponse(params: {
     content: string;
     author: string;

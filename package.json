@@ -17,6 +17,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "ioredis": "^5.3.2",
     "@ai16z/adapter-postgres": "^0.1.6",
     "@ai16z/adapter-sqlite": "^0.1.6",
     "@ai16z/client-direct": "0.1.6-alpha.4",
