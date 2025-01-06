@@ -17,7 +17,7 @@ import { Groq } from 'groq-sdk';
 import { randomBytes } from 'crypto';
 import { MarketAction } from '../../config/constants';
 import { DeepSeekProvider } from './providers/deepSeekProvider';
-import { LLMProvider, ChatRequest, ChatResponse, Tweet, MarketData, MarketAnalysis } from './types';
+import { LLMProvider, ChatRequest, ChatResponse, Tweet, MarketData, MarketAnalysis, IAIService } from './types';
 import CONFIG from '../../config/settings';
 import personalityConfig from '../../config/personality';
 
@@ -30,6 +30,7 @@ interface AIServiceConfig {
   temperature: number;
 }
 
+// Internal types
 interface ResponseContext {
   content: string;
   platform: string;
@@ -45,7 +46,7 @@ interface MemeResponse {
   sentiment: 'positive' | 'negative' | 'neutral';
 }
 
-export class AIService {
+export class AIService implements IAIService {
   private provider: LLMProvider;
   private personality: typeof personalityConfig;
   private config: AIServiceConfig;
@@ -110,9 +111,19 @@ export class AIService {
    * @param context.channel - Channel/thread identifier (optional)
    * @returns Promise resolving to the generated response text
    */
-  async generateResponse(context: ResponseContext): Promise<string> {
+  async generateResponse(params: {
+    content: string;
+    author: string;
+    channel?: string;
+    platform: string;
+  }): Promise<string> {
     try {
-      const prompt = this.buildResponsePrompt(context);
+      const prompt = this.buildResponsePrompt({
+        content: params.content,
+        platform: params.platform,
+        author: params.author,
+        channel: params.channel
+      });
       
       const response = await this.provider.chatCompletion({
         messages: [
@@ -356,15 +367,15 @@ export class AIService {
     }
   }
 
-  async generateMarketUpdate(context: {
-    action: 'BUY' | 'SELL' | 'HOLD';
-    data: any;
+  async generateMarketUpdate(params: {
+    action: MarketAction;
+    data: MarketData;
     platform: string;
   }): Promise<string> {
     try {
-      const prompt = `Generate a market update for ${context.platform}:
-        Action: ${context.action}
-        Data: ${JSON.stringify(context.data)}
+      const prompt = `Generate a market update for ${params.platform}:
+        Action: ${params.action}
+        Data: ${JSON.stringify(params.data)}
         
         Ensure the update is informative and engaging.`;
 
@@ -389,7 +400,11 @@ export class AIService {
     }
   }
 
-  async determineEngagementAction(tweet: Tweet): Promise<{ type: string; content?: string }> {
+  async determineEngagementAction(tweet: any): Promise<{
+    type: 'reply' | 'retweet' | 'like' | 'ignore';
+    content?: string;
+    confidence?: number;
+  }> {
     try {
       const prompt = `Determine the optimal engagement action for the following tweet:
         ${JSON.stringify(tweet)}

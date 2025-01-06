@@ -1,5 +1,6 @@
 import { loadCharacter, CharacterLoadError } from '../loadCharacter';
 import path from 'path';
+import fs from 'fs';
 
 describe('loadCharacter', () => {
   const validCharacterPath = path.join(__dirname, '../config/myAgent.character.json');
@@ -24,13 +25,13 @@ describe('loadCharacter', () => {
   it('should throw CharacterLoadError for invalid JSON', async () => {
     const invalidJsonPath = path.join(__dirname, '../config/invalid.character.json');
     // Create temporary invalid JSON file
-    require('fs').writeFileSync(invalidJsonPath, '{ invalid json', 'utf-8');
+    fs.writeFileSync(invalidJsonPath, '{ invalid json', 'utf-8');
     
     await expect(loadCharacter(invalidJsonPath))
       .rejects
       .toThrow(CharacterLoadError);
       
     // Clean up
-    require('fs').unlinkSync(invalidJsonPath);
+    fs.unlinkSync(invalidJsonPath);
   });
 });

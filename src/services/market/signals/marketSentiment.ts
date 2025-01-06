@@ -34,7 +34,7 @@ interface SentimentAnalysis {
   };
 }
 
-enum SentimentSource {
+export enum SentimentSource {
   SOCIAL = 'social',
   NEWS = 'news',
   TRADING = 'trading',

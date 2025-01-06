@@ -1,3 +1,24 @@
+export interface PriceData {
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  timestamp: number;
+}
+
+export interface VolatilityMetrics {
+  currentVolatility: number;
+  averageVolatility: number;
+  adjustmentFactor: number;
+}
+
+export interface TokenMetrics {
+  price: number;
+  volume24h: number;
+  priceChange24h: number;
+  volatility: number;
+}
+
 export interface MarketData {
   price: number;
   volume24h: number;
@@ -7,6 +28,7 @@ export interface MarketData {
     address: string;
     balance: number;
   }>;
+  volatility?: VolatilityMetrics;
 }
 
 export interface MarketAnalysis {

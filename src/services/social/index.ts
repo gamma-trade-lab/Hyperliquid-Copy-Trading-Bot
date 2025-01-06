@@ -2,7 +2,8 @@ import { TwitterService, TwitterConfig } from './twitter';
 import { DiscordService } from './discord';
 import { TwitterApiTokens } from 'twitter-api-v2';
 import { AgentTwitterClientService } from './agentTwitterClient.js';
-import { AIService } from '../ai/ai';
+import { AIService as AIServiceImpl } from '../ai/ai';
+import { IAIService } from '../ai/types';
 import { MarketData } from '../../types/market';
 
 export interface SocialMetrics {
@@ -13,7 +14,7 @@ export interface SocialMetrics {
 
 export interface SocialConfig {
   services: {
-    ai: any; // Let the concrete implementations handle AI type checking
+    ai: AIServiceImpl;  // Using concrete implementation
   };
   discord?: {
     token?: string;
@@ -51,7 +52,7 @@ export class SocialService {
       // Keep legacy Twitter service for now during migration
       const twitterConfig: TwitterConfig = {
         credentials: config.twitter.credentials,
-        aiService: config.services.ai
+        aiService: config.services.ai as AIServiceImpl // Cast to implementation type
       };
       
       this.twitterService = new TwitterService(twitterConfig);
@@ -63,7 +64,7 @@ export class SocialService {
         this.discordService = new DiscordService({
           token: config.discord.token,
           guildId: config.discord.guildId,
-          aiService: config.services.ai
+          aiService: config.services.ai as AIServiceImpl // Cast to implementation type
         });
       } catch (error) {
         console.warn('Failed to initialize Discord service:', error);
@@ -134,13 +135,19 @@ export class SocialService {
     const promises: Promise<void>[] = [];
 
     if (this.agentTwitter) {
-      promises.push(this.agentTwitter.sendTweet(content).then(() => {}));
+      promises.push(this.agentTwitter.sendTweet(content).then(() => {
+        console.log('Tweet sent successfully via AgentTwitterClient');
+      }));
     } else if (this.twitterService) {
-      promises.push(this.twitterService.tweet(content).then(() => {}));
+      promises.push(this.twitterService.tweet(content).then(() => {
+        console.log('Tweet sent successfully via legacy Twitter service');
+      }));
     }
     
     if (this.discordService) {
-      promises.push(this.discordService.sendMessage('System', content).then(() => {}));
+      promises.push(this.discordService.sendMessage('System', content).then(() => {
+        console.log('Message sent successfully to Discord');
+      }));
     }
     
     await Promise.all(promises);
