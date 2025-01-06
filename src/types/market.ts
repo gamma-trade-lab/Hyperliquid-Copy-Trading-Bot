@@ -19,6 +19,12 @@ export interface TokenMetrics {
   volatility: number;
 }
 
+export interface OnChainData {
+  recentSwaps: number;
+  recentTransfers: number;
+  totalTransactions: number;
+}
+
 export interface MarketData {
   price: number;
   volume24h: number;
@@ -29,6 +35,7 @@ export interface MarketData {
     balance: number;
   }>;
   volatility?: VolatilityMetrics;
+  onChainData?: OnChainData;  // Optional field for Helius transaction data
 }
 
 export interface MarketAnalysis {

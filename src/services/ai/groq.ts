@@ -1,5 +1,6 @@
 import { Groq } from "groq-sdk";
 import { TwitterApi } from "twitter-api-v2";
+import { MarketData } from "../../types/market";
 
 interface TweetAnalysis {
   sentiment: number;
@@ -58,20 +59,28 @@ export class GroqAIService {
 
   async generateTweet(context: {
     marketCondition: string;
+    marketData?: MarketData;
     communityMetrics: any;
     recentTrends: string[];
   }): Promise<string> {
-    const prompt = `Given the following context:
+    const prompt = `Given the following market data:
+    Price: $${context.marketData?.price?.toFixed(4) || 'N/A'}
+    24h Change: ${context.marketData?.priceChange24h?.toFixed(2) || 'N/A'}%
+    Volume: $${context.marketData?.volume24h ? (context.marketData.volume24h / 1000000).toFixed(2) + 'M' : 'N/A'}
+    Recent Swaps: ${context.marketData?.onChainData?.recentSwaps || 'N/A'} trades
+    Recent Transfers: ${context.marketData?.onChainData?.recentTransfers || 'N/A'} transfers
     Market Condition: ${context.marketCondition}
     Community Metrics: ${JSON.stringify(context.communityMetrics)}
     Recent Trends: ${context.recentTrends.join(', ')}
     
-    Generate a tweet that is:
-    - Engaging and authentic
-    - Related to current market conditions
-    - Community-focused
-    - Uses appropriate crypto twitter language
-    - Maximum 280 characters`;
+    Generate a tweet that:
+    - Includes at least 2 specific market metrics with proper formatting
+    - Is engaging and authentic
+    - Uses professional market analysis language
+    - Maintains maximum 280 characters
+    - Focuses on clear data presentation
+    - Avoids emojis and hashtags
+    - Presents market metrics in a straightforward manner`;
 
     const response = await this.groq.chat.completions.create({
       messages: [

@@ -15,7 +15,7 @@ export interface JupiterPriceResponse {
 }
 
 export class JupiterPriceV2 {
-  private readonly endpoint = 'https://price.jup.ag/v2';
+  private readonly endpoint = 'https://price.jup.ag/v4';
   private rateLimitCounter = 0;
   private lastRateLimitReset = Date.now();
   private readonly RATE_LIMIT = 600;
