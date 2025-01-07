@@ -1,21 +1,48 @@
-# Node modules
+# Dependencies
 node_modules/
+.pnpm-store/
 
-# Build artifacts
+# Build output
 dist/
 build/
 
 # Environment variables
 .env
+.env.local
+.env.*.local
 
 # Logs
 logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Database files
-db.sqlite
+# Editor directories and files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# Temporary files
-*.tmp
-*.swp
+# Testing
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Prisma
+prisma/*.db
+prisma/migrations/
+
+# Cache
+.cache/
+.temp/
 
