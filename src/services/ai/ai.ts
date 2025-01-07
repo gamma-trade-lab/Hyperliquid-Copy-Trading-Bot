@@ -31,6 +31,13 @@ interface AIServiceConfig {
 }
 
 // Internal types
+type MessageRole = "system" | "user" | "assistant";
+
+interface Message {
+  role: MessageRole;
+  content: string;
+}
+
 interface ResponseContext {
   content: string;
   platform: string;
@@ -116,19 +123,38 @@ export class AIService implements IAIService {
     author: string;
     channel?: string;
     platform: string;
+    contentType?: 'community' | 'market' | 'meme' | 'general';
+    context?: {
+      traits?: string[];
+      metrics?: any;
+      marketCondition?: string;
+      [key: string]: any;
+    };
   }): Promise<string> {
     try {
+      // Handle community content type specifically
+      if (params.contentType === 'community') {
+        return this.generateCommunityContent({
+          content: params.content,
+          platform: params.platform,
+          author: params.author,
+          channel: params.channel,
+          marketCondition: params.context?.marketCondition
+        });
+      }
+
       const prompt = this.buildResponsePrompt({
         content: params.content,
         platform: params.platform,
         author: params.author,
-        channel: params.channel
+        channel: params.channel,
+        marketCondition: params.context?.marketCondition
       });
       
       const response = await this.provider.chatCompletion({
         messages: [
-          { role: "system", content: this.personality.core.voice.tone },
-          { role: "user", content: prompt }
+          { role: "system" as MessageRole, content: this.personality.core.voice.tone },
+          { role: "user" as MessageRole, content: prompt }
         ],
         model: this.config.defaultModel,
         temperature: this.config.temperature,
@@ -152,89 +178,135 @@ export class AIService implements IAIService {
   }
 
   async analyzeMarket(metrics: MarketData): Promise<MarketAnalysis> {
+    let jsonString = '';
+    
     try {
-      const prompt = `Analyze market data:
-        Price: ${metrics.price}
-        24h Volume: ${metrics.volume24h}
-        Market Cap: ${metrics.marketCap}
-        24h Price Change: ${metrics.priceChange24h}
-        
-        Determine if we should trade based on these metrics.
-        Response format: {
-          "shouldTrade": boolean,
-          "confidence": number (0-1),
-          "action": "BUY" | "SELL" | "HOLD",
-          "metrics": {...provided metrics}
-        }`;
+      const systemPrompt = `You are a market analysis AI. IMPORTANT:
+1. Respond with ONLY valid JSON
+2. No explanatory text or comments
+3. Match the exact format provided
+4. All fields are required`,
+            formatExample: MarketAnalysis = {
+              shouldTrade: false,
+              confidence: 0.5,
+              action: "HOLD",
+              metrics: metrics,
+            },
+            prompt = `Analyze this market data and respond with ONLY valid JSON matching this exact format: ${JSON.stringify(formatExample, null, 2)}
 
-      const response = await this.provider.chatCompletion({
-        messages: [
-          { role: "system", content: this.personality.core.voice.tone },
-          { role: "user", content: prompt }
-        ],
-        model: this.config.defaultModel,
-        temperature: 0.3,
-        max_tokens: 150
-      });
+Market metrics:
+- Price: ${metrics.price}
+- 24h Volume: ${metrics.volume24h}
+- Market Cap: ${metrics.marketCap}
+- 24h Price Change: ${metrics.priceChange24h}`,
+            messages: Message[] = [
+              { 
+                role: "system" as MessageRole, 
+                content: systemPrompt,
+              },
+              { 
+                role: "user" as MessageRole, 
+                content: prompt,
+              },
+            ],
+            response = await this.provider.chatCompletion({
+              messages,
+              model: this.config.defaultModel,
+              temperature: 0.1, // Lower temperature for strict JSON
+              max_tokens: 150,
+            }),
+            content = response.choices[0]?.message?.content;
 
-      const content = response.choices[0].message.content;
       if (!content) {
         throw new Error('Response content is null');
       }
 
-      const analysis = JSON.parse(content);
+      // Extract JSON object using a more robust method
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON object found in response');
+      }
+
+      // Clean up the JSON string
+      jsonString = jsonMatch[0]
+        .replace(/\\n/g, ' ')
+        .replace(/\s+/g, ' ');
+
+      // Parse and validate JSON
+      const analysis: MarketAnalysis = JSON.parse(jsonString);
+
+      // Validate required fields and types
+      if (typeof analysis.shouldTrade !== 'boolean') {
+        throw new Error('Invalid shouldTrade type: must be boolean');
+      }
+      if (typeof analysis.confidence !== 'number' || analysis.confidence < 0 || analysis.confidence > 1) {
+        throw new Error('Invalid confidence: must be number between 0 and 1');
+      }
+      if (!['BUY', 'SELL', 'HOLD'].includes(analysis.action)) {
+        throw new Error('Invalid action: must be BUY, SELL, or HOLD');
+      }
+
       return {
         shouldTrade: analysis.shouldTrade,
         confidence: analysis.confidence,
         action: analysis.action,
-        metrics: metrics
+        metrics: metrics,
       };
     } catch (error) {
       console.error('Error analyzing market:', error);
+      console.error('Original response:', jsonString);
+      
+      if (error instanceof SyntaxError) {
+        console.error('Invalid JSON format received from AI');
+      } else if (error instanceof Error) {
+        console.error('Validation error:', error.message);
+      }
+
+      // Return safe default values
       return {
         shouldTrade: false,
         confidence: 0,
         action: 'HOLD',
-        metrics: metrics
+        metrics: metrics,
       };
     }
   }
 
   async generateMemeContent(prompt?: string): Promise<MemeResponse> {
     try {
-      const sessionId = this.getSessionId();
-      const context = this.getContext(sessionId);
+      const sessionId = this.getSessionId(),
+            context = this.getContext(sessionId),
+            messages: Message[] = [
+              {
+                role: "system" as MessageRole,
+                content: CONFIG.AI.GROQ.SYSTEM_PROMPTS.MEME_GENERATION,
+              },
+              ...context.map((msg) => ({ 
+                role: "assistant" as MessageRole, 
+                content: msg,
+              })),
+              {
+                role: "user" as MessageRole,
+                content: prompt || "Create a viral meme tweet about $MEME token",
+              },
+            ];
 
-      const completion = await this.provider.chatCompletion({
-        messages: [
-          {
-            role: "system",
-            content: CONFIG.AI.GROQ.SYSTEM_PROMPTS.MEME_GENERATION
-          },
-          ...context.map(msg => ({ role: "assistant" as const, content: msg })),
-          {
-            role: "user",
-            content: prompt || "Create a viral meme tweet about $MEME token"
-          }
-        ],
-        model: this.config.defaultModel,
-        temperature: this.config.temperature,
-        max_tokens: this.config.maxTokens
-      });
+      const aiResponse = await this.provider.chatCompletion({
+              messages,
+              model: this.config.defaultModel,
+              temperature: this.config.temperature,
+              max_tokens: this.config.maxTokens,
+            }),
+            memeText = aiResponse.choices[0]?.message?.content || "",
+            extractedHashtags = memeText.match(/#[a-zA-Z0-9_]+/g) || [],
+            sentimentScore = await this.analyzeSentiment(memeText);
 
-      const response = completion.choices[0]?.message?.content || "";
-      this.updateContext(sessionId, response);
-
-      // Extract hashtags
-      const hashtags = response.match(/#[a-zA-Z0-9_]+/g) || [];
-
-      // Analyze sentiment
-      const sentiment = await this.analyzeSentiment(response);
+      this.updateContext(sessionId, memeText);
 
       return {
-        text: response,
-        hashtags,
-        sentiment: sentiment > 0.6 ? 'positive' : sentiment < 0.4 ? 'negative' : 'neutral'
+        text: memeText,
+        hashtags: extractedHashtags,
+        sentiment: sentimentScore > 0.6 ? 'positive' : sentimentScore < 0.4 ? 'negative' : 'neutral',
       };
     } catch (error) {
       console.error('Error generating meme content:', error);
@@ -493,6 +565,48 @@ export class AIService implements IAIService {
    * @param context - Response context including platform and content
    * @returns Formatted prompt string for the LLM
    */
+  private async generateCommunityContent(context: ResponseContext): Promise<string> {
+    try {
+      const template = this.personality.responses?.communityEngagement?.find(
+        t => t.conditions?.marketCondition === context.marketCondition
+      )?.templates[0] || 'Engage with our amazing community! 🚀';
+
+      const prompt = `Generate a community engagement post that:
+1. Addresses the community directly
+2. Maintains our personality and voice
+3. References current market conditions
+4. Encourages positive engagement
+
+Context:
+Content: ${context.content || 'General community update'}
+Market Condition: ${context.marketCondition || 'neutral'}
+Platform: ${context.platform}
+Channel: ${context.channel || 'general'}
+
+Use this template style: ${template}`;
+
+      const response = await this.provider.chatCompletion({
+        messages: [
+          { role: "system" as MessageRole, content: this.personality.core.voice.tone },
+          { role: "user" as MessageRole, content: prompt }
+        ],
+        model: this.config.defaultModel,
+        temperature: 0.7,
+        max_tokens: 280
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('Community content generation failed: null response');
+      }
+
+      return content;
+    } catch (error) {
+      console.error('Error generating community content:', error);
+      throw new Error(`Failed to generate community content: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
+  }
+
   private buildResponsePrompt(context: ResponseContext): string {
     const basePrompt = `Generate a response considering:
       Content: ${context.content || ''}

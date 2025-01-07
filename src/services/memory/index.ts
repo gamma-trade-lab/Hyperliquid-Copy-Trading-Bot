@@ -77,15 +77,17 @@ export class AgentMemoryService extends EventEmitter {
       const where = conditions.length === 1 ? conditions[0] : 
                     conditions.length > 1 ? { $and: conditions } : {};
 
-      const results = await this.collection.get({
+      const results = await this.collection.query({
+        queryTexts: [''],  // Empty query text for filtering by where clause only
         where,
-        limit: options.limit
+        nResults: options.limit
       });
 
-      return results.ids.map((id, index) => ({
+      // Handle array of arrays structure from query results
+      return results.ids[0].map((id, index) => ({
         id,
-        content: results.documents[index],
-        ...results.metadatas[index]
+        content: results.documents[0][index],
+        ...results.metadatas[0][index]
       })) as Memory[];
     } catch (error) {
       console.error('Failed to search memories:', error);

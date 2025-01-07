@@ -210,6 +210,7 @@ export class PriceMonitor extends EventEmitter {
 
     return await this.aiService.generateResponse({
         content: prompt,
+        author: 'system',
         platform: ''
     });
   }

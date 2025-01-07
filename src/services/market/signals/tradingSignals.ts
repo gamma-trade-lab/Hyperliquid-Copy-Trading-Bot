@@ -363,6 +363,7 @@ export class TradingSignalGenerator extends EventEmitter {
       const prompt = this.buildSignalAnalysisPrompt(signals);
       const analysis = await this.aiService.generateResponse({
         content: prompt,
+        author: 'system',
         platform: ''
       });
 

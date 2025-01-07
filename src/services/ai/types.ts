@@ -96,8 +96,19 @@ export interface IAIService {
 }
 
 export interface TweetGenerationError extends Error {
-  code: 'CONTENT_GENERATION_FAILED' | 'MARKET_DATA_INVALID' | 'RATE_LIMIT_EXCEEDED';
+  code: 'CONTENT_GENERATION_FAILED' | 'MARKET_DATA_INVALID' | 'RATE_LIMIT_EXCEEDED' | 'CONTENT_LENGTH_EXCEEDED';
   context?: any;
+}
+
+export interface TweetContext {
+  marketData: MarketData;
+  content?: string;
+  constraints?: {
+    maxLength?: number;
+    includeTickers?: boolean;
+    includeMetrics?: boolean;
+    truncateIfNeeded?: boolean;
+  };
 }
 
 export interface TweetGenerationResult {
@@ -112,6 +123,8 @@ export interface TweetGenerationResult {
         humor: number;
         formality: number;
       };
+      truncated?: boolean;
+      originalLength?: number;
     };
   };
 }

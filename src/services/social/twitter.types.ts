@@ -1,4 +1,4 @@
-import { AIService } from '../ai/types';
+import { IAIService } from '../ai/types';
 
 export interface TwitterConfig {
   credentials: {
@@ -6,7 +6,7 @@ export interface TwitterConfig {
     password: string;
     email: string;
   };
-  aiService?: AIService;
+  aiService?: IAIService;
 }
 
 export interface TweetOptions {

@@ -13,6 +13,7 @@ export class TwitterStreamHandler extends EventEmitter {
   private sentimentAnalyzer: SentimentAnalyzer;
   private twitterClient: AgentTwitterClientService;
   private aiService: AIService;
+  private isStreaming = false;
   private replyCount: number = 0;
   private lastReplyReset: number = Date.now();
   private resetInterval?: NodeJS.Timeout;
@@ -40,13 +41,32 @@ export class TwitterStreamHandler extends EventEmitter {
 
   public async initialize(): Promise<void> {
     try {
-      // Start the Twitter stream via the client
-      await this.twitterClient.startStream();
+      // Start the Twitter stream
+      await this.start();
       this.emit('streamInitialized');
     } catch (error) {
       console.error('Failed to initialize Twitter stream:', error);
       this.emit('streamError', error);
       throw error;
+    }
+  }
+
+  public async start(): Promise<void> {
+    if (this.isStreaming) return;
+    
+    console.log('Starting Twitter stream handler...');
+    this.isStreaming = true;
+  }
+
+  public async stop(): Promise<void> {
+    if (!this.isStreaming) return;
+    
+    console.log('Stopping Twitter stream handler...');
+    this.isStreaming = false;
+    
+    if (this.resetInterval) {
+      clearInterval(this.resetInterval);
+      this.resetInterval = undefined;
     }
   }
 
@@ -75,8 +95,7 @@ export class TwitterStreamHandler extends EventEmitter {
         if (response) {
           await this.twitterClient.replyToTweet(
             event.id,
-            response,
-            event.author?.username || ''
+            response
           );
           this.replyCount++;
           
@@ -145,7 +164,7 @@ export class TwitterStreamHandler extends EventEmitter {
       }
 
       // Stop the Twitter stream if it's running
-      await this.twitterClient.stopStream?.();
+      this.isStreaming = false;
 
       // Reset counters
       this.replyCount = 0;

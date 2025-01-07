@@ -1,7 +1,7 @@
 // src/services/blockchain/defi/tradingEngine.ts
 
 import { Connection, PublicKey, Transaction, Keypair, VersionedTransaction } from '@solana/web3.js';
-import { Jupiter, RouteInfo } from '@jup-ag/core';
+import { Jupiter, RouteInfo, SwapMode } from '@jup-ag/core';
 import { EventEmitter } from 'events';
 import { AIService } from '../../ai/ai';
 import JSBI from 'jsbi';
@@ -10,6 +10,9 @@ import { v4 as uuid } from 'uuid';
 import { VolatilityManager } from '../../market/volatility/VolatilityManager';
 import { DataProcessor } from '../../market/data';
 import { MarketSentimentAnalyzer, SentimentSource } from '../../market/signals/marketSentiment';
+import { retry } from '../../../utils/common';
+import { JupiterPriceV2 } from './jupiterPriceV2';
+import { AMMHealthChecker } from './ammHealth';
 
 interface TradeConfig {
   maxSlippage: number;
@@ -92,13 +95,23 @@ export class TradingEngine extends EventEmitter {
   private readonly MIN_PROFIT_THRESHOLD = 0.005; // 0.5% minimum profit threshold
   private readonly DEX_ENDPOINTS = {
     JUPITER: 'https://quote-api.jup.ag/v6',
+    JUPITER_PRICE: 'https://price.jup.ag/v2',
     ORCA: 'https://api.orca.so',
     RAYDIUM: 'https://api.raydium.io/v2'
   };
+  
+  private rateLimitCounter = 0;
+  private lastRateLimitReset = Date.now();
+  private readonly RATE_LIMIT = 600;
+  private readonly RATE_LIMIT_WINDOW = 60000; // 1 minute in ms
+  private readonly MAX_RETRIES = 5;
+  private readonly BATCH_SIZE = 100;
   private sentimentAnalyzer: MarketSentimentAnalyzer;
   private openPositions: Map<string, Position> = new Map();
   private readonly DEFAULT_STOP_LOSS = 0.05; // 5% default stop loss
   private readonly MAX_POSITION_SIZE = 0.1; // 10% of total portfolio
+  private readonly jupiterPriceV2: JupiterPriceV2;
+  private readonly ammHealthChecker: AMMHealthChecker;
 
   constructor(
     connection: Connection,
@@ -119,6 +132,8 @@ export class TradingEngine extends EventEmitter {
     this.dataProcessor = new DataProcessor();
     this.volatilityManager = new VolatilityManager(this.dataProcessor);
     this.sentimentAnalyzer = sentimentAnalyzer;
+    this.jupiterPriceV2 = new JupiterPriceV2();
+    this.ammHealthChecker = new AMMHealthChecker();
   }
 
   public async executeTrade(params: TradeParams): Promise<TradeResult> {
@@ -184,19 +199,41 @@ export class TradingEngine extends EventEmitter {
 
   private async findBestRoute(params: TradeParams): Promise<RouteInfo | null> {
     try {
-      // Adjust position size based on volatility
+      // Get price data with confidence check and retry mechanism
+      const [inputPrice, outputPrice] = await Promise.all([
+        retry(() => this.jupiterPriceV2.getPrice(params.inputToken)),
+        retry(() => this.jupiterPriceV2.getPrice(params.outputToken))
+      ]);
+
+      // Adjust position size based on volatility and price confidence
       const adjustedAmount = await this.volatilityManager.adjustPosition(
         params.amount,
         params.inputToken
       );
 
-      const routes = await this.jupiter.computeRoutes({
-        inputMint: new PublicKey(params.inputToken),
-        outputMint: new PublicKey(params.outputToken),
-        amount: JSBI.BigInt(adjustedAmount),
-        slippageBps: params.slippageBps || this.config.maxSlippage,
+      // Get AMM health status
+      const ammHealth = await this.ammHealthChecker.checkHealth([params.inputToken, params.outputToken]);
+      const excludeDexes = Object.entries(ammHealth)
+        .filter(([_, health]) => health < 0.8)
+        .map(([dex]) => dex);
+
+      const routes = await retry(async () => {
+        const computedRoutes = await this.jupiter.computeRoutes({
+          inputMint: new PublicKey(params.inputToken),
+          outputMint: new PublicKey(params.outputToken),
+          amount: JSBI.BigInt(adjustedAmount),
+          slippageBps: params.slippageBps || this.config.maxSlippage,
+          onlyDirectRoutes: false,
+          filterTopNResult: 3,
+          swapMode: SwapMode.ExactIn
+        });
+
+        if (!computedRoutes.routesInfos.length) {
+          throw new Error('No routes found with current constraints');
+        }
+
+        return computedRoutes;
       });
-      return routes.routesInfos[0] || null;
     } catch (error) {
       console.error('Error finding best route:', error);
       return null;

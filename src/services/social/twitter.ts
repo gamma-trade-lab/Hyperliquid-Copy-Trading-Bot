@@ -14,7 +14,7 @@
  */
 
 import { Scraper, Tweet } from 'agent-twitter-client';
-import { AIService } from '../ai/types';
+import { IAIService } from '../ai/types';
 import { MarketAction } from '../../config/constants';
 import { MarketData } from '../../types/market';
 
@@ -24,17 +24,18 @@ export interface TwitterConfig {
     password: string;
     email: string;
   };
-  aiService?: AIService;
+  aiService?: IAIService;
 }
 
 interface TweetOptions {
   replyToTweet?: string;
   quoteTweetId?: string;
+  truncateIfNeeded?: boolean;
 }
 
 export class TwitterService {
   private scraper: Scraper;
-  private aiService: AIService;
+  private aiService: IAIService;
   private isInitialized: boolean = false;
   private credentials?: TwitterConfig['credentials'];
 
@@ -206,6 +207,25 @@ export class TwitterService {
     try {
       if (!this.isInitialized) {
         return { success: false, error: new Error('Twitter service not initialized') };
+      }
+
+      // Validate tweet content
+      const MAX_TWEET_LENGTH = 280;
+      if (!content) {
+        return { success: false, error: new Error('Tweet content cannot be empty') };
+      }
+
+      // Handle tweet length
+      if (content.length > MAX_TWEET_LENGTH) {
+        if (options.truncateIfNeeded) {
+          content = content.substring(0, MAX_TWEET_LENGTH - 3) + '...';
+          console.warn('Tweet content truncated to fit length limit');
+        } else {
+          return { 
+            success: false, 
+            error: new Error(`Tweet content exceeds maximum length of ${MAX_TWEET_LENGTH} characters`) 
+          };
+        }
       }
 
       let result: unknown;

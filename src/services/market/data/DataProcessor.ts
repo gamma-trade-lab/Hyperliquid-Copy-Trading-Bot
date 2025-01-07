@@ -7,22 +7,50 @@ const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
 
 export class DataProcessor {
-  private consecutiveFailures: number = 0;
-  private readonly MAX_FAILURES = 3;
-  private readonly FAILURE_RESET_TIME = 60000; // 1 minute
-  private lastFailureTime: number = 0;
-  private redis: Redis;
+  private readonly redis: Redis;
   private readonly PRICE_HISTORY_KEY = 'price_history:';
   private readonly VOLATILITY_KEY = 'volatility:';
   private readonly DEFAULT_WINDOW = 24; // 24 hours
+  private readonly ERROR_THRESHOLD = 5; // Number of errors before circuit opens
+  private readonly CIRCUIT_RESET_TIMEOUT = 60000; // 1 minute timeout before circuit resets
+  private readonly MAX_RETRIES = 3;
+
+  private isConnected: boolean = false;
+  private errorCount: number = 0;
+  private isCircuitOpen: boolean = false;
+  private lastErrorTime: number = 0;
 
   constructor() {
-    this.redis = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD,
-      db: parseInt(process.env.REDIS_DB || '0')
+    // Use provided Redis cloud credentials
+    const redisUrl = 'redis://:pWFdJwcx9YpojFdQxoCXzGOjMbAvtRwc@redis-17909.c74.us-east-1-4.ec2.redns.redis-cloud.com:17909/0';
+    this.redis = new Redis(redisUrl, {
+      retryStrategy: (times: number) => {
+        const delay = Math.min(times * 50, 2000);
+        return delay;
+      },
+      maxRetriesPerRequest: 3,
+      enableOfflineQueue: false,
     });
+
+    // Handle Redis connection errors
+    this.redis.on('error', (error: Error) => {
+      console.error('Redis connection error:', error);
+      this.handleRedisError(error);
+    });
+
+    // Handle Redis connection ready
+    this.redis.on('ready', () => {
+      console.log('Redis connection established');
+      this.isConnected = true;
+    });
+  }
+
+  public async disconnect(): Promise<void> {
+    if (this.redis) {
+      await this.redis.quit();
+      this.isConnected = false;
+      console.log('Redis connection closed');
+    }
   }
 
   /**
@@ -40,12 +68,30 @@ export class DataProcessor {
     return JSON.parse(decompressed.toString()) as T;
   }
 
-  private isCircuitOpen(): boolean {
+  private checkCircuitBreaker(): boolean {
     const now = Date.now();
-    if (now - this.lastFailureTime > this.FAILURE_RESET_TIME) {
-      this.consecutiveFailures = 0;
+    if (now - this.lastErrorTime > this.CIRCUIT_RESET_TIMEOUT) {
+      this.errorCount = 0;
+      this.isCircuitOpen = false;
     }
-    return this.consecutiveFailures >= this.MAX_FAILURES;
+    return this.isCircuitOpen;
+  }
+
+  private handleRedisError(error: Error): void {
+    this.isConnected = false;
+    console.error('Redis error occurred:', error);
+    
+    this.errorCount++;
+    if (this.errorCount >= this.ERROR_THRESHOLD) {
+      this.isCircuitOpen = true;
+      console.warn('Circuit breaker opened due to Redis errors');
+      
+      setTimeout(() => {
+        this.isCircuitOpen = false;
+        this.errorCount = 0;
+        console.log('Circuit breaker reset');
+      }, this.CIRCUIT_RESET_TIMEOUT);
+    }
   }
 
   public async storePriceData(token: string, data: PriceData): Promise<void> {
@@ -55,12 +101,14 @@ export class DataProcessor {
       await this.redis.lpush(key, compressed);
       await this.redis.ltrim(key, 0, this.DEFAULT_WINDOW * 60); // Keep last 24 hours of minute data
       
-      // Reset failure count on successful operation
-      this.consecutiveFailures = 0;
+      // Reset error count on successful operation
+      this.errorCount = 0;
+      this.isCircuitOpen = false;
     } catch (error) {
       console.error(`Failed to store price data for ${token}:`, error);
-      this.consecutiveFailures++;
-      this.lastFailureTime = Date.now();
+      this.errorCount++;
+      this.lastErrorTime = Date.now();
+      this.handleRedisError(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -70,7 +118,7 @@ export class DataProcessor {
    */
   public async getHistoricalPrices(token: string, hours: number = this.DEFAULT_WINDOW): Promise<PriceData[]> {
     try {
-      if (this.isCircuitOpen()) {
+      if (this.checkCircuitBreaker()) {
         console.warn('Circuit breaker open, using cached data only');
         return [];
       }
@@ -81,13 +129,15 @@ export class DataProcessor {
         data.map(async item => this.decompressData<PriceData>(item))
       );
       
-      // Reset failure count on successful operation
-      this.consecutiveFailures = 0;
+      // Reset error count on successful operation
+      this.errorCount = 0;
+      this.isCircuitOpen = false;
       return decompressedData;
     } catch (error) {
       console.error(`Failed to get historical prices for ${token}:`, error);
-      this.consecutiveFailures++;
-      this.lastFailureTime = Date.now();
+      this.errorCount++;
+      this.lastErrorTime = Date.now();
+      this.handleRedisError(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -107,11 +157,13 @@ export class DataProcessor {
       const compressed = await this.compressData(current);
       await this.redis.set(key, compressed);
       
-      this.consecutiveFailures = 0;
+      this.errorCount = 0;
+      this.isCircuitOpen = false;
     } catch (error) {
       console.error(`Failed to update volatility for ${token}:`, error);
-      this.consecutiveFailures++;
-      this.lastFailureTime = Date.now();
+      this.errorCount++;
+      this.lastErrorTime = Date.now();
+      this.handleRedisError(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -121,7 +173,7 @@ export class DataProcessor {
    */
   public async getAverageVolatility(token: string): Promise<number> {
     try {
-      if (this.isCircuitOpen()) {
+      if (this.checkCircuitBreaker()) {
         console.warn('Circuit breaker open, using default volatility');
         return 0;
       }
@@ -131,12 +183,14 @@ export class DataProcessor {
       if (!stored) return 0;
 
       const { sum, count } = await this.decompressData<{ sum: number; count: number }>(stored);
-      this.consecutiveFailures = 0;
+      this.errorCount = 0;
+      this.isCircuitOpen = false;
       return count > 0 ? sum / count : 0;
     } catch (error) {
       console.error(`Failed to get volatility for ${token}:`, error);
-      this.consecutiveFailures++;
-      this.lastFailureTime = Date.now();
+      this.errorCount++;
+      this.lastErrorTime = Date.now();
+      this.handleRedisError(error instanceof Error ? error : new Error(String(error)));
       return 0; // Return safe default on error
     }
   }
@@ -146,7 +200,7 @@ export class DataProcessor {
    */
   public async calculateTokenMetrics(token: string): Promise<TokenMetrics> {
     try {
-      if (this.isCircuitOpen()) {
+      if (this.isCircuitOpen) {
         console.warn('Circuit breaker open, using cached or default metrics');
         const cachedMetrics = await this.redis.get(`metrics:${token}`);
         if (cachedMetrics) {
@@ -189,12 +243,14 @@ export class DataProcessor {
       const compressed = await this.compressData(metrics);
       await this.redis.set(`metrics:${token}`, compressed, 'EX', 300); // Cache for 5 minutes
       
-      this.consecutiveFailures = 0;
+      this.errorCount = 0;
+      this.isCircuitOpen = false;
       return metrics;
     } catch (error) {
       console.error(`Failed to calculate metrics for ${token}:`, error);
-      this.consecutiveFailures++;
-      this.lastFailureTime = Date.now();
+      this.errorCount++;
+      this.lastErrorTime = Date.now();
+      this.handleRedisError(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -204,7 +260,7 @@ export class DataProcessor {
    */
   public async getTokenPrice(token: string): Promise<number> {
     try {
-      if (this.isCircuitOpen()) {
+      if (this.isCircuitOpen) {
         console.warn('Circuit breaker open, using cached price');
         const cachedPrice = await this.redis.get(`price:${token}`);
         if (cachedPrice) {
@@ -228,12 +284,14 @@ export class DataProcessor {
         60 // Cache for 1 minute
       );
       
-      this.consecutiveFailures = 0;
+      this.errorCount = 0;
+      this.isCircuitOpen = false;
       return price;
     } catch (error) {
       console.error(`Failed to get price for ${token}:`, error);
-      this.consecutiveFailures++;
-      this.lastFailureTime = Date.now();
+      this.errorCount++;
+      this.lastErrorTime = Date.now();
+      this.handleRedisError(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
