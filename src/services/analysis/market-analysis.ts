@@ -335,7 +335,7 @@ export class MarketAnalysisService {
 
   private isLockedAddress(address: string): boolean {
     // Add known locked addresses
-    const lockedAddresses = [
+    const lockedAddresses: string[] = [
       // Add team vesting, treasury, etc.
     ];
     return lockedAddresses.includes(address);
@@ -360,4 +360,4 @@ export class MarketAnalysisService {
 }
 
 // Export singleton instance
-export const marketAnalysis = new MarketAnalysisService(); 
+export const marketAnalysis = new MarketAnalysisService();    

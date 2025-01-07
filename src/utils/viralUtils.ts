@@ -1,6 +1,6 @@
 // src/utils/viralUtils.ts
 
-import { AIService } from '../services/ai/ai';
+import { AIService } from '../services/ai/ai.js';
 
 interface ViralScore {
   total: number;

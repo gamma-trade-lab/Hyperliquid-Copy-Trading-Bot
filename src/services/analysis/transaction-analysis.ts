@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Transaction, TransactionMetrics } from '../../types/transaction.d.js';
 
 // Validation schemas
 const tokenTransferSchema = z.object({
@@ -18,28 +19,7 @@ const transactionDetailSchema = z.object({
   tokenTransfer: tokenTransferSchema.optional()
 });
 
-export interface TransactionMetrics {
-  volume: {
-    total: number;
-    inflow: number;
-    outflow: number;
-  };
-  activity: {
-    totalTx: number;
-    uniqueAddresses: number;
-    successRate: number;
-  };
-  fees: {
-    total: number;
-    average: number;
-    max: number;
-  };
-  timing: {
-    averageConfirmation: number;
-    failureRate: number;
-    peakHours: number[];
-  };
-}
+// Using TransactionMetrics from types/transaction.d.ts
 
 export interface TransactionPattern {
   type: 'accumulation' | 'distribution' | 'neutral';
@@ -126,7 +106,7 @@ export class TransactionAnalysisService {
       
       for (let i = 0; i < Math.max(postBalances.length, preBalances.length); i++) {
         const post = postBalances[i];
-        const pre = preBalances.find(p => p.accountIndex === post?.accountIndex);
+        const pre = preBalances.find((p: { accountIndex: number }) => p.accountIndex === post?.accountIndex);
         
         if (post?.uiTokenAmount && pre?.uiTokenAmount) {
           const amount = Math.abs(
@@ -190,7 +170,7 @@ export class TransactionAnalysisService {
     mintAddress: string,
     timeframe: '1h' | '24h' | '7d' = '24h'
   ): Promise<TransactionPattern> {
-    const transactions = await this.getTokenTransactions(mintAddress, timeframe);
+    const transactions: Transaction[] = await this.getTokenTransactions(mintAddress, timeframe);
     
     // Analyze transaction sizes
     const sizes = transactions.map(tx => tx.amount || 0);
@@ -264,7 +244,7 @@ export class TransactionAnalysisService {
     return [];
   }
 
-  private calculateVolumeMetrics(transactions: z.infer<typeof transactionDetailSchema>[]) {
+  private calculateVolumeMetrics(transactions: Transaction[]) {
     let total = 0;
     let inflow = 0;
     let outflow = 0;
@@ -283,7 +263,7 @@ export class TransactionAnalysisService {
     return { total, inflow, outflow };
   }
 
-  private calculateActivityMetrics(transactions: z.infer<typeof transactionDetailSchema>[]) {
+  private calculateActivityMetrics(transactions: Transaction[]) {
     const uniqueAddresses = new Set();
     let successCount = 0;
 
@@ -300,7 +280,7 @@ export class TransactionAnalysisService {
     };
   }
 
-  private calculateFeeMetrics(transactions: z.infer<typeof transactionDetailSchema>[]) {
+  private calculateFeeMetrics(transactions: Transaction[]) {
     const fees = transactions
       .map(tx => tx.fee || 0)
       .filter(fee => fee > 0);
@@ -312,7 +292,7 @@ export class TransactionAnalysisService {
     return { total, average, max };
   }
 
-  private calculateTimingMetrics(transactions: z.infer<typeof transactionDetailSchema>[]) {
+  private calculateTimingMetrics(transactions: Transaction[]) {
     // This is a placeholder. Implement actual timing metrics calculation
     return {
       averageConfirmation: 0,
@@ -323,4 +303,4 @@ export class TransactionAnalysisService {
 }
 
 // Export singleton instance
-export const transactionAnalysis = new TransactionAnalysisService(); 
+export const transactionAnalysis = new TransactionAnalysisService();               

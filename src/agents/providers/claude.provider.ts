@@ -1,10 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { AIProvider, ModelConfig, ModelResponse, PromptConfig } from './base.provider';
-import { logger } from '../../utils/logger';
+import Anthropic, { ContentBlock } from '@anthropic-ai/sdk';
+import { AIProvider, ModelConfig, ModelResponse, PromptConfig } from './base.provider.js';
+import { logger } from '../../utils/logger.js';
 
 export class ClaudeProvider implements AIProvider {
-  private client: Anthropic;
-  private model: string;
+  private client!: Anthropic;
+  private model!: string;
   public readonly name = 'claude';
 
   async initialize(config: { apiKey: string; model?: string }): Promise<void> {
@@ -37,8 +37,20 @@ export class ClaudeProvider implements AIProvider {
         ]
       });
 
+      const content = response.content?.[0];
+      let contentText = '';
+      
+      if (typeof content === 'string') {
+        contentText = content;
+      } else if (content && typeof content === 'object' && 'type' in content) {
+        const block = content as ContentBlock;
+        if (block.type === 'text') {
+          contentText = block.text;
+        }
+      }
+      
       return {
-        content: response.content[0].text,
+        content: contentText,
         usage: {
           promptTokens: 0, // Claude doesn't provide token usage
           completionTokens: 0,
@@ -60,7 +72,7 @@ export class ClaudeProvider implements AIProvider {
       const modelConfig = { ...this.getDefaultConfig(), ...config };
       const formattedPrompt = this.formatPrompt(prompt);
 
-      const stream = await this.client.messages.create({
+      const response = await this.client.messages.create({
         model: this.model,
         max_tokens: modelConfig.maxTokens,
         temperature: modelConfig.temperature,
@@ -70,15 +82,23 @@ export class ClaudeProvider implements AIProvider {
             role: 'user',
             content: formattedPrompt
           }
-        ],
-        stream: true
+        ]
       });
 
-      for await (const chunk of stream) {
-        if (chunk.type === 'content_block_delta' && chunk.delta.text) {
-          yield chunk.delta.text;
+      // Since Claude v3 doesn't support streaming yet, we'll simulate it by yielding the full response
+      const content = response.content?.[0];
+      let contentText = '';
+      
+      if (typeof content === 'string') {
+        contentText = content;
+      } else if (content && typeof content === 'object' && 'type' in content) {
+        const block = content as ContentBlock;
+        if (block.type === 'text') {
+          contentText = block.text;
         }
       }
+      
+      yield contentText;
     } catch (error) {
       logger.error('Error streaming Claude response:', error);
       throw error;
@@ -116,4 +136,4 @@ export class ClaudeProvider implements AIProvider {
 
     return formattedPrompt;
   }
-} 
+}               

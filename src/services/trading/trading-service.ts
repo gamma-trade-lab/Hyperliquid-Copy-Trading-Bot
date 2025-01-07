@@ -1,6 +1,5 @@
 import { Connection, PublicKey, VersionedTransaction } from '@solana/web3.js';
 import { z } from 'zod';
-import { cache } from 'react';
 
 // Constants
 export const TOKENS = {
@@ -60,6 +59,20 @@ export interface TradeAnalysis {
 export class TradingService {
   private readonly heliusUrl: string;
   private readonly connection: Connection;
+
+  // Used for RPC calls and blockchain interactions
+  private async getBlockchainData(mintAddress: string) {
+    try {
+      const [supply, decimals] = await Promise.all([
+        this.connection.getTokenSupply(new PublicKey(mintAddress)),
+        this.connection.getTokenAccountBalance(new PublicKey(mintAddress))
+      ]);
+      return { supply, decimals };
+    } catch (error) {
+      console.error('Error fetching blockchain data:', error);
+      return null;
+    }
+  }
   
   constructor() {
     const apiKey = process.env.NEXT_PUBLIC_HELIUS_API_KEY;
@@ -71,7 +84,6 @@ export class TradingService {
   }
 
   // Token Information
-  @cache
   async getTokenInfo(mintAddress: string) {
     try {
       const response = await fetch(`https://tokens.jup.ag/token/${mintAddress}`);
@@ -87,19 +99,17 @@ export class TradingService {
   }
 
   // Price Information
-  @cache
   async getTokenPrice(tokenAddress: string): Promise<z.infer<typeof tokenPriceSchema> | null> {
     try {
       const response = await fetch(
-        `https://api.jup.ag/price/v2?ids=${tokenAddress}&showExtraInfo=true`,
-        { next: { revalidate: 5 } }
+        `https://api.jup.ag/price/v2?ids=${tokenAddress}&showExtraInfo=true`
       );
 
       if (!response.ok) {
         throw new Error('Failed to fetch price data');
       }
 
-      const data = await response.json();
+      const data = await response.json() as { data: Record<string, any> };
       const price = data.data[tokenAddress];
       return price ? tokenPriceSchema.parse(price) : null;
     } catch (error) {
@@ -110,14 +120,16 @@ export class TradingService {
 
   // Market Analysis
   async analyzeMarket(mintAddress: string) {
-    const [tokenInfo, holders] = await Promise.all([
+    const [tokenInfo, holders, blockchainData] = await Promise.all([
       this.getTokenInfo(mintAddress),
-      this.getTokenHolders(mintAddress)
+      this.getTokenHolders(mintAddress),
+      this.getBlockchainData(mintAddress)
     ]);
 
     return {
       tokenInfo,
       holders,
+      blockchainData,
       marketMetrics: {
         concentration: this.calculateHolderConcentration(holders),
         activity: await this.getMarketActivity(mintAddress),
@@ -249,13 +261,13 @@ export class TradingService {
       throw new Error(`Swap preparation failed: ${response.statusText}`);
     }
 
-    const { swapTransaction } = await response.json();
+    const { swapTransaction } = await response.json() as { swapTransaction: string };
     const transactionBuffer = Buffer.from(swapTransaction, 'base64');
     return VersionedTransaction.deserialize(transactionBuffer);
   }
 
-  private async getMarketDepth(mintAddress: string) {
-    // Implement market depth calculation using Jupiter API
+  private async getMarketDepth(_mintAddress: string) {
+    // TODO: Implement market depth calculation using Jupiter API
     return {
       inputDepth: 0,
       outputDepth: 0,
@@ -263,8 +275,8 @@ export class TradingService {
     };
   }
 
-  private async getMarketActivity(mintAddress: string) {
-    // Implement market activity tracking
+  private async getMarketActivity(_mintAddress: string) {
+    // TODO: Implement market activity tracking
     return {
       volume24h: 0,
       trades24h: 0,
@@ -281,11 +293,11 @@ export class TradingService {
     };
   }
 
-  private async getTokenHolders(mintAddress: string) {
-    // Implement holder fetching using Helius API
+  private async getTokenHolders(_mintAddress: string) {
+    // TODO: Implement holder fetching using Helius API
     return [];
   }
 }
 
 // Export singleton instance
-export const tradingService = new TradingService(); 
+export const tradingService = new TradingService();         

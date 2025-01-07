@@ -1,4 +1,4 @@
-import { Connection, PublicKey, Keypair, TransactionInstruction, Transaction } from '@solana/web3.js';
+import { Connection, PublicKey, Keypair, Transaction } from '@solana/web3.js';
 
 // Import from our custom implementations
 import {
@@ -7,7 +7,7 @@ import {
   NATIVE_MINT,
   AuthorityType,
   ACCOUNT_STATE
-} from './constants';
+} from './constants.js';
 
 import {
   createInitializeMintInstruction,
@@ -16,8 +16,9 @@ import {
   createMintToInstruction,
   createCloseAccountInstruction,
   createAssociatedTokenAccountInstruction,
-  createSetAuthorityInstruction
-} from './instructions';
+  createSetAuthorityInstruction,
+  getOrCreateAssociatedTokenAccount
+} from './instructions.js';
 
 import {
   TokenAccount,
@@ -28,7 +29,7 @@ import {
   createAssociatedTokenAccount,
   getAccount,
   getMint
-} from './accounts';
+} from './accounts.js';
 
 // High-level token operations
 export async function mintTo(
@@ -89,6 +90,7 @@ export {
   createMint,
   createAccount,
   createAssociatedTokenAccount,
+  getOrCreateAssociatedTokenAccount,
   getAccount,
   getMint,
   

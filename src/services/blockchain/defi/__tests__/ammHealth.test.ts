@@ -1,5 +1,5 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-import { AMMHealthChecker } from '../ammHealth';
+import { AMMHealthChecker } from '../ammHealth.js';
 import axios from 'axios';
 
 jest.mock('axios');

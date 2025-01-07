@@ -1,6 +1,6 @@
 // src/services/social/engagement/rateLimit.ts
 
-import { Platform } from '../../../personality/traits/responsePatterns';
+import { Platform } from '../../../personality/traits/responsePatterns.js';
 import { EventEmitter } from 'events';
 
 interface RateLimit {

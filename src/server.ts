@@ -1,8 +1,8 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { AgentCoordinationService } from './infrastructure/database/services/AgentCoordinationService';
-import { logger } from './utils/logger';
+import { AgentCoordinationService } from './infrastructure/database/services/AgentCoordinationService.js';
+import { logger } from './utils/logger.js';
 
 export async function createServer(): Promise<Express> {
   const app = express();

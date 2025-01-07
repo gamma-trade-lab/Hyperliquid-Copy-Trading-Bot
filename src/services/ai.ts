@@ -1,5 +1,5 @@
-import CONFIG from "@/config/settings";
-import { MarketAnalysis } from "./blockchain";
+import CONFIG from "../../src/config/settings";
+import { MarketAnalysis } from "./blockchain/index.js";
 
 interface AIServiceConfig {
     groqApiKey: string;

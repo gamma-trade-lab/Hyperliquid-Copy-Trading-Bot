@@ -1,7 +1,7 @@
 // src/personality/strategies/engagementStrategy.ts
 
-import { TraitManager, TraitCategory } from '../traits';
-import { ResponsePatternManager, ResponseType, Platform } from '../traits/responsePatterns';
+import { TraitManager, TraitCategory } from '../traits.js';
+import { ResponsePatternManager, ResponseType, Platform } from '../traits/responsePatterns.js';
 import { EventEmitter } from 'events';
 
 interface EngagementRule {
@@ -142,6 +142,6 @@ export class EngagementStrategy extends EventEmitter {
 
 // Example usage
 const traitManager = new TraitManager();
-const responseManager = new ResponsePatternManager(traitManager);
+const responseManager = new ResponsePatternManager(traitManager as any); // TODO: Fix type mismatch between TraitManager implementations
 const strategy = new EngagementStrategy(traitManager, responseManager);
 strategy.executeRules();

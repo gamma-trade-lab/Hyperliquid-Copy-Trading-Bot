@@ -1,6 +1,6 @@
-import { MemeGenerator } from '../memeGenerator';
-import { TraitManager } from '../traitManager';
-import { IAIService } from '../../../services/ai/types';
+import { MemeGenerator } from '../memeGenerator.js';
+import { TraitManager } from '../traitManager.js';
+import { IAIService } from '../../../services/ai/types.js';
 
 jest.mock('../traitManager');
 jest.mock('../../../services/ai/ai');

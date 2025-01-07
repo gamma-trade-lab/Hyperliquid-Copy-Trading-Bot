@@ -1,4 +1,4 @@
-import { IAIService } from '../ai/types';
+import { IAIService } from '../ai/types.js';
 import type { Scraper, Profile } from 'agent-twitter-client';
 
 export interface TwitterResponse {

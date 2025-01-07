@@ -1,4 +1,4 @@
-import { ChatHistory, Message } from './types';
+import { ChatHistory, Message } from './types.js';
 
 export class ChatHistoryManager implements ChatHistory {
   private static readonly MAX_HISTORY = 50;

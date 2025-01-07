@@ -3,16 +3,14 @@
 import { Connection, PublicKey, Transaction, Keypair, VersionedTransaction } from '@solana/web3.js';
 import { Jupiter, RouteInfo, SwapMode } from '@jup-ag/core';
 import { EventEmitter } from 'events';
-import { AIService } from '../../ai/ai';
 import JSBI from 'jsbi';
 import axios from 'axios';
-import { v4 as uuid } from 'uuid';
-import { VolatilityManager } from '../../market/volatility/VolatilityManager';
-import { DataProcessor } from '../../market/data';
-import { MarketSentimentAnalyzer, SentimentSource } from '../../market/signals/marketSentiment';
-import { retry } from '../../../utils/common';
-import { JupiterPriceV2 } from './jupiterPriceV2';
-import { AMMHealthChecker } from './ammHealth';
+import { VolatilityManager } from '../../market/volatility/VolatilityManager.js';
+import { DataProcessor } from '../../market/data/index.js';
+import { MarketSentimentAnalyzer, SentimentSource } from '../../market/signals/marketSentiment.js';
+import { retry } from '../../../utils/common.js';
+import { JupiterPriceV2 } from './jupiterPriceV2.js';
+import { AMMHealthChecker } from './ammHealth.js';
 
 interface TradeConfig {
   maxSlippage: number;
@@ -58,7 +56,7 @@ interface TradeResult {
   timestamp: number;
 }
 
-interface TradingStrategy {
+export interface TradingStrategy {
   id: string;
   name: string;
   tokens: string[];
@@ -84,9 +82,8 @@ interface TradeRule {
 export class TradingEngine extends EventEmitter {
   private connection: Connection;
   private jupiter: Jupiter;
-  private aiService: AIService;
   private config: TradeConfig;
-  private strategies: Map<string, TradingStrategy>;
+  private readonly strategies: Map<string, TradingStrategy>;
   private tradeHistory: Map<string, TradeResult>;
   private readonly MAX_HISTORY = 1000;
   private volatilityManager: VolatilityManager;
@@ -99,13 +96,6 @@ export class TradingEngine extends EventEmitter {
     ORCA: 'https://api.orca.so',
     RAYDIUM: 'https://api.raydium.io/v2'
   };
-  
-  private rateLimitCounter = 0;
-  private lastRateLimitReset = Date.now();
-  private readonly RATE_LIMIT = 600;
-  private readonly RATE_LIMIT_WINDOW = 60000; // 1 minute in ms
-  private readonly MAX_RETRIES = 5;
-  private readonly BATCH_SIZE = 100;
   private sentimentAnalyzer: MarketSentimentAnalyzer;
   private openPositions: Map<string, Position> = new Map();
   private readonly DEFAULT_STOP_LOSS = 0.05; // 5% default stop loss
@@ -116,7 +106,6 @@ export class TradingEngine extends EventEmitter {
   constructor(
     connection: Connection,
     jupiter: Jupiter,
-    aiService: AIService,
     config: TradeConfig,
     sentimentAnalyzer: MarketSentimentAnalyzer,
     wallet: Keypair
@@ -124,11 +113,21 @@ export class TradingEngine extends EventEmitter {
     super();
     this.connection = connection;
     this.jupiter = jupiter;
-    this.aiService = aiService;
     this.config = config;
     this.wallet = wallet;
-    this.strategies = new Map();
+    this.strategies = new Map<string, TradingStrategy>();
     this.tradeHistory = new Map();
+    
+    // Initialize with default trading strategy
+    const defaultStrategy: TradingStrategy = {
+      id: 'default',
+      name: 'Default Strategy',
+      tokens: [],
+      rules: [],
+      config: this.config,
+      status: 'active'
+    };
+    this.strategies.set(defaultStrategy.id, defaultStrategy);
     this.dataProcessor = new DataProcessor();
     this.volatilityManager = new VolatilityManager(this.dataProcessor);
     this.sentimentAnalyzer = sentimentAnalyzer;
@@ -199,15 +198,28 @@ export class TradingEngine extends EventEmitter {
 
   private async findBestRoute(params: TradeParams): Promise<RouteInfo | null> {
     try {
+      if (!params || !params.inputToken || !params.outputToken) {
+        return null;
+      }
       // Get price data with confidence check and retry mechanism
+      // Get price data with confidence check and retry mechanism
+      // Validate prices through Jupiter Price V2 service
       const [inputPrice, outputPrice] = await Promise.all([
         retry(() => this.jupiterPriceV2.getPrice(params.inputToken)),
         retry(() => this.jupiterPriceV2.getPrice(params.outputToken))
       ]);
+      
+      if (!inputPrice || !outputPrice) {
+        console.error('Failed to fetch price data');
+        return null;
+      }
+      
+      // Calculate base amount with price
+      const baseAmount = params.amount * inputPrice;
 
       // Adjust position size based on volatility and price confidence
       const adjustedAmount = await this.volatilityManager.adjustPosition(
-        params.amount,
+        baseAmount,
         params.inputToken
       );
 
@@ -217,7 +229,7 @@ export class TradingEngine extends EventEmitter {
         .filter(([_, health]) => health < 0.8)
         .map(([dex]) => dex);
 
-      const routes = await retry(async () => {
+      try {
         const computedRoutes = await this.jupiter.computeRoutes({
           inputMint: new PublicKey(params.inputToken),
           outputMint: new PublicKey(params.outputToken),
@@ -229,11 +241,16 @@ export class TradingEngine extends EventEmitter {
         });
 
         if (!computedRoutes.routesInfos.length) {
-          throw new Error('No routes found with current constraints');
+          console.error('No routes found with current constraints');
+          return null;
         }
 
-        return computedRoutes;
-      });
+        // Return the best route based on output amount
+        return computedRoutes.routesInfos[0];
+      } catch (error) {
+        console.error('Error computing routes:', error);
+        return null;
+      }
     } catch (error) {
       console.error('Error finding best route:', error);
       return null;
@@ -264,15 +281,19 @@ export class TradingEngine extends EventEmitter {
       if (routes.length < 2) return; // Need at least 2 DEXes for arbitrage
 
       // Find best buy and sell prices
-      const bestBuy = routes.reduce((min, curr) => 
-        curr.route && curr.route.outAmount < min.route.outAmount ? curr : min
-      );
-      const bestSell = routes.reduce((max, curr) => 
-        curr.route && curr.route.outAmount > max.route.outAmount ? curr : max
-      );
+      const bestBuy = routes.reduce((min, curr) => {
+        if (!curr.route || !min.route) return min;
+        return curr.route.outAmount < min.route.outAmount ? curr : min;
+      });
+      const bestSell = routes.reduce((max, curr) => {
+        if (!curr.route || !max.route) return max;
+        return curr.route.outAmount > max.route.outAmount ? curr : max;
+      });
 
       // Calculate potential profit
-      const profitRatio = JSBI.toNumber(bestSell.route.outAmount) / JSBI.toNumber(bestBuy.route.outAmount);
+      const profitRatio = bestBuy.route && bestSell.route 
+        ? JSBI.toNumber(bestSell.route.outAmount) / JSBI.toNumber(bestBuy.route.outAmount)
+        : 0;
       
       if (profitRatio > 1 + this.MIN_PROFIT_THRESHOLD) {
         // Emit arbitrage opportunity event
@@ -468,7 +489,9 @@ export class TradingEngine extends EventEmitter {
   private addToHistory(result: TradeResult): void {
     if (this.tradeHistory.size >= this.MAX_HISTORY) {
       const oldestKey = this.tradeHistory.keys().next().value;
-      this.tradeHistory.delete(oldestKey);
+      if (oldestKey) {
+        this.tradeHistory.delete(oldestKey);
+      }
     }
     this.tradeHistory.set(result.id, result);
   }

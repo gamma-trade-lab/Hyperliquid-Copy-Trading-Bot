@@ -1,7 +1,7 @@
 // src/services/market/signals/tradingSignals.ts
 
 import { EventEmitter } from 'events';
-import { AIService } from '../../ai/ai';
+import { AIService } from '../../ai/ai.js';
 
 interface TradingSignal {
   id: string;

@@ -1,7 +1,7 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-import { Logger } from '../utils/logger';
+import { Logger } from '../utils/logger.js';
 import axios from 'axios';
-import { redis } from '../infrastructure/database/redis.config';
+import { redis } from '../infrastructure/database/redis.config.js';
 
 interface SwapTransaction {
   signature: string;

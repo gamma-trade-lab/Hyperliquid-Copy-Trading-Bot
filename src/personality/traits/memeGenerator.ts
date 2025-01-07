@@ -1,5 +1,5 @@
-import { TraitManager } from './traitManager';
-import { IAIService } from '../../services/ai/types';
+import { TraitManager } from './traitManager.js';
+import { IAIService } from '../../services/ai/types.js';
 import { EventEmitter } from 'events';
 
 interface MemeTemplate {

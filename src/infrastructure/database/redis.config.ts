@@ -1,9 +1,9 @@
 import Redis from 'ioredis';
-import { Logger } from '../../utils/logger';
+import { Logger } from '../../utils/logger.js';
 
 const logger = new Logger('RedisConfig');
 
-const redisConfig = {
+export const redisConfig = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6379', 10),
   password: process.env.REDIS_PASSWORD || undefined,
@@ -26,4 +26,4 @@ redis.on('error', (error) => {
 
 redis.on('close', () => {
   logger.warn('Redis connection closed');
-}); 
+});   

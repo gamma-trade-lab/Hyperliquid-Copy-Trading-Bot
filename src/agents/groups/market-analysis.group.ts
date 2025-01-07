@@ -1,4 +1,4 @@
-import { deepseekPrompt } from '../prompts/deepseek.prompt';
+import { deepseekPrompt } from '../prompts/deepseek.prompt.js';
 
 export const marketAnalysisGroup = {
   name: 'Market Analysis Group',

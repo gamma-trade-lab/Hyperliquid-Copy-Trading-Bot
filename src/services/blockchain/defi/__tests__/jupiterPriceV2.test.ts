@@ -1,8 +1,8 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import axios from 'axios';
-import { JupiterPriceV2Service } from '../JupiterPriceV2Service';
-import { RedisCache } from '../../../market/data/RedisCache';
-import type { JupiterPriceResponse } from '../types';
+import { JupiterPriceV2Service } from '../JupiterPriceV2Service.js';
+import { RedisCache } from '../../../market/data/RedisCache.js';
+import type { JupiterPriceResponse } from '../types.js';
 
 // Mock axios
 jest.mock('axios');
@@ -16,10 +16,9 @@ interface MockTokenData {
 
 interface MockResponse {
   data: {
-    data?: {
+    [key: string]: MockTokenData | {
       [key: string]: MockTokenData;
     };
-    [key: string]: MockTokenData | { [key: string]: MockTokenData };
   };
 }
 
@@ -263,9 +262,9 @@ describe('JupiterPriceV2Service', () => {
       
       // Verify batch sizes in API calls
       const calls = mockedAxios.get.mock.calls;
-      expect(calls[0][1].params.ids.split(',').length).toBe(100); // First batch
-      expect(calls[1][1].params.ids.split(',').length).toBe(100); // Second batch
-      expect(calls[2][1].params.ids.split(',').length).toBe(50);  // Last batch
+      expect(calls?.[0]?.[1]?.params?.ids?.split(',')?.length ?? 0).toBe(100); // First batch
+      expect(calls?.[1]?.[1]?.params?.ids?.split(',')?.length ?? 0).toBe(100); // Second batch
+      expect(calls?.[2]?.[1]?.params?.ids?.split(',')?.length ?? 0).toBe(50);  // Last batch
       
       // Verify caching
       expect(mockSet).toHaveBeenCalledTimes(3);

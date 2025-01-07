@@ -1,7 +1,7 @@
 // src/services/social/analytics/sentiment.ts
 
 import { EventEmitter } from 'events';
-import { AIService } from '../../ai/ai';
+import { AIService } from '../../ai/ai.js';
 
 interface SentimentScore {
   score: number;          // -1 to 1

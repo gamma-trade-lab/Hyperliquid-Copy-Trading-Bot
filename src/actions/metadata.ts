@@ -1,7 +1,7 @@
 // src/actions/metadata.ts
 
 import { PublicKey } from '@solana/web3.js';
-import { uploadFileToIPFS } from './uploadToIpfs';
+import { uploadFileToIPFS } from './uploadToIpfs.js';
 
 export interface TokenMetadata {
   name: string;

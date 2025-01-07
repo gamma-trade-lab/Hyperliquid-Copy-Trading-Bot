@@ -1,38 +1,38 @@
 import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
-import { BaseEntity } from './BaseEntity';
-import { Agent } from './Agent.entity';
-import { User } from './User.entity';
+import { BaseEntity } from './BaseEntity.js';
+import { Agent } from './Agent.entity.js';
+import { User } from './User.entity.js';
 
 @Entity('tasks')
 export class Task extends BaseEntity {
   @Column()
-  title: string;
+  title!: string;
 
   @Column({ type: 'text' })
-  description: string;
+  description!: string;
 
   @Column({
     type: 'enum',
     enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED'],
     default: 'PENDING'
   })
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  status!: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
 
   @Column({ type: 'jsonb', nullable: true })
-  input: Record<string, any>;
+  input!: Record<string, any>;
 
   @Column({ type: 'jsonb', nullable: true })
-  output: Record<string, any>;
+  output!: Record<string, any>;
 
   @Column({ type: 'jsonb', nullable: true })
-  metadata: Record<string, any>;
+  metadata!: Record<string, any>;
 
   @ManyToOne(() => Agent)
   @JoinColumn({ name: 'agentId' })
-  agent: Agent;
+  agent!: Agent;
 
   @Column()
-  agentId: string;
+  agentId!: string;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'userId' })
@@ -52,4 +52,4 @@ export class Task extends BaseEntity {
 
   @Column({ type: 'text', nullable: true })
   errorMessage?: string;
-} 
+}    

@@ -1,7 +1,7 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-import { DataProcessor } from '../DataProcessor';
+import { DataProcessor } from '../DataProcessor.js';
 import Redis from 'ioredis';
-import { PriceData, TokenMetrics } from '../../../../types/market';
+import { PriceData, TokenMetrics } from '../../../../types/market.js';
 import * as zlib from 'zlib';
 import { promisify } from 'util';
 

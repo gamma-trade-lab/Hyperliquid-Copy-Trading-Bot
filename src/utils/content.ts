@@ -1,8 +1,8 @@
 // src/utils/content.ts
 
-import { AIService } from '../services/ai';
-import { CONFIG } from '../../src/config/settings';
-import { aiService } from '@/services/ai/ai';
+import { AIService } from '../services/ai.js';
+import { CONFIG } from '../../src/config/settings.js';
+import { aiService } from '../services/ai/ai.js';
 
 interface ContentTemplate {
    type: 'meme' | 'announcement' | 'market_update' | 'community';
@@ -62,6 +62,9 @@ export class ContentUtils {
            // Get AI-generated content if needed
            let aiContent = '';
            if (params.type === 'meme') {
+               if (!aiService) {
+                   throw new Error('AI service is not initialized');
+               }
                const memeResponse = await aiService.generateMemeContent();
                aiContent = memeResponse.text;
            }

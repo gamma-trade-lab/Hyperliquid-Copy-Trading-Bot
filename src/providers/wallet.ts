@@ -1,8 +1,8 @@
 import { IAgentRuntime, Memory, Provider, State } from "@elizaos/core";
 import { Connection, PublicKey } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
+import { toBN, BN } from "../utils/bignumber.js";
 import NodeCache from "node-cache";
-import { getWalletKey } from "../utils/keypairUtils";
+import { getWalletKey } from "../utils/keypairUtils.js";
 
 // Provider configuration
 const PROVIDER_CONFIG = {
@@ -62,11 +62,11 @@ export class WalletProvider {
     }
 
     private async fetchWithRetry(
-        runtime,
+        runtime: IAgentRuntime,
         url: string,
         options: RequestInit = {}
     ): Promise<any> {
-        let lastError: Error;
+        let lastError: Error = new Error("No error occurred");
 
         for (let i = 0; i < PROVIDER_CONFIG.MAX_RETRIES; i++) {
             try {
@@ -76,7 +76,7 @@ export class WalletProvider {
                         Accept: "application/json",
                         "x-chain": "solana",
                         "X-API-KEY":
-                            runtime.getSetting("BIRDEYE_API_KEY", "") || "",
+                            runtime.getSetting("BIRDEYE_API_KEY") || "",
                         ...options.headers,
                     },
                 });
@@ -108,7 +108,7 @@ export class WalletProvider {
         throw lastError;
     }
 
-    async fetchPortfolioValue(runtime): Promise<WalletPortfolio> {
+    async fetchPortfolioValue(runtime: IAgentRuntime): Promise<WalletPortfolio> {
         try {
             const cacheKey = `portfolio-${this.walletPublicKey.toBase58()}`;
             const cachedValue = this.cache.get<WalletPortfolio>(cacheKey);
@@ -130,13 +130,13 @@ export class WalletProvider {
             }
 
             const data = walletData.data;
-            const totalUsd = new BigNumber(data.totalUsd.toString());
+            const totalUsd = toBN(data.totalUsd.toString());
             const prices = await this.fetchPrices(runtime);
-            const solPriceInUSD = new BigNumber(prices.solana.usd.toString());
+            const solPriceInUSD = toBN(prices.solana.usd.toString());
 
             const items = data.items.map((item: any) => ({
                 ...item,
-                valueSol: new BigNumber(item.valueUsd || 0)
+                valueSol: toBN(item.valueUsd || 0)
                     .div(solPriceInUSD)
                     .toFixed(6),
                 name: item.name || "Unknown",
@@ -149,9 +149,9 @@ export class WalletProvider {
             const portfolio = {
                 totalUsd: totalUsd.toString(),
                 totalSol: totalSol.toFixed(6),
-                items: items.sort((a, b) =>
-                    new BigNumber(b.valueUsd)
-                        .minus(new BigNumber(a.valueUsd))
+                items: items.sort((a: Item, b: Item) =>
+                    toBN(b.valueUsd)
+                        .minus(toBN(a.valueUsd))
                         .toNumber()
                 ),
             };
@@ -163,7 +163,7 @@ export class WalletProvider {
         }
     }
 
-    async fetchPortfolioValueCodex(runtime): Promise<WalletPortfolio> {
+    async fetchPortfolioValueCodex(runtime: IAgentRuntime): Promise<WalletPortfolio> {
         try {
             const cacheKey = `portfolio-${this.walletPublicKey.toBase58()}`;
             const cachedValue = await this.cache.get<WalletPortfolio>(cacheKey);
@@ -198,7 +198,7 @@ export class WalletProvider {
                 headers: {
                     "Content-Type": "application/json",
                     Authorization:
-                        runtime.getSetting("CODEX_API_KEY", "") || "",
+                        runtime.getSetting("CODEX_API_KEY") || "",
                 },
                 body: JSON.stringify({
                     query,
@@ -215,7 +215,7 @@ export class WalletProvider {
 
             // Fetch token prices
             const prices = await this.fetchPrices(runtime);
-            const solPriceInUSD = new BigNumber(prices.solana.usd.toString());
+            const solPriceInUSD = toBN(prices.solana.usd.toString());
 
             // Reformat items
             const items: Item[] = data.map((item: any) => {
@@ -234,8 +234,8 @@ export class WalletProvider {
 
             // Calculate total portfolio value
             const totalUsd = items.reduce(
-                (sum, item) => sum.plus(new BigNumber(item.valueUsd)),
-                new BigNumber(0)
+                (sum, item) => sum.plus(toBN(item.valueUsd)),
+                toBN(0)
             );
 
             const totalSol = totalUsd.div(solPriceInUSD);
@@ -243,9 +243,9 @@ export class WalletProvider {
             const portfolio: WalletPortfolio = {
                 totalUsd: totalUsd.toFixed(6),
                 totalSol: totalSol.toFixed(6),
-                items: items.sort((a, b) =>
-                    new BigNumber(b.valueUsd)
-                        .minus(new BigNumber(a.valueUsd))
+                items: items.sort((a: Item, b: Item) =>
+                    toBN(b.valueUsd)
+                        .minus(toBN(a.valueUsd))
                         .toNumber()
                 ),
             };
@@ -260,7 +260,7 @@ export class WalletProvider {
         }
     }
 
-    async fetchPrices(runtime): Promise<Prices> {
+    async fetchPrices(runtime: IAgentRuntime): Promise<Prices> {
         try {
             const cacheKey = "prices";
             const cachedValue = this.cache.get<Prices>(cacheKey);
@@ -313,43 +313,43 @@ export class WalletProvider {
     }
 
     formatPortfolio(
-        runtime,
+        runtime: IAgentRuntime,
         portfolio: WalletPortfolio,
         prices: Prices
     ): string {
-        let output = `${runtime.character.description}\n`;
+        let output = `${runtime.character.name}\n`;
         output += `Wallet Address: ${this.walletPublicKey.toBase58()}\n\n`;
 
-        const totalUsdFormatted = new BigNumber(portfolio.totalUsd).toFixed(2);
+        const totalUsdFormatted = toBN(portfolio.totalUsd).toFixed(2);
         const totalSolFormatted = portfolio.totalSol;
 
         output += `Total Value: $${totalUsdFormatted} (${totalSolFormatted} SOL)\n\n`;
         output += "Token Balances:\n";
 
         const nonZeroItems = portfolio.items.filter((item) =>
-            new BigNumber(item.uiAmount).isGreaterThan(0)
+            toBN(item.uiAmount).isGreaterThan(0)
         );
 
         if (nonZeroItems.length === 0) {
             output += "No tokens found with non-zero balance\n";
         } else {
             for (const item of nonZeroItems) {
-                const valueUsd = new BigNumber(item.valueUsd).toFixed(2);
-                output += `${item.name} (${item.symbol}): ${new BigNumber(
+                const valueUsd = toBN(item.valueUsd).toFixed(2);
+                output += `${item.name} (${item.symbol}): ${toBN(
                     item.uiAmount
                 ).toFixed(6)} ($${valueUsd} | ${item.valueSol} SOL)\n`;
             }
         }
 
         output += "\nMarket Prices:\n";
-        output += `SOL: $${new BigNumber(prices.solana.usd).toFixed(2)}\n`;
-        output += `BTC: $${new BigNumber(prices.bitcoin.usd).toFixed(2)}\n`;
-        output += `ETH: $${new BigNumber(prices.ethereum.usd).toFixed(2)}\n`;
+        output += `SOL: $${toBN(prices.solana.usd).toFixed(2)}\n`;
+        output += `BTC: $${toBN(prices.bitcoin.usd).toFixed(2)}\n`;
+        output += `ETH: $${toBN(prices.ethereum.usd).toFixed(2)}\n`;
 
         return output;
     }
 
-    async getFormattedPortfolio(runtime): Promise<string> {
+    async getFormattedPortfolio(runtime: IAgentRuntime): Promise<string> {
         try {
             const [portfolio, prices] = await Promise.all([
                 this.fetchPortfolioValue(runtime),
@@ -377,6 +377,9 @@ const walletProvider: Provider = {
                 runtime.getSetting("RPC_URL") || PROVIDER_CONFIG.DEFAULT_RPC
             );
 
+            if (!publicKey) {
+                throw new Error("Wallet public key is required");
+            }
             const provider = new WalletProvider(connection, publicKey);
 
             return await provider.getFormattedPortfolio(runtime);

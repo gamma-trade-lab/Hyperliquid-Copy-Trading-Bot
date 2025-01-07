@@ -1,7 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../utils/logger';
+import { logger } from '../utils/logger.js';
 
 export class AppError extends Error {
+  public details?: unknown;
+  
   constructor(
     public statusCode: number,
     public message: string,
@@ -47,4 +49,4 @@ export const notFoundHandler = (
 ) => {
   const err = new AppError(404, `Route ${req.originalUrl} not found`);
   next(err);
-}; 
+};   

@@ -1,6 +1,7 @@
-import { initializePostgres } from './postgresql.config';
-import { initializeMongoDB, closeMongoDB } from './mongodb.config';
-import { initializeRedis, closeRedis } from './redis.config';
+import { initializePostgres } from './postgresql.config.js';
+import { initializeMongoDB, closeMongoDB } from './mongodb.config.js';
+import { RedisService } from '../../services/redis/redis-service.js';
+import { redisConfig } from './redis.config.js';
 
 export const initializeDatabases = async () => {
   try {
@@ -8,7 +9,7 @@ export const initializeDatabases = async () => {
     await Promise.all([
       initializePostgres(),
       initializeMongoDB(),
-      initializeRedis(),
+      RedisService.getInstance(redisConfig).initialize(),
     ]);
     
     console.log('All databases initialized successfully');
@@ -24,7 +25,7 @@ export const closeDatabases = async () => {
   try {
     await Promise.all([
       closeMongoDB(),
-      closeRedis(),
+      RedisService.getInstance(redisConfig).disconnect(),
     ]);
     console.log('All database connections closed');
   } catch (error) {
@@ -44,4 +45,4 @@ process.on('SIGINT', async () => {
   console.log('SIGINT received. Closing database connections...');
   await closeDatabases();
   process.exit(0);
-}); 
+});               

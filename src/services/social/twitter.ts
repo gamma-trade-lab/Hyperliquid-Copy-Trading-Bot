@@ -14,9 +14,9 @@
  */
 
 import { Scraper, Tweet } from 'agent-twitter-client';
-import { IAIService } from '../ai/types';
-import { MarketAction } from '../../config/constants';
-import { MarketData } from '../../types/market';
+import { IAIService } from '../ai/types.js';
+import { MarketAction } from '../../config/constants.js';
+import { MarketData } from '../../types/market.js';
 
 export interface TwitterConfig {
   credentials: {
@@ -41,6 +41,9 @@ export class TwitterService {
 
   constructor(config: TwitterConfig) {
     this.scraper = new Scraper();
+    if (!config.aiService) {
+      throw new Error('AI service is required for Twitter service');
+    }
     this.aiService = config.aiService;
     this.credentials = config.credentials;
   }
@@ -101,11 +104,10 @@ export class TwitterService {
         await this.scraper.withCookie('lang=en;');
         
         // Attempt login with proper configuration
-        await this.scraper.login(
-          this.credentials.username,
-          this.credentials.password,
-          this.credentials.email
-        );
+        await this.scraper.login({
+          username: this.credentials.username,
+          password: this.credentials.password
+        });
 
         // Add delay after login attempt to allow session establishment
         await new Promise(resolve => setTimeout(resolve, 5000));

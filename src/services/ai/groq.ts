@@ -1,6 +1,7 @@
 import { Groq } from "groq-sdk";
 import { TwitterApi } from "twitter-api-v2";
-import { MarketData } from "../../types/market";
+import { MarketData } from "../../types/market.js";
+import { IAIService, MarketAnalysis } from "./types.js";
 
 interface TweetAnalysis {
   sentiment: number;
@@ -8,7 +9,7 @@ interface TweetAnalysis {
   actionableInsights: string[];
 }
 
-export class GroqAIService {
+export class GroqAIService implements IAIService {
   private groq: Groq;
   private twitter: TwitterApi;
   private systemPrompt: string;
@@ -180,6 +181,110 @@ export class GroqAIService {
       model: "mixtral-8x7b-32768",
       temperature: 0.7,
       max_tokens: 100
+    });
+
+    return response.choices[0].message.content ?? '';
+  }
+
+  async generateResponse(params: {
+    content: string;
+    author: string;
+    channel?: string;
+    platform: string;
+  }): Promise<string> {
+    const response = await this.groq.chat.completions.create({
+      messages: [
+        { role: "system", content: this.systemPrompt },
+        { role: "user", content: params.content }
+      ],
+      model: "mixtral-8x7b-32768",
+      temperature: 0.7,
+      max_tokens: 100
+    });
+
+    return response.choices[0].message.content ?? '';
+  }
+
+  async generateMarketUpdate(params: {
+    action: any;
+    data: MarketData;
+    platform: string;
+  }): Promise<string> {
+    return this.generateTweet({
+      marketCondition: params.action,
+      marketData: params.data,
+      communityMetrics: {},
+      recentTrends: []
+    });
+  }
+
+  async analyzeMarket(data: MarketData): Promise<MarketAnalysis> {
+    const response = await this.groq.chat.completions.create({
+      messages: [
+        { role: "system", content: this.systemPrompt },
+        { role: "user", content: `Analyze this market data and return a JSON object with fields: shouldTrade (boolean), confidence (number 0-1), action (BUY/SELL/HOLD)\n${JSON.stringify(data)}` }
+      ],
+      model: "mixtral-8x7b-32768",
+      temperature: 0.3,
+      max_tokens: 100
+    });
+
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error("Analysis content is null");
+    }
+    return JSON.parse(content) as MarketAnalysis;
+  }
+
+  async shouldEngageWithContent(params: {
+    text: string;
+    author: string;
+    platform: string;
+  }): Promise<boolean> {
+    const response = await this.groq.chat.completions.create({
+      messages: [
+        { role: "system", content: this.systemPrompt },
+        { role: "user", content: `Should I engage with this content? Return only true or false.\nContent: ${params.text}\nAuthor: ${params.author}\nPlatform: ${params.platform}` }
+      ],
+      model: "mixtral-8x7b-32768",
+      temperature: 0.3,
+      max_tokens: 10
+    });
+
+    return response.choices[0].message.content?.toLowerCase().includes('true') ?? false;
+  }
+
+  async determineEngagementAction(tweet: any): Promise<{
+    type: 'reply' | 'retweet' | 'like' | 'ignore';
+    content?: string;
+    confidence?: number;
+  }> {
+    const response = await this.groq.chat.completions.create({
+      messages: [
+        { role: "system", content: this.systemPrompt },
+        { role: "user", content: `Analyze this tweet and return a JSON object with fields: type (reply/retweet/like/ignore), content (optional), confidence (0-1)\nTweet: ${JSON.stringify(tweet)}` }
+      ],
+      model: "mixtral-8x7b-32768",
+      temperature: 0.3,
+      max_tokens: 100
+    });
+
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error("Analysis content is null");
+    }
+    return JSON.parse(content);
+  }
+
+  async generateMarketAnalysis(): Promise<string> {
+    const response = await this.groq.chat.completions.create({
+      messages: [
+        { role: "system", content: this.systemPrompt },
+        { role: "user", content: "Generate a concise market analysis focusing on key metrics and trends." }
+      ],
+      model: "mixtral-8x7b-32768",
+      temperature: 0.7,
+      max_tokens: 280
     });
 
     return response.choices[0].message.content ?? '';

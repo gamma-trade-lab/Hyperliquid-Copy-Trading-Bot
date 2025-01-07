@@ -5,13 +5,13 @@ import {
 } from "@elizaos/plugin-trustdb";
 import { Connection, PublicKey } from "@solana/web3.js";
 // Assuming TokenProvider and IAgentRuntime are available
-import { TokenProvider } from "./token.ts";
+import { TokenProvider } from "./token.js";
 // import { settings } from "@elizaos/core";
 import { IAgentRuntime } from "@elizaos/core";
-import { WalletProvider } from "./wallet.ts";
+import { WalletProvider } from "./wallet.js";
 import * as amqp from "amqplib";
-import { ProcessedTokenData } from "../types/token.ts";
-import { getWalletKey } from "../utils/keypairUtils";
+import { ProcessedTokenData } from "../types/token.js";
+import { getWalletKey } from "../utils/keypairUtils.js";
 
 interface SellDetails {
     sell_amount: number;
@@ -20,15 +20,15 @@ interface SellDetails {
 
 export class SimulationSellingService {
     private trustScoreDb: any;
-    private walletProvider: WalletProvider;
-    private connection: Connection;
-    private baseMint: PublicKey;
+    private walletProvider!: WalletProvider;
+    private connection!: Connection;
+    private baseMint!: PublicKey;
     private DECAY_RATE = 0.95;
     private MAX_DECAY_DAYS = 30;
     private backend: string;
     private backendToken: string;
-    private amqpConnection: amqp.Connection;
-    private amqpChannel: amqp.Channel;
+    private amqpConnection!: amqp.Connection;
+    private amqpChannel!: amqp.Channel;
     private sonarBe: string;
     private sonarBeToken: string;
     private runtime: IAgentRuntime;
@@ -38,17 +38,36 @@ export class SimulationSellingService {
     constructor(runtime: IAgentRuntime, trustScoreDb: any) {
         this.trustScoreDb = trustScoreDb;
 
-        this.connection = new Connection(runtime.getSetting("RPC_URL"));
+        const rpcUrl = runtime.getSetting("RPC_URL");
+        if (!rpcUrl) throw new Error("RPC_URL not configured");
+        this.connection = new Connection(rpcUrl);
+        
         this.initializeWalletProvider();
+        
         this.baseMint = new PublicKey(
             runtime.getSetting("BASE_MINT") ||
                 "So11111111111111111111111111111111111111112"
         );
-        this.backend = runtime.getSetting("BACKEND_URL");
-        this.backendToken = runtime.getSetting("BACKEND_TOKEN");
-        this.initializeRabbitMQ(runtime.getSetting("AMQP_URL"));
-        this.sonarBe = runtime.getSetting("SONAR_BE");
-        this.sonarBeToken = runtime.getSetting("SONAR_BE_TOKEN");
+        
+        const backendUrl = runtime.getSetting("BACKEND_URL");
+        if (!backendUrl) throw new Error("BACKEND_URL not configured");
+        this.backend = backendUrl;
+        
+        const backendToken = runtime.getSetting("BACKEND_TOKEN");
+        if (!backendToken) throw new Error("BACKEND_TOKEN not configured");
+        this.backendToken = backendToken;
+        
+        const amqpUrl = runtime.getSetting("AMQP_URL");
+        if (!amqpUrl) throw new Error("AMQP_URL not configured");
+        this.initializeRabbitMQ(amqpUrl);
+        
+        const sonarBe = runtime.getSetting("SONAR_BE");
+        if (!sonarBe) throw new Error("SONAR_BE not configured");
+        this.sonarBe = sonarBe;
+        
+        const sonarBeToken = runtime.getSetting("SONAR_BE_TOKEN");
+        if (!sonarBeToken) throw new Error("SONAR_BE_TOKEN not configured");
+        this.sonarBeToken = sonarBeToken;
         this.runtime = runtime;
     }
     /**
@@ -145,7 +164,7 @@ export class SimulationSellingService {
             // Update sell details in the database
             const sellDetailsData = await this.updateSellDetails(
                 tokenAddress,
-                sell_recommender_id,
+                sell_recommender_id || '',
                 sellTimeStamp,
                 sellDetails,
                 true, // isSimulation
@@ -176,7 +195,9 @@ export class SimulationSellingService {
      */
     private async initializeWalletProvider(): Promise<void> {
         const { publicKey } = await getWalletKey(this.runtime, false);
-
+        if (!publicKey) {
+            throw new Error('Failed to get wallet public key');
+        }
         this.walletProvider = new WalletProvider(this.connection, publicKey);
     }
 
@@ -227,20 +248,21 @@ export class SimulationSellingService {
                 tokenAddress,
                 balance,
                 true,
-                sell_recommender_id,
+                sell_recommender_id || '',
                 tokenPerformance.initialMarketCap
             );
-            if (process) {
+            const processResult = await process;
+            if (processResult) {
                 this.runningProcesses.add(tokenAddress);
             }
             // }
         });
     }
 
-    public processTokenPerformance(
+    public async processTokenPerformance(
         tokenAddress: string,
         recommenderId: string
-    ) {
+    ): Promise<void> {
         try {
             const runningProcesses = this.runningProcesses;
             // check if token is already being processed
@@ -259,14 +281,15 @@ export class SimulationSellingService {
             );
             const balance = tokenPerformance.balance;
             const sell_recommender_id = recommenderId;
-            const process = this.startProcessInTheSonarBackend(
+            const process = await this.startProcessInTheSonarBackend(
                 tokenAddress,
                 balance,
                 true,
-                sell_recommender_id,
+                sell_recommender_id || '',
                 tokenPerformance.initialMarketCap
             );
-            if (process) {
+            const processResult = await process;
+            if (processResult) {
                 this.runningProcesses.add(tokenAddress);
             }
         } catch (error) {
@@ -325,9 +348,9 @@ export class SimulationSellingService {
         }
     }
 
-    private stopProcessInTheSonarBackend(tokenAddress: string) {
+    private async stopProcessInTheSonarBackend(tokenAddress: string): Promise<void> {
         try {
-            return fetch(`${this.sonarBe}/elizaos-sol/stopProcess`, {
+            await fetch(`${this.sonarBe}/elizaos-sol/stopProcess`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -357,7 +380,7 @@ export class SimulationSellingService {
             );
         const processedData: ProcessedTokenData =
             await tokenProvider.getProcessedTokenData();
-        const prices = await this.walletProvider.fetchPrices(null);
+        const prices = await this.walletProvider.fetchPrices(this.runtime);
         const solPrice = prices.solana.usd;
         const sellSol = sellDetails.sell_amount / parseFloat(solPrice);
         const sell_value_usd =
@@ -438,7 +461,7 @@ export class SimulationSellingService {
             await tokenProvider.getProcessedTokenData();
         console.log(`Fetched processed token data for token: ${tokenAddress}`);
 
-        return processedData.tradeData.trade_24h_change_percent < -50;
+        return (processedData.tradeData.trade_24h_change_percent ?? 0) < -50;
     }
 
     async delay(ms: number) {

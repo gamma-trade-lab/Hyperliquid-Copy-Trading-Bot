@@ -1,5 +1,5 @@
-import { TweetGenerator } from '../tweetGenerator';
-import { CONFIG } from '../../../config/settings';
+import { TweetGenerator } from '../tweetGenerator.js';
+import { CONFIG } from '../../../config/settings.js';
 
 describe('TweetGenerator', () => {
   let generator: TweetGenerator;

@@ -1,7 +1,7 @@
 // src/services/blockchain/trading.ts
 
 import { Connection } from '@solana/web3.js';
-import { MarketData } from '../ai/types';
+import { MarketData } from '../ai/types.js';
 
 interface TradeResult {
   signature: string;

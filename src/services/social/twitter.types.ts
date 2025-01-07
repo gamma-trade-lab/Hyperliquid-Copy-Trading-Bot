@@ -1,4 +1,4 @@
-import { IAIService } from '../ai/types';
+import { IAIService } from '../ai/types.js';
 
 export interface TwitterConfig {
   credentials: {
@@ -14,5 +14,5 @@ export interface TweetOptions {
   quoteTweetId?: string;
 }
 
-import { TwitterStreamEvent as BaseTwitterStreamEvent } from '../../types/twitter';
+import { TwitterStreamEvent as BaseTwitterStreamEvent } from '../../types/twitter.js';
 export { BaseTwitterStreamEvent as TwitterStreamEvent };

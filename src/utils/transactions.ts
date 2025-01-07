@@ -3,11 +3,7 @@
 import {
   Connection,
   Transaction,
-  VersionedTransaction,
-  PublicKey,
   ComputeBudgetProgram,
-  TransactionConfirmationStrategy,
-  SendTransactionError,
   TransactionInstruction
 } from '@solana/web3.js';
 

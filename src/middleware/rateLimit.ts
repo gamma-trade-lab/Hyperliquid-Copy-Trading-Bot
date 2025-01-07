@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { RedisService } from '../infrastructure/database/services/RedisService';
-import { AppError } from './error';
-import config from '../config';
+import { RedisService } from '../infrastructure/database/services/RedisService.js';
+import { AppError } from './error.js';
+import config from '../config/settings.js';
 
 interface RateLimitOptions {
   windowMs: number;
@@ -56,4 +56,4 @@ export const createTaskLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 10, // limit each IP to 10 task creations per minute
   keyPrefix: 'task-create-limit:'
-}); 
+});   

@@ -9,8 +9,8 @@ import {
   ChatInputCommandInteraction
 } from 'discord.js';
 import { PublicKey } from '@solana/web3.js';
-import { IAIService } from '../ai/types';
-import { WalletService, TokenService } from '../blockchain/types';
+import { IAIService } from '../ai/types.js';
+import { WalletService, TokenService } from '../blockchain/types.js';
 
 interface DiscordConfig {
   token: string;

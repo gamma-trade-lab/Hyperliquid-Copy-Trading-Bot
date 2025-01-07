@@ -1,5 +1,5 @@
-import { DataProcessor } from '../data/index';
-import { PriceData } from '../../../types/market';
+import { DataProcessor } from '../data/index.js';
+import { PriceData } from '../../../types/market.js';
 
 export class VolatilityManager {
   private dataProcessor: DataProcessor;

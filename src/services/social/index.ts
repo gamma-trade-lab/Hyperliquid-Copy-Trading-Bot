@@ -1,10 +1,10 @@
-import { TwitterService, TwitterConfig } from './twitter';
-import { DiscordService } from './discord';
+import { TwitterService, TwitterConfig } from './twitter.js';
+import { DiscordService } from './discord.js';
 import { TwitterApiTokens } from 'twitter-api-v2';
 import { AgentTwitterClientService } from './agentTwitterClient.js';
-import { AIService as AIServiceImpl } from '../ai/ai';
-import { IAIService } from '../ai/types';
-import { MarketData } from '../../types/market';
+import { AIService as AIServiceImpl } from '../ai/ai.js';
+import { IAIService } from '../ai/types.js';
+import { MarketData } from '../../types/market.js';
 
 export interface SocialMetrics {
   followers: number;
@@ -180,9 +180,9 @@ export class SocialService {
   }
 }
 
-export { TwitterService } from './twitter';
-export { DiscordService } from './discord';
+export { TwitterService } from './twitter.js';
+export { DiscordService } from './discord.js';
 export { AgentTwitterClientService } from './agentTwitterClient.js';
-export * from './twitter.types';
-export * from './agentTwitterClient.types';
+export * from './twitter.types.js';
+export * from './agentTwitterClient.types.js';
 export default SocialService;

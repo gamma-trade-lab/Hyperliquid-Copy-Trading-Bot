@@ -1,5 +1,5 @@
-import { AgentMemoryService } from './index';
-import { Memory, MemorySearchOptions } from './types';
+import { AgentMemoryService } from './index.js';
+import { Memory, MemorySearchOptions } from './types.js';
 
 export class AgentMemoryIntegration {
   private memoryService: AgentMemoryService;

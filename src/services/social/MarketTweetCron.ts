@@ -1,10 +1,10 @@
-import { TweetGenerator } from '../ai/tweetGenerator';
-import { TradingService } from '../blockchain/trading';
-import { AgentTwitterClientService } from './agentTwitterClient';
-import { CONFIG } from '../../config/settings';
-import { MarketData } from '../../types/market';
-import { JupiterPriceV2 } from '../blockchain/defi/jupiterPriceV2';
-import { getJupiterSwaps, getTokenTransfers } from '../blockchain/heliusIntegration';
+import { TweetGenerator } from '../ai/tweetGenerator.js';
+import { TradingService } from '../blockchain/trading.js';
+import { AgentTwitterClientService } from './agentTwitterClient.js';
+import { CONFIG } from '../../config/settings.js';
+import { MarketData } from '../../types/market.js';
+import { JupiterPriceV2 } from '../blockchain/defi/jupiterPriceV2.js';
+import { getJupiterSwaps, getTokenTransfers } from '../blockchain/heliusIntegration.js';
 
 export class MarketTweetCron {
   private tweetGenerator: TweetGenerator;
@@ -91,7 +91,7 @@ export class MarketTweetCron {
           // Update market data with enhanced data
           marketData = {
             ...marketData,
-            price: jupiterPrices.data[CONFIG.SOLANA.PUBLIC_KEY]?.price || marketData.price,
+            price: jupiterPrices?.data?.[CONFIG.SOLANA.PUBLIC_KEY]?.price ?? marketData.price,
             volume24h: volume24h || marketData.volume24h,
             onChainData: {
               recentSwaps: recentSwaps.length,

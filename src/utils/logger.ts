@@ -57,4 +57,6 @@ export class Logger {
   debug(message: string, meta?: any) {
     this.logger.debug(message, meta);
   }
-} 
+}
+
+export const logger = new Logger('default');     

@@ -1,9 +1,26 @@
-import BigNumber from "bignumber.js";
+import { BigNumber as BN } from "bignumber.js";
 
-// Re-export BigNumber constructor
-export const BN = BigNumber;
+// Configure BigNumber
+BN.set({
+    DECIMAL_PLACES: 18,
+    ROUNDING_MODE: BN.ROUND_DOWN
+});
+
+// Export the BigNumber type
+export type BigNumberType = BN;
 
 // Helper function to create new BigNumber instances
-export function toBN(value: string | number | BigNumber): BigNumber {
-    return new BigNumber(value);
+export function toBN(value: string | number | BN): BN {
+    if (BN.isBigNumber(value)) {
+        return value;
+    }
+    return new BN(value.toString());
 }
+
+// Common constants
+export const ZERO = new BN(0);
+export const ONE = new BN(1);
+export const TEN = new BN(10);
+
+// Re-export BigNumber class
+export { BN };

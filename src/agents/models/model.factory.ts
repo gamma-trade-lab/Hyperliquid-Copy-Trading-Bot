@@ -1,9 +1,9 @@
-import { AIProvider } from '../providers/base.provider';
-import { OpenAIProvider } from '../providers/openai.provider';
-import { ClaudeProvider } from '../providers/claude.provider';
-import { OllamaProvider } from '../providers/ollama.provider';
-import { DeepSeekProvider } from '../providers/deepseek.provider';
-import { logger } from '../../utils/logger';
+import { AIProvider } from '../providers/base.provider.js';
+import { OpenAIProvider } from '../providers/openai.provider.js';
+import { ClaudeProvider } from '../providers/claude.provider.js';
+import { OllamaProvider } from '../providers/ollama.provider.js';
+import { DeepSeekProvider } from '../providers/deepseek.provider.js';
+import { logger } from '../../utils/logger.js';
 
 export type ModelType = 'openai' | 'claude' | 'ollama' | 'deepseek';
 

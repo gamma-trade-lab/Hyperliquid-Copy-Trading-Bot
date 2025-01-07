@@ -1,11 +1,11 @@
-import { RedisService } from './RedisService';
-import { TransactionService } from './TransactionService';
-import { Agent } from '../entities/Agent.entity';
-import { Task } from '../entities/Task.entity';
-import { PostgresDataSource } from '../postgresql.config';
+import { RedisService } from './RedisService.js';
+import { TransactionService } from './TransactionService.js';
+import { Agent } from '../entities/Agent.entity.js';
+import { Task } from '../entities/Task.entity.js';
+import { PostgresDataSource } from '../postgresql.config.js';
 import { Repository } from 'typeorm';
-import { ChatLog } from '../schemas/ChatLog.schema';
-import { AnalysisResult } from '../schemas/AnalysisResult.schema';
+import { ChatLog } from '../schemas/ChatLog.schema.js';
+import { AnalysisResult } from '../schemas/AnalysisResult.schema.js';
 
 export class AgentCoordinationService {
   private static instance: AgentCoordinationService;
@@ -113,7 +113,7 @@ export class AgentCoordinationService {
   async storeChatInteraction(
     sessionId: string,
     agentId: string,
-    message: { role: string; content: string }
+    message: { role: 'user' | 'assistant' | 'system'; content: string }
   ): Promise<void> {
     let chatLog = await ChatLog.findOne({ sessionId });
 
@@ -175,4 +175,4 @@ export class AgentCoordinationService {
   ): Promise<void> {
     await this.redisService.subscribe(`agent_${agentId}_events`, callback);
   }
-} 
+}   

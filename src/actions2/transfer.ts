@@ -4,8 +4,10 @@ import { elizaLogger, settings } from "@elizaos/core";
 import {
     Connection,
     PublicKey,
+    Transaction,
     TransactionMessage,
     VersionedTransaction,
+    TransactionInstruction,
 } from "@solana/web3.js";
 
 import {
@@ -19,7 +21,7 @@ import {
     type Action,
 } from "@elizaos/core";
 import { composeContext } from "@elizaos/core";
-import { getWalletKey } from "../utils/keypairUtils";
+import { getWalletKey } from "../utils/keypairUtils.js";
 import { generateObjectDeprecated } from "@elizaos/core";
 import { createTransferInstruction, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from "@/utils/spl-token";
 
@@ -164,48 +166,44 @@ export default {
             // Rest of the existing working code...
             const senderATA = getAssociatedTokenAddress(
                 mintPubkey,
-                senderKeypair.publicKey,
-                false
+                senderKeypair.publicKey
             );
             const recipientATA = getAssociatedTokenAddress(
                 mintPubkey,
-                recipientPubkey,
-                false
+                recipientPubkey
             );
 
-            const instructions = [];
+            const instructions: TransactionInstruction[] = [];
 
             const recipientATAInfo =
                 await connection.getAccountInfo(await recipientATA);
             if (!recipientATAInfo) {
-                instructions.push(
-                    createAssociatedTokenAccountInstruction(
-                        senderKeypair.publicKey,
-                        await recipientATA,
-                        recipientPubkey,
-                        mintPubkey
-                    )
+                const createAtaIx = createAssociatedTokenAccountInstruction(
+                    senderKeypair.publicKey,
+                    await recipientATA,
+                    recipientPubkey,
+                    mintPubkey
                 );
-                instructions.push(
-                    createAssociatedTokenAccountInstruction(
-                        senderKeypair.publicKey,
-                        await recipientATA,
-                        recipientPubkey,
-                        mintPubkey
-                    )
-                );
+                if (createAtaIx instanceof Transaction) {
+                    instructions.push(...createAtaIx.instructions);
+                } else {
+                    instructions.push(createAtaIx);
+                }
             }
 
-            instructions.push(
-                createTransferInstruction(
-                    await senderATA,
-                    await recipientATA,
-                    senderKeypair.publicKey,
-                    adjustedAmount,
-                    [], // p0 argument
-                    PublicKey.default // TOKEN_PROGRAM_ID argument, replace with actual program ID if available
-                )
+            const transferIx = createTransferInstruction(
+                await senderATA,
+                await recipientATA,
+                senderKeypair.publicKey,
+                adjustedAmount,
+                [], // p0 argument
+                PublicKey.default // TOKEN_PROGRAM_ID argument, replace with actual program ID if available
             );
+            if (transferIx instanceof Transaction) {
+                instructions.push(...transferIx.instructions);
+            } else {
+                instructions.push(transferIx);
+            }
 
             // Create and sign versioned transaction
             const messageV0 = new TransactionMessage({

@@ -1,6 +1,6 @@
-import { TweetGenerator } from '../tweetGenerator';
+import { TweetGenerator } from '../tweetGenerator.js';
 import { expect, describe, it, jest, beforeEach } from '@jest/globals';
-import { MarketData, TweetGenerationResult } from '../types';
+import { MarketData, TweetGenerationResult } from '../types.js';
 
 describe('Tweet Length Validation', () => {
   let generator: TweetGenerator;

@@ -1,8 +1,8 @@
 // src/community/engagement/optimizer.ts
 
 import { EventEmitter } from 'events';
-import { EngagementTracker } from './tracker';
-import { AIService } from '../../services/ai/ai';
+import { EngagementTracker } from './tracker.js';
+import { AIService } from '../../services/ai/ai.js';
 
 interface OptimizationStrategy {
   id: string;

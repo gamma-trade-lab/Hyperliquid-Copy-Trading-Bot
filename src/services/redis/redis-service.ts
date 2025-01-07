@@ -1,5 +1,5 @@
 import Redis from 'ioredis';
-import { Logger } from '../../utils/logger';
+import { Logger } from '../../utils/logger.js';
 
 interface RedisConfig {
   host: string;
@@ -27,7 +27,12 @@ interface RedisHealth {
 
 export class RedisService {
   private static instance: RedisService;
-  private readonly client: Redis;
+  private readonly _client: Redis;
+  
+  // Public getter for client to allow controlled access
+  public get client(): Redis {
+    return this._client;
+  }
   private readonly logger: Logger;
   private isInitialized = false;
   private lastError?: Error;
@@ -35,12 +40,9 @@ export class RedisService {
   private failedCommandCount = 0;
 
   private constructor(config: RedisConfig) {
-    this.logger = new Logger({
-      minLevel: 'info',
-      service: 'redis'
-    });
+    this.logger = new Logger('redis');
 
-    this.client = new Redis({
+    this._client = new Redis({
       host: config.host,
       port: config.port,
       password: config.password,
@@ -280,8 +282,8 @@ export const redisService = RedisService.getInstance({
   password: process.env.REDIS_PASSWORD,
   db: parseInt(process.env.REDIS_DB || '0'),
   keyPrefix: 'meme-agent:',
-  retryStrategy: (times) => {
-    if (times > 10) return false; // Stop retrying after 10 attempts
+  retryStrategy: (times: number): number | void => {
+    if (times > 10) return; // Stop retrying after 10 attempts
     return Math.min(times * 100, 3000); // Exponential backoff with max 3s
   }
-}); 
+});       

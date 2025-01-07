@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { AppError } from './error';
-import config from '../config';
+import { AppError } from './error.js';
+import config from '../config/settings.js';
 
 interface JwtPayload {
   userId: string;
@@ -56,4 +56,4 @@ export const generateToken = (payload: JwtPayload): string => {
   return jwt.sign(payload, config.security.jwtSecret, {
     expiresIn: config.security.jwtExpiration
   });
-}; 
+};   

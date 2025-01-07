@@ -1,6 +1,6 @@
 import { Plugin } from "@ai16z/eliza";
-import { calculateAction } from "./action.ts";
-import { calculateEvaluator } from "./evaluator.ts";
+import { calculateAction } from "./action.js";
+import { calculateEvaluator } from "./evaluator.js";
 
 export const calculatorPlugin: Plugin = {
   name: "calculator",

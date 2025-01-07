@@ -1,7 +1,7 @@
 import { CookieJar } from 'tough-cookie';
 import fetch from 'node-fetch';
-import { TwitterAuthError } from '../../../types/errors';
-import { getTwitterCredentials } from '../../../utils/env';
+import { TwitterAuthError } from '../../../types/errors.js';
+import { getTwitterCredentials } from '../../../utils/env.js';
 
 interface TwitterAuthConfig {
   username: string;

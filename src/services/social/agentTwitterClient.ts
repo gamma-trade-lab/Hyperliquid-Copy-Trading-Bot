@@ -1,8 +1,8 @@
 import { Scraper, SearchMode, Profile } from 'agent-twitter-client';
-import { TwitterStreamEvent } from '../../types/twitter';
-import type { TwitterResponse, TwitterProfile, TwitterCookies } from './agentTwitterClient.types';
-import { TwitterStreamHandler } from './TwitterStreamHandler';
-import { AIService } from '../ai/ai';
+import { TwitterStreamEvent } from '../../types/twitter.js';
+import type { TwitterResponse, TwitterProfile, TwitterCookies } from './agentTwitterClient.types.js';
+import { TwitterStreamHandler } from './TwitterStreamHandler.js';
+import { AIService } from '../ai/ai.js';
 
 export class AgentTwitterClientService {
   private scraper: Scraper | null = null;
@@ -93,11 +93,10 @@ export class AgentTwitterClientService {
           await new Promise(resolve => setTimeout(resolve, 10000));
           
           
-          await this.scraper.login(
-            this.getSanitizedUsername(),
-            this.password,
-            this.email
-          );
+          await this.scraper.login({
+            username: this.getSanitizedUsername(),
+            password: this.password
+          });
           
           // Longer wait after login attempt
           await new Promise(resolve => setTimeout(resolve, 30000));

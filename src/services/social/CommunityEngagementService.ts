@@ -1,10 +1,10 @@
 import { EventEmitter } from 'events';
-import { AIService } from '../ai/ai';
-import { AgentTwitterClientService } from './agentTwitterClient';
-import { SentimentAnalyzer } from './analytics/sentiment';
-import { ContentStrategy } from '../../personality/strategies/contentStrategy';
-import { Platform } from '../../personality/traits/responsePatterns';
-import { CONFIG } from '../../config/settings';
+import { AIService } from '../ai/ai.js';
+import { AgentTwitterClientService } from './agentTwitterClient.js';
+import { SentimentAnalyzer } from './analytics/sentiment.js';
+import { ContentStrategy } from '../../personality/strategies/contentStrategy.js';
+import { Platform } from '../../personality/traits/responsePatterns.js';
+import { CONFIG } from '../../config/settings.js';
 
 interface CommunityMetrics {
   followers: number;
