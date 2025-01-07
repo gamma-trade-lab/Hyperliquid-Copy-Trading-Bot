@@ -20,6 +20,7 @@ import { DeepSeekProvider } from './providers/deepSeekProvider.js';
 import { LLMProvider, ChatRequest, ChatResponse, Tweet, MarketData, MarketAnalysis, IAIService } from './types.js';
 import CONFIG from '../../config/settings.js';
 import personalityConfig from '../../config/personality.js';
+import { Character } from '../../personality/types.js';
 
 interface AIServiceConfig {
   groqApiKey?: string;
@@ -54,6 +55,11 @@ interface MemeResponse {
 }
 
 export class AIService implements IAIService {
+  private characterConfig?: Character;
+
+  async setCharacterConfig(config: Character): Promise<void> {
+    this.characterConfig = config;
+  }
   private provider: LLMProvider;
   private personality: typeof personalityConfig;
   private config: AIServiceConfig;

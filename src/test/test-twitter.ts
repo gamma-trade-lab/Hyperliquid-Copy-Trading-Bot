@@ -1,6 +1,7 @@
 import { TwitterService } from '../services/social/twitter.js';
 import { IAIService, Tweet } from '../services/ai/types.js';
 import { MarketAction } from '../config/constants.js';
+import { Character } from '../personality/types.js';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -29,7 +30,11 @@ const mockAIService: IAIService = {
     confidence: 0.8,
     action: 'BUY',
     metrics: data
-  })
+  }),
+
+  setCharacterConfig: async (config: Character) => {
+    // Mock implementation
+  }
 };
 
 async function testTwitterLogin() {

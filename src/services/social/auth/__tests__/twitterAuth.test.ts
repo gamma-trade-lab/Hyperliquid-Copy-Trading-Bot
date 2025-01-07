@@ -2,6 +2,7 @@ import { TwitterCookieAuth } from '../twitterAuth.js';
 import { TwitterAuthError } from '../../../../types/errors.js';
 import { CookieJar } from 'tough-cookie';
 
+import { jest } from '@jest/globals';
 jest.mock('node-fetch');
 
 describe('TwitterCookieAuth', () => {

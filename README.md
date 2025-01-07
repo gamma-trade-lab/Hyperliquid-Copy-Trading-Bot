@@ -47,41 +47,94 @@ Meme Agent is a sophisticated AI-powered trading system designed for the Solana 
 - Redis ≥7.0
 - Solana CLI tools
 
+### Database Setup
+1. **PostgreSQL Setup**
+   ```bash
+   # Install PostgreSQL
+   sudo apt update
+   sudo apt install postgresql postgresql-contrib
+   
+   # Start PostgreSQL service
+   sudo systemctl start postgresql
+   sudo systemctl enable postgresql
+   
+   # Create database and user
+   sudo -u postgres psql
+   CREATE DATABASE meme_agent_db;
+   CREATE USER meme_agent_user WITH PASSWORD 'your_password';
+   GRANT ALL PRIVILEGES ON DATABASE meme_agent_db TO meme_agent_user;
+   ```
+
+2. **Redis Setup**
+   ```bash
+   # Install Redis
+   sudo apt update
+   sudo apt install redis-server
+   
+   # Configure Redis
+   sudo systemctl start redis-server
+   sudo systemctl enable redis-server
+   
+   # Verify Redis is running
+   redis-cli ping
+   ```
+
 ## Quick Start
+
+**Important:** Use `pnpm` instead of `npm` for all commands to ensure consistent package management.
 
 1. **Clone and Setup**
    ```bash
-   git clone https://github.com/yourusername/meme-agent.git
+   git clone https://github.com/kwanRoshi/meme-agent.git
    cd meme-agent
    ```
 
-2. **Environment Setup**
+2. **Install Dependencies**
    ```bash
-   # Unix/Linux/macOS
-   ./scripts/setup.sh
-
-   # Windows (Run as Administrator)
-   .\scripts\setup.ps1
+   # Install project dependencies
+   pnpm install
    ```
 
-3. **Configuration**
+3. **Database Verification**
    ```bash
+   # Verify Redis connection (should return PONG)
+   redis-cli ping
+
+   # Verify PostgreSQL connection
+   psql -h 127.0.0.1 -U meme_agent_user -d meme_agent_db -c '\conninfo'
+   ```
+
+4. **Environment Configuration**
+   ```bash
+   # Copy environment configuration
    cp .env.example .env
-   # Edit .env with your API keys and settings
    ```
 
-4. **Database Initialization**
-   ```bash
-   pnpm run db:setup
+   Required environment variables:
+   ```env
+   # Redis Configuration (Required)
+   REDIS_HOST=localhost        # Default: localhost
+   REDIS_PORT=6379            # Default Redis port
+   REDIS_PASSWORD=your_password
+
+   # PostgreSQL Configuration (Required)
+   POSTGRES_HOST=localhost     # Default: localhost
+   POSTGRES_PORT=5432         # Default PostgreSQL port
+   POSTGRES_USER=meme_agent_user
+   POSTGRES_PASSWORD=your_password
+   POSTGRES_DB=meme_agent_db
    ```
 
-5. **Start the System**
+5. **Build and Start**
    ```bash
-   # Development mode with hot reload
-   pnpm run start:dev
+   # Build the project
+   pnpm build
 
-   # Production mode
-   pnpm run start:prod
+   # Start with default configuration
+   pnpm start
+
+   # Start with Jenna character (recommended)
+   pnpm start --character=characters/jenna.character.json
    ```
 
 ## Architecture Overview
@@ -115,6 +168,40 @@ OPENAI_API_KEY=your_key
 CLAUDE_API_KEY=your_key
 OLLAMA_HOST=http://localhost:11434
 ```
+
+### Social Integration Settings
+
+#### Twitter Integration
+The system uses the agent-twitter-client implementation for Twitter authentication, which does not require API tokens. This approach provides a more reliable and maintainable integration method.
+
+**Important Authentication Notes:**
+1. A successful login may trigger Twitter's suspicious login notification - this is normal and expected
+2. The ACID challenge (Error Code 399) is part of Twitter's normal authentication flow
+3. Authentication errors don't necessarily indicate failure; the system includes retry logic
+
+**Configuration:**
+```env
+# Twitter Authentication (Required)
+TWITTER_USERNAME=your_twitter_username    # Twitter account username
+TWITTER_PASSWORD=your_twitter_password    # Twitter account password
+TWITTER_EMAIL=your_twitter_email         # Twitter account email
+
+# Automation Settings (Optional)
+CONTENT_GENERATION_INTERVAL=120000       # Content generation (2 min)
+MARKET_MONITORING_INTERVAL=30000         # Market updates (30 sec)
+COMMUNITY_ENGAGEMENT_INTERVAL=180000     # Community interaction (3 min)
+TWEET_INTERVAL=300000                   # Tweet frequency (5 min)
+```
+
+**Important Notes:**
+- The system will run in mock mode if Twitter credentials are missing
+- Mock mode allows development and testing without Twitter access
+- Content generation follows strict guidelines to avoid spam detection:
+  - No emoji usage in tweets
+  - No hashtag usage in tweets
+  - Varied post formats to maintain authenticity
+
+For detailed Twitter integration troubleshooting, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ### Trading Parameters
 ```env
@@ -175,10 +262,26 @@ Edit `characters/jenna.character.json` to customize:
 
 ### Common Issues
 1. **Database Connectivity**
-   - Check service status
-   - Verify credentials
-   - Test network connectivity
-   - Review connection limits
+   - Check service status:
+     ```bash
+     sudo systemctl status postgresql
+     sudo systemctl status redis-server
+     ```
+   - Verify credentials in .env match your setup
+   - Test connections:
+     ```bash
+     psql -h localhost -U meme_agent_user -d meme_agent_db -c '\conninfo'
+     redis-cli ping
+     ```
+   - Review connection limits in postgresql.conf
+   - Ensure services are running on correct ports (PostgreSQL: 5432, Redis: 6379)
+
+2. **Twitter Integration**
+   - Verify Twitter credentials in .env
+   - Check for rate limiting issues
+   - Monitor logs/social.log for authentication errors
+   - Ensure character configuration is properly loaded
+   - Note: Service falls back to mock mode if Twitter client is unavailable
 
 2. **AI Model Errors**
    - Validate API keys

@@ -61,10 +61,11 @@ declare module 'agent-twitter-client' {
     getUserTweets(userId: string, count?: number): Promise<Tweet[]>;
     search(query: string, mode?: keyof SearchMode): Promise<Tweet[]>;
     getTweet(tweetId: string): Promise<Tweet>;
-    sendTweet(content: string, replyToTweetId?: string): Promise<void>;
+    sendTweet(content: string, replyToTweetId?: string): Promise<unknown>;
     sendQuoteTweet(content: string, quoteTweetId: string): Promise<void>;
     likeTweet(tweetId: string): Promise<void>;
     retweet(tweetId: string): Promise<void>;
+    deleteTweet(tweetId: string): Promise<void>;
     login(credentials: { username: string; password: string }): Promise<void>;
     isLoggedIn(): Promise<boolean>;
     getCookies(): Promise<string[]>;

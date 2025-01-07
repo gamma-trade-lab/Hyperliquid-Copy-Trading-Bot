@@ -2,36 +2,80 @@
 
 ## System Architecture
 
-### Core Components
+### Core Components and File Architecture
+
 ```
 meme-agent/
 ├── src/
-│   ├── agents/                 # AI Agent System
-│   │   ├── models/            # AI Model Implementations
-│   │   ├── providers/         # AI Provider Integrations
-│   │   ├── prompts/          # Agent Prompts & Templates
-│   │   └── groups/           # Agent Group Configurations
-│   ├── infrastructure/        # Infrastructure Layer
-│   │   ├── database/         # Database Configurations
-│   │   │   ├── entities/     # TypeORM Entities
-│   │   │   ├── schemas/      # MongoDB Schemas
-│   │   │   └── migrations/   # Database Migrations
-│   │   └── cache/           # Cache Management
-│   ├── services/             # Business Logic
-│   │   ├── transaction/     # Transaction Services
-│   │   ├── analysis/        # Analysis Services
-│   │   └── social/          # Social Media Integration
-│   ├── middleware/          # Express Middleware
-│   │   ├── auth/           # Authentication & Authorization
-│   │   ├── validation/     # Request Validation
-│   │   └── error/          # Error Handling
-│   └── utils/               # Utility Functions
-├── tests/                   # Test Suites
-│   ├── unit/               # Unit Tests
-│   ├── integration/        # Integration Tests
-│   └── load/               # Load Tests
-├── logs/                   # Application Logs
-└── scripts/               # Utility Scripts
+│   ├── agents/                    # AI Agent System
+│   │   ├── models/               # AI Model Implementations
+│   │   ├── providers/            # AI Provider Integrations (Groq, DeepSeek)
+│   │   │   ├── groq.provider.ts  # Groq API Integration for Tweet Generation
+│   │   │   └── deepseek.provider.ts # DeepSeek Integration
+│   │   ├── prompts/             # Agent Prompts & Templates
+│   │   └── groups/              # Agent Group Configurations
+│   ├── services/                 # Core Services
+│   │   ├── ai/                  # AI Services
+│   │   │   ├── tweetGenerator.ts # Tweet Content Generation
+│   │   │   ├── types.ts         # AI Service Type Definitions
+│   │   │   └── personality.ts   # Character-based Generation
+│   │   ├── social/              # Social Media Integration
+│   │   │   ├── twitter.ts       # Twitter API Integration
+│   │   │   ├── MarketTweetCron.ts # Automated Market Updates
+│   │   │   └── agentTwitterClient.ts # Twitter Client Implementation
+│   │   ├── analysis/            # Analysis Services
+│   │   │   ├── market-analysis.ts # Market Data Processing
+│   │   │   └── transaction-analysis.ts # Transaction Analysis
+│   │   └── blockchain/          # Blockchain Integration
+│   ├── personality/              # Character System
+│   │   ├── types.ts             # Character Schema Definitions
+│   │   ├── loadCharacter.ts     # Character Loading Logic
+│   │   └── traits/              # Character Traits Implementation
+│   ├── infrastructure/           # Infrastructure Layer
+│   │   ├── database/            # Database Management
+│   │   │   ├── entities/        # TypeORM Entities
+│   │   │   ├── schemas/         # MongoDB Schemas
+│   │   │   └── services/        # Database Services
+│   │   └── cache/              # Cache Management
+│   ├── middleware/              # Express Middleware
+│   │   ├── auth/               # Authentication
+│   │   ├── validation/         # Request Validation
+│   │   └── error/              # Error Handling
+│   └── utils/                  # Utility Functions
+├── characters/                  # Character Configurations
+│   └── jenna.character.json    # Jenna Character Definition
+├── tests/                      # Test Suites
+│   ├── unit/                  # Unit Tests
+│   │   └── services/
+│   │       └── social/        # Twitter Service Tests
+│   └── integration/           # Integration Tests
+├── logs/                      # Application Logs
+│   ├── social.log            # Social Media Integration Logs
+│   └── market.log           # Market Analysis Logs
+└── scripts/                  # Utility Scripts
+```
+
+#### Key Components for Twitter Integration
+
+1. **Tweet Generation Pipeline**
+   - `src/services/ai/tweetGenerator.ts`: Core tweet generation logic
+   - `src/services/ai/personality.ts`: Character-based content adaptation
+   - `src/services/social/MarketTweetCron.ts`: Automated market updates
+
+2. **Twitter Service Implementation**
+   - `src/services/social/twitter.ts`: Main Twitter service
+   - `src/services/social/agentTwitterClient.ts`: Twitter API client
+   - `src/middleware/rateLimit.ts`: Rate limiting implementation
+
+3. **Character System Integration**
+   - `src/personality/types.ts`: Character schema definitions
+   - `src/personality/loadCharacter.ts`: Character loading logic
+   - `characters/jenna.character.json`: Character configuration
+
+4. **Market Data Integration**
+   - `src/services/analysis/market-analysis.ts`: Market data processing
+   - `src/services/blockchain/defi/tradingEngine.ts`: Trading functionality
+   - `src/services/analysis/transaction-analysis.ts`: Transaction analysis
 ```
 
 ### Technology Stack
@@ -124,26 +168,124 @@ meme-agent/
   - Risk assessment
 
 ### 3. Social Media Integration
+
+#### Twitter Service Architecture
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   AI Service    │     │  Tweet Service  │     │  Market Data    │
+│ (tweetGenerator)│────▶│   (twitter.ts)  │◀────│   Services      │
+└────────┬────────┘     └────────┬────────┘     └────────┬────────┘
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Character Configuration                       │
+│              (personality & engagement settings)                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Service Components
+- **Twitter Service** (`src/services/social/twitter.ts`)
+  ```typescript
+  interface TwitterService {
+    initialize(): Promise<void>;
+    tweet(content: string): Promise<TweetResult>;
+    publishMarketUpdate(action: MarketAction, data: MarketData): Promise<string>;
+  }
+  ```
+
+  **Authentication Strategy:**
+  1. Cookie-based Session Management:
+     ```typescript
+     private async loadCookies(): Promise<boolean> {
+       // Attempt to restore previous session
+       const cookies = await this.scraper.getCookies();
+       if (cookies?.length > 0) {
+         await this.scraper.setCookies(cookies);
+         return true;
+       }
+       return false;
+     }
+     ```
+  
+  2. Login with Retry Mechanism:
+     - Exponential backoff for retry attempts
+     - Handles Twitter's ACID challenges
+     - Automatic session recovery
+     - Cookie persistence between sessions
+
+  3. Mock Mode Support:
+     - Activates when Twitter client unavailable
+     - Simulates Twitter functionality
+     - Enables development without credentials
+     - Logs mock mode activation: "Running in mock mode - Twitter functionality will be simulated"
+
+  **Configuration:**
+  ```env
+  # Authentication (Required for live mode)
+  TWITTER_USERNAME=your_username        # Twitter account username
+  TWITTER_PASSWORD=your_password        # Twitter account password
+  TWITTER_EMAIL=your_email             # Twitter account email
+
+  # Rate Limiting (Optional)
+  TWITTER_RATE_LIMIT_WINDOW=900000     # 15 minutes in milliseconds
+  TWITTER_MAX_REQUESTS=300             # Maximum requests per window
+  TWITTER_RETRY_DELAY=60000           # Delay between retries
+
+  # Automation Settings
+  TWEET_INTERVAL=300000               # Tweet posting interval
+  ```
+
+  **Important Notes:**
+  - Service falls back to mock mode if credentials missing
+  - Implements exponential backoff for rate limits
+  - Handles Twitter's anti-automation challenges
+  - Supports session persistence via cookies
+
+- **Tweet Generator** (`src/services/ai/tweetGenerator.ts`)
+  ```typescript
+  interface TweetGenerator {
+    generateMarketTweet(data: MarketData): Promise<string>;
+    generateEngagementResponse(context: Context): Promise<string>;
+  }
+  ```
+
+#### Service Interactions
+1. **Market Update Flow**
+   ```
+   Market Data → AI Analysis → Tweet Generation → Twitter Post
+   [Jupiter] → [Groq/Mixtral] → [TweetGenerator] → [TwitterService]
+   ```
+
+2. **Engagement Flow**
+   ```
+   Monitor Stream → Sentiment Analysis → Response Generation → Reply Post
+   [TwitterStream] → [AI Analysis] → [TweetGenerator] → [TwitterService]
+   ```
+
+#### Integration Features
 - **Data Collection**
-  - Twitter API v2
-  - Discord webhooks
-  - Telegram channels
-  - Reddit feeds
+  - Twitter authentication & session management
+  - Rate limit handling
+  - Mock mode fallback
+  - Cookie-based persistence
+
 - **Analysis Pipeline**
-  - NLP processing
-  - Sentiment scoring
-  - Entity recognition
-  - Topic modeling
-- **Engagement Metrics**
-  - Reach calculation
-  - Influence scoring
-  - Growth tracking
-  - Trend analysis
+  - Market sentiment analysis
+  - Tweet content validation
+  - Character-aware generation
+  - Response optimization
+
+- **Engagement System**
+  - Real-time monitoring
+  - Context-aware responses
+  - Personality consistency
+  - Rate limit awareness
+
 - **Automated Actions**
-  - Smart notifications
-  - Alert triggering
-  - Report generation
-  - Content scheduling
+  - Market updates
+  - Trading signals
+  - Community engagement
+  - Performance reporting
 
 ### 4. AI-Powered Trading
 - **Decision Engine**
@@ -283,6 +425,26 @@ interface ModelFallback {
 - Latency monitoring
 - Error recovery
 
+**Twitter Content Generation:**
+```typescript
+interface TweetValidation {
+  maxLength: number;
+  contentRules: {
+    noEmojis: boolean;
+    noHashtags: boolean;
+    requireUnique: boolean;
+  };
+  retryConfig: {
+    maxAttempts: number;
+    backoffMs: number;
+  };
+}
+```
+- Character-aware generation
+- Market data integration
+- Content validation
+- Rate limit management
+
 ### 2. Transaction Processing
 **Issues & Solutions:**
 ```typescript
@@ -372,4 +534,4 @@ These components work together to provide:
 - Message queue processing
 - Real-time communication
 - Performance testing
-- Dependency analysis 
+- Dependency analysis         

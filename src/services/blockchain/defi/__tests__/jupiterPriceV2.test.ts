@@ -26,12 +26,13 @@ interface MockResponse {
 const mockGet = jest.fn();
 const mockSet = jest.fn();
 
-// Mock Redis cache implementation
-jest.mock('../../../market/data/RedisCache', () => ({
-  RedisCache: jest.fn().mockImplementation(() => ({
-    get: mockGet,
-    set: mockSet
-  }))
+jest.mock('../../../market/data/RedisCache.js', () => ({
+  default: {
+    RedisCache: jest.fn().mockImplementation(() => ({
+      get: mockGet,
+      set: mockSet
+    }))
+  }
 }));
 
 // Setup mock implementations in beforeEach

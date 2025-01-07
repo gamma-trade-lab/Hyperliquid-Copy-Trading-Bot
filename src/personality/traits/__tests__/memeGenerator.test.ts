@@ -2,8 +2,9 @@ import { MemeGenerator } from '../memeGenerator.js';
 import { TraitManager } from '../traitManager.js';
 import { IAIService } from '../../../services/ai/types.js';
 
-jest.mock('../traitManager');
-jest.mock('../../../services/ai/ai');
+import { jest } from '@jest/globals';
+jest.mock('../traitManager.js');
+jest.mock('../../../services/ai/ai.js');
 
 describe('MemeGenerator', () => {
   let memeGenerator: MemeGenerator;

@@ -153,6 +153,9 @@ importers:
       '@types/ioredis':
         specifier: ^5.0.0
         version: 5.0.0
+      '@types/ioredis-mock':
+        specifier: ^8.2.5
+        version: 8.2.5
       '@types/jest':
         specifier: ^29.5.14
         version: 29.5.14
@@ -204,6 +207,9 @@ importers:
       husky:
         specifier: ^9.0.7
         version: 9.1.7
+      ioredis-mock:
+        specifier: ^8.9.0
+        version: 8.9.0(@types/ioredis-mock@8.2.5)(ioredis@5.4.2)
       jest:
         specifier: ^29.7.0
         version: 29.7.0(@types/node@20.17.12)(ts-node@10.9.2(@types/node@20.17.12)(typescript@5.7.2))
@@ -986,6 +992,9 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       '@types/node': '>=18'
+
+  '@ioredis/as-callback@3.0.0':
+    resolution: {integrity: sha512-Kqv1rZ3WbgOrS+hgzJ5xG5WQuhvzzSTRYvNeyPMLOAM78MHSnuKI20JeJGbpuAt//LCuP0vsexZcorqW7kWhJg==}
 
   '@ioredis/commands@1.2.0':
     resolution: {integrity: sha512-Sx1pU8EM64o2BrqNpEO1CNLtKQwyhuXuqyfH7oGKCk+1a33d2r5saW8zNwm3j6BTExtjrv2BxTgzzkMwts6vGg==}
@@ -2464,6 +2473,9 @@ packages:
 
   '@types/http-errors@2.0.4':
     resolution: {integrity: sha512-D0CFMMtydbJAegzOyHjtiKPLlvnm3iTZyZRSZoLq2mRhDdmLfIWOCYPfQJ4cu2erKghU++QvjcUjp/5h7hESpA==}
+
+  '@types/ioredis-mock@8.2.5':
+    resolution: {integrity: sha512-cZyuwC9LGtg7s5G9/w6rpy3IOZ6F/hFR0pQlWYZESMo1xQUYbDpa6haqB4grTePjsGzcB/YLBFCjqRunK5wieg==}
 
   '@types/ioredis@5.0.0':
     resolution: {integrity: sha512-zJbJ3FVE17CNl5KXzdeSPtdltc4tMT3TzC6fxQS0sQngkbFZ6h+0uTafsRqu+eSLIugf6Yb0Ea0SUuRr42Nk9g==}
@@ -4248,6 +4260,14 @@ packages:
   fecha@4.2.3:
     resolution: {integrity: sha512-OP2IUU6HeYKJi3i0z4A19kHMQoLVs4Hc+DPqqxI2h/DPZHTm/vjsfC6P0b4jCMy14XizLBqvndQ+UilD7707Jw==}
 
+  fengari-interop@0.1.3:
+    resolution: {integrity: sha512-EtZ+oTu3kEwVJnoymFPBVLIbQcCoy9uWCVnMA6h3M/RqHkUBsLYp29+RRHf9rKr6GwjubWREU1O7RretFIXjHw==}
+    peerDependencies:
+      fengari: ^0.1.0
+
+  fengari@0.1.4:
+    resolution: {integrity: sha512-6ujqUuiIYmcgkGz8MGAdERU57EIluGGPSUgGPTsco657EHa+srq0S3/YUl/r9kx1+D+d4rGfYObd+m8K22gB1g==}
+
   fflate@0.8.1:
     resolution: {integrity: sha512-/exOvEuc+/iaUm105QIiOt4LpBdMTWsXxqR0HDF35vx3fmaKzw7354gTilCh5rkzEt8WYyG//ku3h3nRmd7CHQ==}
 
@@ -4736,6 +4756,13 @@ packages:
 
   invariant@2.2.4:
     resolution: {integrity: sha512-phJfQVBuaJM5raOpJjSfkiD6BpbCE4Ns//LaXl6wGYtUBY83nWS6Rf9tXm2e8VaK60JEjYldbPif/A2B1C2gNA==}
+
+  ioredis-mock@8.9.0:
+    resolution: {integrity: sha512-yIglcCkI1lvhwJVoMsR51fotZVsPsSk07ecTCgRTRlicG0Vq3lke6aAaHklyjmRNRsdYAgswqC2A0bPtQK4LSw==}
+    engines: {node: '>=12.22'}
+    peerDependencies:
+      '@types/ioredis-mock': ^8
+      ioredis: ^5
 
   ioredis@5.4.2:
     resolution: {integrity: sha512-0SZXGNGZ+WzISQ67QDyZ2x0+wVxjjUndtD8oSeik/4ajifeiRufed8fCb8QW8VMyi4MXcS+UO1k/0NGhvq1PAg==}
@@ -6410,6 +6437,10 @@ packages:
   readdirp@3.6.0:
     resolution: {integrity: sha512-hOS089on8RduqdbhvQ5Z37A0ESjsqz6qnRcffsMU3495FuTdqSm+7bhJ29JvIOsBDEEnan5DPu9t3To9VRlMzA==}
     engines: {node: '>=8.10.0'}
+
+  readline-sync@1.4.10:
+    resolution: {integrity: sha512-gNva8/6UAe8QYepIQH/jQ2qn91Qj0B9sYjMBBs3QOB8F2CXcKgLxQaJRP76sWVRQt+QU+8fAkCbCvjjMFu7Ycw==}
+    engines: {node: '>= 0.8.0'}
 
   reconnecting-websocket@4.4.0:
     resolution: {integrity: sha512-D2E33ceRPga0NvTDhJmphEgJ7FUYF0v4lr1ki0csq06OdlxKfugGzN0dSkxM/NfqCxYELK4KcaTOUOjTV6Dcng==}
@@ -9247,6 +9278,8 @@ snapshots:
     dependencies:
       '@types/node': 20.17.12
 
+  '@ioredis/as-callback@3.0.0': {}
+
   '@ioredis/commands@1.2.0': {}
 
   '@irys/arweave@0.0.2':
@@ -10957,7 +10990,7 @@ snapshots:
   '@saberhq/anchor-contrib@1.13.32(@project-serum/anchor@0.24.2(bufferutil@4.0.9)(encoding@0.1.13)(utf-8-validate@5.0.10))(@solana/web3.js@1.98.0(bufferutil@4.0.9)(encoding@0.1.13)(utf-8-validate@5.0.10))(bn.js@5.2.1)':
     dependencies:
       '@project-serum/anchor': 0.24.2(bufferutil@4.0.9)(encoding@0.1.13)(utf-8-validate@5.0.10)
-      '@saberhq/solana-contrib': 1.15.0(@solana/web3.js@1.72.1(bufferutil@4.0.9)(encoding@0.1.13)(utf-8-validate@5.0.10))(bn.js@5.2.1)
+      '@saberhq/solana-contrib': 1.15.0(@solana/web3.js@1.98.0(bufferutil@4.0.9)(encoding@0.1.13)(utf-8-validate@5.0.10))(bn.js@5.2.1)
       '@solana/web3.js': 1.98.0(bufferutil@4.0.9)(encoding@0.1.13)(utf-8-validate@5.0.10)
       bn.js: 5.2.1
       eventemitter3: 4.0.7
@@ -10967,19 +11000,6 @@ snapshots:
 
   '@saberhq/option-utils@1.15.0':
     dependencies:
-      tslib: 2.8.1
-
-  '@saberhq/solana-contrib@1.15.0(@solana/web3.js@1.72.1(bufferutil@4.0.9)(encoding@0.1.13)(utf-8-validate@5.0.10))(bn.js@5.2.1)':
-    dependencies:
-      '@saberhq/option-utils': 1.15.0
-      '@solana/buffer-layout': 4.0.1
-      '@solana/web3.js': 1.72.1(bufferutil@4.0.9)(encoding@0.1.13)(utf-8-validate@5.0.10)
-      '@types/promise-retry': 1.1.6
-      '@types/retry': 0.12.5
-      bn.js: 5.2.1
-      promise-retry: 2.0.1
-      retry: 0.13.1
-      tiny-invariant: 1.3.3
       tslib: 2.8.1
 
   '@saberhq/solana-contrib@1.15.0(@solana/web3.js@1.98.0(bufferutil@4.0.9)(encoding@0.1.13)(utf-8-validate@5.0.10))(bn.js@5.2.1)':
@@ -12118,6 +12138,13 @@ snapshots:
   '@types/http-cache-semantics@4.0.4': {}
 
   '@types/http-errors@2.0.4': {}
+
+  '@types/ioredis-mock@8.2.5':
+    dependencies:
+      '@types/node': 20.17.12
+      ioredis: 5.4.2
+    transitivePeerDependencies:
+      - supports-color
 
   '@types/ioredis@5.0.0':
     dependencies:
@@ -14402,6 +14429,16 @@ snapshots:
 
   fecha@4.2.3: {}
 
+  fengari-interop@0.1.3(fengari@0.1.4):
+    dependencies:
+      fengari: 0.1.4
+
+  fengari@0.1.4:
+    dependencies:
+      readline-sync: 1.4.10
+      sprintf-js: 1.1.3
+      tmp: 0.0.33
+
   fflate@0.8.1: {}
 
   figures@3.2.0:
@@ -14999,6 +15036,16 @@ snapshots:
   invariant@2.2.4:
     dependencies:
       loose-envify: 1.4.0
+
+  ioredis-mock@8.9.0(@types/ioredis-mock@8.2.5)(ioredis@5.4.2):
+    dependencies:
+      '@ioredis/as-callback': 3.0.0
+      '@ioredis/commands': 1.2.0
+      '@types/ioredis-mock': 8.2.5
+      fengari: 0.1.4
+      fengari-interop: 0.1.3(fengari@0.1.4)
+      ioredis: 5.4.2
+      semver: 7.6.3
 
   ioredis@5.4.2:
     dependencies:
@@ -16968,6 +17015,8 @@ snapshots:
   readdirp@3.6.0:
     dependencies:
       picomatch: 2.3.1
+
+  readline-sync@1.4.10: {}
 
   reconnecting-websocket@4.4.0: {}
 

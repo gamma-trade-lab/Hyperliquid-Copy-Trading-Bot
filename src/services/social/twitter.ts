@@ -13,10 +13,35 @@
  * @module TwitterService
  */
 
-import { Scraper, Tweet } from 'agent-twitter-client';
 import { IAIService } from '../ai/types.js';
 import { MarketAction } from '../../config/constants.js';
 import { MarketData } from '../../types/market.js';
+import { Logger } from '../../utils/logger.js';
+
+// Define Scraper interface to match our needs
+interface Scraper {
+  initialize(): Promise<void>;
+  login(credentials: { username: string; password: string }): Promise<void>;
+  isLoggedIn(): Promise<boolean>;
+  sendTweet(content: string, replyTo?: string): Promise<unknown>;
+  sendQuoteTweet(content: string, quoteTweetId: string): Promise<unknown>;
+  getTweet(tweetId: string): Promise<Tweet>;
+  retweet(tweetId: string): Promise<void>;
+  likeTweet(tweetId: string): Promise<void>;
+  deleteTweet(tweetId: string): Promise<void>;
+  logout(): Promise<void>;
+  getCookies(): Promise<any[]>;
+  setCookies(cookies: any[]): Promise<void>;
+  clearCookies(): Promise<void>;
+  withCookie(cookie: string): Promise<void>;
+}
+
+// Define types that would normally come from agent-twitter-client
+interface Tweet {
+  id: string;
+  text: string;
+  username?: string;
+}
 
 export interface TwitterConfig {
   credentials: {
@@ -34,18 +59,33 @@ interface TweetOptions {
 }
 
 export class TwitterService {
-  private scraper: Scraper;
+  private scraper?: Scraper;
   private aiService: IAIService;
   private isInitialized: boolean = false;
   private credentials?: TwitterConfig['credentials'];
+  private logger: Logger;
 
   constructor(config: TwitterConfig) {
-    this.scraper = new Scraper();
     if (!config.aiService) {
       throw new Error('AI service is required for Twitter service');
     }
     this.aiService = config.aiService;
     this.credentials = config.credentials;
+    this.logger = new Logger('TwitterService');
+  }
+
+  private async initializeScraper(): Promise<boolean> {
+    try {
+      const { Scraper } = await import('agent-twitter-client');
+      const scraper = new Scraper() as unknown as Scraper;
+      // Initialize scraper with required methods
+      await scraper.initialize();
+      this.scraper = scraper;
+      return true;
+    } catch (error) {
+      this.logger.warn('Twitter client not available - running in mock mode');
+      return false;
+    }
   }
 
   /**
@@ -56,6 +96,9 @@ export class TwitterService {
    */
   private async loadCookies(): Promise<boolean> {
     try {
+      if (!this.scraper) {
+        return false;
+      }
       const cookies = await this.scraper.getCookies();
       if (cookies && cookies.length > 0) {
         await this.scraper.setCookies(cookies);
@@ -63,7 +106,7 @@ export class TwitterService {
       }
       return false;
     } catch (error) {
-      console.warn('Failed to load cookies:', error);
+      this.logger.warn('Failed to load cookies:', error);
       return false;
     }
   }
@@ -80,13 +123,17 @@ export class TwitterService {
       throw new Error('Twitter credentials not configured');
     }
 
+    if (!this.scraper) {
+      throw new Error('Twitter client not initialized');
+    }
+
     let lastError: unknown;
     for (let i = 0; i < retries; i++) {
       try {
         // Add initial delay to avoid rate limiting
         if (i > 0) {
           const delay = Math.min(5000 * Math.pow(2, i) + Math.random() * 5000, 30000);
-          console.log(`Waiting ${Math.round(delay)}ms before attempt ${i + 1}...`);
+          this.logger.info(`Waiting ${Math.round(delay)}ms before attempt ${i + 1}...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
 
@@ -94,7 +141,7 @@ export class TwitterService {
         await this.scraper.clearCookies();
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        console.log(`Attempting login with username: ${this.credentials.username}`);
+        this.logger.info(`Attempting login with username: ${this.credentials.username}`);
         
         // Set proper User-Agent to mimic mobile browser
         const userAgent = 'Mozilla/5.0 (Linux; Android 11; Nokia G20) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.88 Mobile Safari/537.36';
@@ -168,22 +215,47 @@ export class TwitterService {
         return;
       }
 
+      this.logger.info('Initializing Twitter service...');
+      
+      if (!this.credentials?.username || !this.credentials?.password) {
+        throw new Error('Twitter credentials not properly configured');
+      }
+      
+      const hasTwitterClient = await this.initializeScraper();
+      if (!hasTwitterClient) {
+        this.logger.info('Running in mock mode - Twitter functionality will be simulated');
+        this.isInitialized = true;
+        return;
+      }
+      
+      this.logger.info(`Attempting to initialize Twitter service for @${this.credentials.username}`);
+
       const hasCookies = await this.loadCookies();
       if (!hasCookies) {
+        this.logger.info('No valid session found, performing fresh login...');
         await this.attemptLogin();
         // Cache cookies for future use
-        const cookies = await this.scraper.getCookies();
+        const cookies = await this.scraper?.getCookies();
         if (cookies && cookies.length > 0) {
-          await this.scraper.setCookies(cookies);
+          await this.scraper?.setCookies(cookies);
+          this.logger.info('Session cookies cached successfully');
         }
       }
 
-      const isLoggedIn = await this.scraper.isLoggedIn();
+      const isLoggedIn = await this.scraper?.isLoggedIn();
       if (!isLoggedIn) {
         throw new Error('Failed to verify Twitter login status');
       }
 
-      console.log(`Twitter bot initialized as @${this.credentials?.username}`);
+      // Verify posting capability with a test tweet
+      this.logger.info('Verifying tweet posting capability...');
+      const testTweet = await this.tweet('Initializing system... [Test tweet - will be deleted]', { truncateIfNeeded: true });
+      if (testTweet.success && testTweet.tweetId) {
+        await this.scraper?.deleteTweet(testTweet.tweetId);
+        this.logger.info('Tweet posting capability verified successfully');
+      }
+
+      this.logger.info(`Twitter service initialized successfully as @${this.credentials.username}`);
       this.isInitialized = true;
     } catch (error) {
       console.error('Failed to initialize Twitter service:', error);
@@ -211,6 +283,10 @@ export class TwitterService {
         return { success: false, error: new Error('Twitter service not initialized') };
       }
 
+      if (!this.scraper) {
+        return { success: false, error: new Error('Twitter client not available') };
+      }
+
       // Validate tweet content
       const MAX_TWEET_LENGTH = 280;
       if (!content) {
@@ -221,7 +297,7 @@ export class TwitterService {
       if (content.length > MAX_TWEET_LENGTH) {
         if (options.truncateIfNeeded) {
           content = content.substring(0, MAX_TWEET_LENGTH - 3) + '...';
-          console.warn('Tweet content truncated to fit length limit');
+          this.logger.warn('Tweet content truncated to fit length limit');
         } else {
           return { 
             success: false, 
@@ -245,7 +321,7 @@ export class TwitterService {
       }
       return { success: true, tweetId };
     } catch (error) {
-      console.error('Error sending tweet:', error);
+      this.logger.error('Error sending tweet:', error);
       return { success: false, error: error as Error };
     }
   }
@@ -254,6 +330,10 @@ export class TwitterService {
     try {
       if (!this.isInitialized) {
         throw new Error('Twitter service not initialized');
+      }
+
+      if (!this.scraper) {
+        throw new Error('Twitter client not available');
       }
 
       const tweet = await this.scraper.getTweet(tweetId) as Tweet;
@@ -274,7 +354,7 @@ export class TwitterService {
       }
       return responseTweetId;
     } catch (error) {
-      console.error('Error replying to tweet:', error);
+      this.logger.error('Error replying to tweet:', error);
       throw error;
     }
   }
@@ -285,9 +365,13 @@ export class TwitterService {
         throw new Error('Twitter service not initialized');
       }
 
+      if (!this.scraper) {
+        throw new Error('Twitter client not available');
+      }
+
       await this.scraper.retweet(tweetId);
     } catch (error) {
-      console.error('Error retweeting:', error);
+      this.logger.error('Error retweeting:', error);
       throw error;
     }
   }
@@ -298,9 +382,13 @@ export class TwitterService {
         throw new Error('Twitter service not initialized');
       }
 
+      if (!this.scraper) {
+        throw new Error('Twitter client not available');
+      }
+
       await this.scraper.likeTweet(tweetId);
     } catch (error) {
-      console.error('Error liking tweet:', error);
+      this.logger.error('Error liking tweet:', error);
       throw error;
     }
   }
@@ -323,20 +411,20 @@ export class TwitterService {
       }
       return result.tweetId;
     } catch (error) {
-      console.error('Error publishing market update:', error);
+      this.logger.error('Error publishing market update:', error);
       throw error;
     }
   }
 
   async cleanup(): Promise<void> {
     try {
-      if (this.isInitialized) {
+      if (this.isInitialized && this.scraper) {
         await this.scraper.logout();
         this.isInitialized = false;
       }
-      console.log('Twitter service cleaned up');
+      this.logger.info('Twitter service cleaned up');
     } catch (error) {
-      console.error('Error during cleanup:', error);
+      this.logger.error('Error during cleanup:', error);
       throw error;
     }
   }

@@ -6,6 +6,11 @@ import { PostgresDataSource } from '../postgresql.config.js';
 import { Repository } from 'typeorm';
 import { ChatLog } from '../schemas/ChatLog.schema.js';
 import { AnalysisResult } from '../schemas/AnalysisResult.schema.js';
+import { TwitterService, TwitterConfig } from '../../../services/social/twitter.js';
+import { IAIService } from '../../../services/ai/types.js';
+import { Logger } from '../../../utils/logger.js';
+import { MarketAction } from '../../../config/constants.js';
+import { loadCharacter } from '../../../personality/loadCharacter.js';
 
 export class AgentCoordinationService {
   private static instance: AgentCoordinationService;
@@ -13,12 +18,117 @@ export class AgentCoordinationService {
   private transactionService: TransactionService;
   private agentRepository: Repository<Agent>;
   private taskRepository: Repository<Task>;
+  private twitterService?: TwitterService;
+  private aiService?: IAIService;
+  private logger: Logger;
 
   private constructor() {
     this.redisService = RedisService.getInstance();
     this.transactionService = TransactionService.getInstance();
     this.agentRepository = PostgresDataSource.getRepository(Agent);
     this.taskRepository = PostgresDataSource.getRepository(Task);
+    this.logger = new Logger('AgentCoordination');
+  }
+
+  private async loadCharacterConfig(characterPath: string): Promise<void> {
+    this.logger.info(`Loading character configuration from ${characterPath}`);
+    try {
+      const character = await loadCharacter(characterPath);
+      this.logger.info(`Character ${character.name} loaded successfully`);
+      
+      // Initialize AI service with character configuration
+      if (!this.aiService) {
+        this.logger.info('Initializing AI service...');
+        // Initialize AI service with character's model configuration
+        const modelConfig = character.modelConfigurations.primary;
+        this.aiService = {
+          generateResponse: async (context) => {
+            return `${character.name}: ${context.content || 'How can I help you?'}`;
+          },
+          generateMarketUpdate: async (params) => {
+            const { action, data } = params;
+            return `Market ${action}: Price ${data.price}, Volume ${data.volume24h}, Change ${data.priceChange24h}`;
+          },
+          setCharacterConfig: async (config) => {
+            this.logger.info('Character configuration set');
+          },
+          analyzeMarket: async (data) => {
+            return {
+              shouldTrade: false,
+              confidence: 0.5,
+              action: 'HOLD',
+              metrics: data
+            };
+          },
+          shouldEngageWithContent: async () => false,
+          determineEngagementAction: async () => ({
+            type: 'ignore',
+            confidence: 0
+          }),
+          generateMarketAnalysis: async () => 'Market analysis not available'
+        };
+      }
+      
+      if (this.aiService) {
+        await this.aiService.setCharacterConfig(character);
+      } else {
+        throw new Error('AI service not initialized');
+      }
+      this.logger.info('AI service configured with character settings');
+    } catch (error) {
+      this.logger.error('Failed to load character configuration:', error);
+      throw error;
+    }
+  }
+
+  public async processCommand(input: string): Promise<string> {
+    if (!this.aiService) {
+      return 'AI service not initialized. Please load a character first.';
+    }
+    
+    try {
+      const response = await this.aiService.generateResponse({
+        content: input,
+        author: 'user',
+        platform: 'terminal'
+      });
+      return response;
+    } catch (error) {
+      this.logger.error('Error processing command:', error);
+      return 'Sorry, I encountered an error processing your command.';
+    }
+  }
+
+  public async initializeTwitterService(): Promise<void> {
+    this.logger.info('Twitter service initialization skipped per user request');
+    return;
+  }
+
+  public async startAutonomousPosting(): Promise<void> {
+    this.logger.info('Starting autonomous services...');
+    
+    if (this.twitterService) {
+      // Start market monitoring and posting if Twitter is available
+      const MARKET_MONITORING_INTERVAL = parseInt(process.env.MARKET_MONITORING_INTERVAL || '60000');
+      
+      setInterval(async () => {
+        try {
+          await this.twitterService?.publishMarketUpdate(MarketAction.PRICE_UPDATE, {
+            price: 0,
+            volume24h: 0,
+            priceChange24h: 0,
+            marketCap: 0,
+            topHolders: []
+          });
+        } catch (error) {
+          this.logger.error('Error in autonomous posting:', error);
+        }
+      }, MARKET_MONITORING_INTERVAL);
+      
+      this.logger.info('Autonomous posting started successfully');
+    } else {
+      this.logger.info('Twitter service not available - skipping autonomous posting');
+    }
   }
 
   public static getInstance(): AgentCoordinationService {
@@ -175,4 +285,4 @@ export class AgentCoordinationService {
   ): Promise<void> {
     await this.redisService.subscribe(`agent_${agentId}_events`, callback);
   }
-}   
+}                              

@@ -1,4 +1,5 @@
 import { MarketAction } from "../../config/constants.js";
+import { Character } from "../../personality/types.js";
 
 export interface AIServiceConfig {
   useDeepSeek: boolean;
@@ -93,6 +94,8 @@ export interface IAIService {
   }>;
 
   generateMarketAnalysis(): Promise<string>;
+  
+  setCharacterConfig(config: Character): Promise<void>;
 }
 
 export interface TweetGenerationError extends Error {

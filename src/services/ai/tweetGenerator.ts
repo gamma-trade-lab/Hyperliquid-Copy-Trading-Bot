@@ -94,23 +94,29 @@ export class TweetGenerator {
         throw error;
       }
 
-      // Clean content - remove emojis, hashtags, and cashtags
+      // Extract important elements before cleaning
+      const emojis = content.match(/[\u{1F300}-\u{1F9FF}]/gu) || [];
+      const hashtags = content.match(/#\w+/g) || [];
+      const cashtags = content.match(/\$[A-Z]+/g) || [];
+
+      // Clean and normalize content
       content = content
-        .replace(/[\u{1F300}-\u{1F9FF}]/gu, '') // Remove emojis
-        .replace(/#\w+/g, '') // Remove hashtags
-        .replace(/\$[A-Z]+/g, '') // Remove cashtags
         .replace(/\s+/g, ' ') // Normalize whitespace
         .trim();
 
       // Handle tweet length
       const maxLength = constraints?.maxLength || this.DEFAULT_MAX_LENGTH;
-      if (content.length > maxLength) {
+      const importantElements = [...hashtags, ...cashtags].join(' ');
+      const emojiStr = emojis.join('');
+      const maxContentLength = maxLength - importantElements.length - emojiStr.length - 1; // -1 for space
+
+      if (content.length > maxContentLength) {
         // Find the last complete sentence that fits
         const sentences = content.match(/[^.!?]+[.!?]+/g) || [];
         let truncatedContent = '';
         
         for (const sentence of sentences) {
-          if ((truncatedContent + sentence).length <= maxLength) {
+          if ((truncatedContent + sentence).length <= maxContentLength) {
             truncatedContent += sentence;
           } else {
             break;
@@ -118,11 +124,16 @@ export class TweetGenerator {
         }
         
         // If no complete sentence fits or content is still too long, truncate with ellipsis
-        if (!truncatedContent || truncatedContent.length > maxLength) {
-          content = content.substring(0, maxLength - 3).trim() + '...';
+        if (!truncatedContent || truncatedContent.length > maxContentLength) {
+          content = content.substring(0, maxContentLength - 3).trim() + '...';
         } else {
           content = truncatedContent.trim();
         }
+      }
+
+      // Add back important elements
+      if (emojiStr || importantElements) {
+        content = `${content} ${emojiStr}${importantElements ? ' ' + importantElements : ''}`.trim();
       }
 
       return {

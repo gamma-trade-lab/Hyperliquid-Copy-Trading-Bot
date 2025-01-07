@@ -2,6 +2,7 @@ import { Groq } from "groq-sdk";
 import { TwitterApi } from "twitter-api-v2";
 import { MarketData } from "../../types/market.js";
 import { IAIService, MarketAnalysis } from "./types.js";
+import { Character } from '../../personality/types.js';
 
 interface TweetAnalysis {
   sentiment: number;
@@ -10,6 +11,11 @@ interface TweetAnalysis {
 }
 
 export class GroqAIService implements IAIService {
+  private characterConfig?: Character;
+
+  async setCharacterConfig(config: Character): Promise<void> {
+    this.characterConfig = config;
+  }
   private groq: Groq;
   private twitter: TwitterApi;
   private systemPrompt: string;

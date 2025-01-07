@@ -1,14 +1,62 @@
 import { getTransactionsForAddress, getNFTEvents, getTokenTransfers, getJupiterSwaps } from '../heliusIntegration.js';
 import redisClient from '../../../config/inMemoryDB.js';
+import { jest } from '@jest/globals';
+import type { Redis, RedisKey, Callback } from 'ioredis';
+
+// Type declarations
+type JestMock<T = any> = {
+  mockImplementation: (fn: (...args: any[]) => any) => JestMock<T>;
+  mockResolvedValue: (value: any) => JestMock<T>;
+  mockResolvedValueOnce: (value: any) => JestMock<T>;
+  mockRejectedValue: (value: any) => JestMock<T>;
+  mockRejectedValueOnce: (value: any) => JestMock<T>;
+  mockReset: () => void;
+};
+
+type MockRedisGet = JestMock & ((key: RedisKey, callback?: Callback<string | null>) => Promise<string | null>);
+type MockRedisSet = JestMock & ((key: RedisKey, value: string | number | Buffer, callback?: Callback<'OK'>) => Promise<'OK'>);
+
+type MockResponse = {
+  ok: boolean;
+  json: () => Promise<any>;
+};
 
 // Mock Redis client
 jest.mock('../../../config/inMemoryDB', () => ({
-  get: jest.fn(),
-  set: jest.fn(),
+  default: {
+    get: jest.fn(),
+    set: jest.fn(),
+  }
 }));
 
-// Mock fetch
-global.fetch = jest.fn();
+// Create mocks with proper typing
+const mockFetch = jest.fn().mockImplementation(async () => ({
+  ok: true,
+  json: async () => []
+}));
+
+const mockRedisGet = jest.fn().mockImplementation(async () => null) as unknown as MockRedisGet;
+const mockRedisSet = jest.fn().mockImplementation(async () => 'OK') as unknown as MockRedisSet;
+
+// Assign mocks
+global.fetch = mockFetch as unknown as typeof fetch;
+redisClient.get = mockRedisGet;
+redisClient.set = mockRedisSet;
+
+// Reset mocks before each test
+beforeEach(() => {
+  mockFetch.mockReset();
+  mockRedisGet.mockReset();
+  mockRedisSet.mockReset();
+
+  // Default implementations
+  mockFetch.mockImplementation(async () => ({
+    ok: true,
+    json: async () => []
+  }));
+  mockRedisGet.mockImplementation(async () => null);
+  mockRedisSet.mockImplementation(async () => 'OK');
+});
 
 describe('Helius Integration Tests', () => {
   const mockAddress = 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263';
@@ -24,10 +72,10 @@ describe('Helius Integration Tests', () => {
   describe('Error Handling and Retries', () => {
     it('should retry failed API calls up to MAX_RETRIES (3) times', async () => {
       // Mock Redis cache miss
-      (redisClient.get as jest.Mock).mockResolvedValueOnce(null);
+      mockRedisGet.mockResolvedValueOnce(null);
       
       // Mock API failures followed by success
-      (global.fetch as jest.Mock)
+      mockFetch
         .mockRejectedValueOnce(new Error('API Error 1'))
         .mockRejectedValueOnce(new Error('API Error 2'))
         .mockResolvedValueOnce({
@@ -41,10 +89,10 @@ describe('Helius Integration Tests', () => {
 
     it('should throw error after MAX_RETRIES attempts', async () => {
       // Mock Redis cache miss
-      (redisClient.get as jest.Mock).mockResolvedValueOnce(null);
+      mockRedisGet.mockResolvedValueOnce(null);
       
       // Mock consistent API failures
-      (global.fetch as jest.Mock).mockRejectedValue(new Error('Persistent API Error'));
+      mockFetch.mockRejectedValue(new Error('Persistent API Error') as never);
 
       await expect(getTransactionsForAddress(mockAddress))
         .rejects
@@ -58,13 +106,13 @@ describe('Helius Integration Tests', () => {
       const mockTransactions = [{ signature: 'test_tx' }];
       
       // Mock Redis cache miss
-      (redisClient.get as jest.Mock).mockResolvedValueOnce(null);
+      mockRedisGet.mockResolvedValueOnce(null);
       
       // Mock successful API response
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockTransactions)
-      });
+      } as MockResponse);
 
       await getTransactionsForAddress(mockAddress);
 
@@ -80,7 +128,7 @@ describe('Helius Integration Tests', () => {
       const mockCachedData = [{ signature: 'cached_tx' }];
       
       // Mock Redis cache hit
-      (redisClient.get as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockCachedData));
+      mockRedisGet.mockResolvedValueOnce(JSON.stringify(mockCachedData));
 
       const result = await getTransactionsForAddress(mockAddress);
 
@@ -96,7 +144,7 @@ describe('Helius Integration Tests', () => {
   describe('getTransactionsForAddress', () => {
     it('should fetch and cache transactions', async () => {
       // Mock Redis cache miss
-      (redisClient.get as jest.Mock).mockResolvedValueOnce(null);
+      mockRedisGet.mockResolvedValueOnce(null);
       
       const address = 'DUSTawucrTsGU8hcuRQRQJ4N8w6B6cUWGWZtNMv2qLiA'; // Valid Solana address
       const limit = 10;
@@ -118,7 +166,7 @@ describe('Helius Integration Tests', () => {
 
     it('should return cached data when available', async () => {
       const mockData = [{ signature: 'test', type: 'SWAP' }];
-      (redisClient.get as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockData));
+      mockRedisGet.mockResolvedValueOnce(JSON.stringify(mockData));
       
       const transactions = await getTransactionsForAddress('testAddress');
       expect(transactions).toEqual(mockData);
@@ -132,7 +180,7 @@ describe('Helius Integration Tests', () => {
         { signature: '1', type: 'NFT_SALE', description: 'NFT Sale', timestamp: Date.now() },
         { signature: '2', type: 'SWAP', description: 'Token Swap', timestamp: Date.now() }
       ];
-      (redisClient.get as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockData));
+      mockRedisGet.mockResolvedValueOnce(JSON.stringify(mockData));
       
       const nftEvents = await getNFTEvents('DUSTawucrTsGU8hcuRQRQJ4N8w6B6cUWGWZtNMv2qLiA');
       expect(nftEvents).toEqual([mockData[0]]); // Should only include NFT_SALE transaction
@@ -155,7 +203,7 @@ describe('Helius Integration Tests', () => {
           timestamp: Date.now()
         }
       ];
-      (redisClient.get as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockData));
+      mockRedisGet.mockResolvedValueOnce(JSON.stringify(mockData));
       
       const transfers = await getTokenTransfers('DUSTawucrTsGU8hcuRQRQJ4N8w6B6cUWGWZtNMv2qLiA');
       expect(transfers).toEqual([mockData[0]]); // Should only include transaction with token transfers
@@ -180,7 +228,7 @@ describe('Helius Integration Tests', () => {
           timestamp: Date.now()
         }
       ];
-      (redisClient.get as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockData));
+      mockRedisGet.mockResolvedValueOnce(JSON.stringify(mockData));
       
       const swaps = await getJupiterSwaps('DUSTawucrTsGU8hcuRQRQJ4N8w6B6cUWGWZtNMv2qLiA');
       expect(swaps).toEqual([mockData[0]]); // Should only include Jupiter swaps

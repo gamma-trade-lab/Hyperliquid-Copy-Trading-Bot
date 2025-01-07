@@ -10,8 +10,8 @@ export const PostgresDataSource = new DataSource({
   username: process.env.POSTGRES_USER || 'postgres',
   password: process.env.POSTGRES_PASSWORD || 'postgres',
   database: process.env.POSTGRES_DB || 'swarm_db',
-  entities: ['src/infrastructure/database/entities/**/*.ts'],
-  migrations: ['src/infrastructure/database/migrations/**/*.ts'],
+  entities: ['dist/infrastructure/database/entities/**/*.js'],
+  migrations: ['dist/infrastructure/database/migrations/**/*.js'],
   synchronize: process.env.NODE_ENV === 'development',
   logging: process.env.NODE_ENV === 'development',
 });
@@ -24,4 +24,4 @@ export const initializePostgres = async () => {
     console.error('Error initializing PostgreSQL:', error);
     throw error;
   }
-}; 
+};   

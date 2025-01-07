@@ -33,7 +33,12 @@ describe('Market Tweet Generation', () => {
       }
     });
 
-    expect(result.content).toBe(mockResponse);
+    expect(result.content).toMatch(/Price Update:/);
+    expect(result.content).toMatch(/\$MEME/);
+    expect(result.content).toMatch(/\$100/);
+    expect(result.content).toMatch(/\+5\.5%/);
+    expect(result.content).toMatch(/📈/);
+    expect(result.content).toMatch(/#Crypto/);
     expect(result.metadata.context.marketCondition).toBe('bullish');
   });
 
@@ -69,7 +74,11 @@ describe('Market Tweet Generation', () => {
       }
     });
 
-    expect(result.content).toBe(mockResponse);
+    expect(result.content).toMatch(/Price Alert:/);
+    expect(result.content).toMatch(/\$MEME/);
+    expect(result.content).toMatch(/\-6\.5%/);
+    expect(result.content).toMatch(/📉/);
+    expect(result.content).toMatch(/DYOR/);
     expect(result.metadata.context.marketCondition).toBe('bearish');
   });
 
@@ -90,7 +99,10 @@ describe('Market Tweet Generation', () => {
       }
     });
 
-    expect(result.content).toBe(mockResponse);
+    expect(result.content).toMatch(/\$MEME/);
+    expect(result.content).toMatch(/\$100/);
+    expect(result.content).toMatch(/2\.5%/);
+    expect(result.content).toMatch(/🎯/);
     expect(result.metadata.context.marketCondition).toBe('neutral');
   });
 });

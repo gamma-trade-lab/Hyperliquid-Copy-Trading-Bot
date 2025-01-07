@@ -101,13 +101,18 @@ describe('DataProcessor', () => {
   describe('getHistoricalPrices', () => {
     it('should retrieve and decompress historical prices', async () => {
       const token = 'SOL';
-      const mockData = ['compressed_data_1', 'compressed_data_2'];
-      mockLrange.mockImplementation(async () => mockData);
+      const testData = [
+        { timestamp: Date.now(), open: 100, high: 105, low: 95, close: 102, volume: 1000000 }
+      ];
+      const encodedData = testData.map(d => Buffer.from(JSON.stringify(d)).toString('base64'));
+      mockLrange.mockImplementation(async () => encodedData);
 
       const result = await dataProcessor.getHistoricalPrices(token);
 
       expect(mockLrange).toHaveBeenCalled();
       expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(1);
+      expect(result[0]).toMatchObject(testData[0]);
     });
 
     it('should handle circuit breaker', async () => {
