@@ -237,10 +237,7 @@ pnpm docs:serve
 
 ## Support & Community
 
-- Documentation: [docs.meme-agent.io](https://docs.meme-agent.io)
-- Discord: [Join our community](https://discord.gg/meme-agent)
 - GitHub Issues: [Report bugs](https://github.com/yourusername/meme-agent/issues)
-- Email: support@meme-agent.io
 
 ## License
 
