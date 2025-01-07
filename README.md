@@ -172,12 +172,19 @@ OLLAMA_HOST=http://localhost:11434
 ### Social Integration Settings
 
 #### Twitter Integration
-The system uses the agent-twitter-client implementation for Twitter authentication, which does not require API tokens. This approach provides a more reliable and maintainable integration method.
+The system uses the agent-twitter-client implementation for Twitter authentication, which does not require traditional API tokens. This approach provides a more reliable and maintainable integration method, following the elizaOS pattern of direct authentication.
+
+**Authentication Process:**
+1. Configure Twitter credentials in `.env` file
+2. System handles authentication automatically on startup
+3. Supports automatic retry with configurable attempts
+4. Includes built-in rate limiting and error handling
 
 **Important Authentication Notes:**
 1. A successful login may trigger Twitter's suspicious login notification - this is normal and expected
 2. The ACID challenge (Error Code 399) is part of Twitter's normal authentication flow
 3. Authentication errors don't necessarily indicate failure; the system includes retry logic
+4. Mock mode is available for development without Twitter access
 
 **Configuration:**
 ```env
@@ -186,22 +193,49 @@ TWITTER_USERNAME=your_twitter_username    # Twitter account username
 TWITTER_PASSWORD=your_twitter_password    # Twitter account password
 TWITTER_EMAIL=your_twitter_email         # Twitter account email
 
-# Automation Settings (Optional)
+# Twitter Service Configuration
+TWITTER_MOCK_MODE=false                  # Enable for development without Twitter
+TWITTER_MAX_RETRIES=3                    # Maximum login retry attempts
+TWITTER_RETRY_DELAY=5000                 # Delay between retries (ms)
+
+# Content Generation Settings
+TWITTER_CONTENT_RULES={
+  "max_emojis": 0,                       # Avoid emojis (spam prevention)
+  "max_hashtags": 0,                     # Avoid hashtags (spam prevention)
+  "min_interval": 300000                 # Minimum 5 minutes between tweets
+}
+
+# Automation Intervals (milliseconds)
 CONTENT_GENERATION_INTERVAL=120000       # Content generation (2 min)
 MARKET_MONITORING_INTERVAL=30000         # Market updates (30 sec)
 COMMUNITY_ENGAGEMENT_INTERVAL=180000     # Community interaction (3 min)
-TWEET_INTERVAL=300000                   # Tweet frequency (5 min)
+TWEET_INTERVAL=300000                    # Tweet frequency (5 min)
 ```
 
-**Important Notes:**
-- The system will run in mock mode if Twitter credentials are missing
-- Mock mode allows development and testing without Twitter access
-- Content generation follows strict guidelines to avoid spam detection:
-  - No emoji usage in tweets
-  - No hashtag usage in tweets
-  - Varied post formats to maintain authenticity
+**Content Guidelines:**
+To maintain authentic engagement and avoid spam detection:
+1. **No Emojis:** Content generation explicitly avoids emoji usage
+2. **No Hashtags:** Posts are created without hashtags
+3. **Varied Formats:** Each post uses unique structure and formatting
+4. **Time Spacing:** Minimum 5-minute interval between posts
+5. **Market Integration:** Posts include real market data from:
+   - Helius API for blockchain analysis
+   - Jupiter API for market pricing
+   - On-chain transaction monitoring
 
-For detailed Twitter integration troubleshooting, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+**Development Mode:**
+- Set `TWITTER_MOCK_MODE=true` for development
+- Mock mode simulates posting without Twitter access
+- Useful for testing content generation
+- Logs would-be tweets to console/files
+
+**Monitoring and Logging:**
+- All Twitter interactions are logged
+- Authentication attempts are tracked
+- Rate limiting is automatically handled
+- Error reporting includes detailed context
+
+For detailed Twitter integration troubleshooting and common issues, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ### Trading Parameters
 ```env

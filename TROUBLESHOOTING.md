@@ -77,10 +77,49 @@ Error: Failed to verify Twitter login status
 ```
 Twitter anti-automation check triggered (ACID challenge)
 ```
+**Important Note:**
+The ACID challenge (Error Code 399) is part of Twitter's normal authentication flow and does not indicate a failure. This is expected behavior when using the agent-twitter-client implementation.
+
 **Solution:**
-- This is normal behavior
-- Service will automatically retry with exponential backoff
-- No action required unless it persists for >30 minutes
+1. No immediate action required - the system handles this automatically:
+   - Implements exponential backoff retry strategy
+   - Default 3 retry attempts with increasing delays
+   - Automatic session recovery after successful challenge
+
+2. If persisting beyond 30 minutes:
+   ```bash
+   # Check authentication logs
+   tail -f logs/social.log | grep "ACID"
+   
+   # Verify retry configuration
+   grep TWITTER_MAX_RETRIES .env
+   ```
+
+3. Adjust retry settings if needed:
+   ```env
+   TWITTER_MAX_RETRIES=5        # Increase retry attempts
+   TWITTER_RETRY_DELAY=10000    # Increase delay between retries
+   ```
+
+##### Suspicious Login Notifications
+```
+Received "Suspicious login attempt detected" from Twitter
+```
+**Important Note:**
+This is normal and expected behavior when using the agent-twitter-client implementation. A successful login may trigger Twitter's suspicious login notification system.
+
+**Solution:**
+1. No action required - this indicates successful authentication
+2. System will proceed with normal operation
+3. Monitor logs for actual authentication status:
+   ```bash
+   tail -f logs/social.log | grep "authentication"
+   ```
+
+4. If concerned, verify session status:
+   ```bash
+   pnpm run check:twitter-session
+   ```
 
 #### Rate Limiting
 ```
@@ -146,11 +185,39 @@ ENABLE_DEBUG=true
 ```
 
 #### Mock Mode
-Force mock mode for testing:
+Enable mock mode for development and testing:
 ```env
-MOCK_TWITTER=true
-MOCK_MARKET_DATA=true
+TWITTER_MOCK_MODE=true     # Enable Twitter mock mode
+MOCK_MARKET_DATA=true      # Enable market data mocking
 ```
+
+**Use Cases:**
+1. Development without Twitter credentials
+2. Testing content generation
+3. CI/CD environments
+4. Rate limit avoidance during testing
+
+**Verification:**
+1. Check mock mode status:
+   ```bash
+   grep "Running in mock mode" logs/social.log
+   ```
+
+2. Verify mock tweets:
+   ```bash
+   tail -f logs/mock_tweets.log
+   ```
+
+3. Test content generation:
+   ```bash
+   pnpm test src/services/social/__tests__/
+   ```
+
+**Important Notes:**
+- Mock mode simulates all Twitter operations
+- Tweets are logged but not posted
+- Rate limits are not enforced
+- Perfect for development and testing
 
 ### Character Configuration
 

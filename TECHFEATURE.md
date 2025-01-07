@@ -169,7 +169,9 @@ meme-agent/
 
 ### 3. Social Media Integration
 
-#### Twitter Service Architecture
+#### Twitter Integration Architecture
+The Twitter integration follows the elizaOS pattern, using direct authentication without API tokens for improved reliability and maintainability.
+
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │   AI Service    │     │  Tweet Service  │     │  Market Data    │
@@ -183,83 +185,144 @@ meme-agent/
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-#### Service Components
-- **Twitter Service** (`src/services/social/twitter.ts`)
-  ```typescript
-  interface TwitterService {
-    initialize(): Promise<void>;
-    tweet(content: string): Promise<TweetResult>;
-    publishMarketUpdate(action: MarketAction, data: MarketData): Promise<string>;
-  }
-  ```
+#### Core Components
 
-  **Authentication Strategy:**
-  1. Cookie-based Session Management:
-     ```typescript
-     private async loadCookies(): Promise<boolean> {
-       // Attempt to restore previous session
-       const cookies = await this.scraper.getCookies();
-       if (cookies?.length > 0) {
-         await this.scraper.setCookies(cookies);
-         return true;
+1. **Twitter Authentication Service** (`src/services/social/twitter.ts`)
+   ```typescript
+   interface TwitterAuthService {
+     initialize(config: TwitterConfig): Promise<void>;
+     authenticate(): Promise<AuthResult>;
+     validateSession(): Promise<boolean>;
+     handleAuthError(error: AuthError): Promise<void>;
+   }
+   
+   interface TwitterConfig {
+     username: string;        // Twitter account username
+     password: string;        // Twitter account password
+     email: string;          // Twitter account email
+     mockMode?: boolean;     // Enable mock mode for development
+     maxRetries?: number;    // Maximum authentication retries
+     retryDelay?: number;    // Delay between retries (ms)
+   }
+   ```
+
+   **Authentication Flow:**
+   1. Environment Variable Loading:
+      ```typescript
+      class TwitterAuthManager {
+        private loadCredentials(): TwitterConfig {
+          return {
+            username: process.env.TWITTER_USERNAME,
+            password: process.env.TWITTER_PASSWORD,
+            email: process.env.TWITTER_EMAIL,
+            mockMode: process.env.TWITTER_MOCK_MODE === 'true',
+            maxRetries: parseInt(process.env.TWITTER_MAX_RETRIES || '3'),
+            retryDelay: parseInt(process.env.TWITTER_RETRY_DELAY || '5000')
+          };
+        }
+      }
+      ```
+
+   2. Session Management:
+      ```typescript
+      interface SessionManager {
+        initializeSession(): Promise<void>;
+        validateSession(): Promise<boolean>;
+        refreshSession(): Promise<void>;
+        persistCookies(cookies: Cookie[]): Promise<void>;
+      }
+      ```
+
+   3. Error Handling:
+      ```typescript
+      interface AuthErrorHandler {
+        handleACIDChallenge(): Promise<void>;  // Handle Error 399
+        handleSuspiciousLogin(): Promise<void>;
+        implementRetryStrategy(): Promise<void>;
+      }
+      ```
+
+2. **Content Generation Service** (`src/services/ai/tweetGenerator.ts`)
+   ```typescript
+   interface TweetGenerator {
+     generateMarketTweet(data: MarketData): Promise<string>;
+     generateEngagementResponse(context: Context): Promise<string>;
+     validateContent(tweet: string): Promise<ValidationResult>;
+   }
+
+   interface ContentRules {
+     maxEmojis: 0;              // No emojis allowed
+     maxHashtags: 0;            // No hashtags allowed
+     minInterval: 300000;       // 5-minute minimum between tweets
+     requireUnique: true;       // Ensure unique post formats
+   }
+   ```
+
+   **Content Validation:**
+   ```typescript
+   class ContentValidator {
+     private readonly rules: ContentRules = {
+       maxEmojis: 0,
+       maxHashtags: 0,
+       minInterval: 300000,
+       requireUnique: true
+     };
+
+     async validateTweet(content: string): Promise<ValidationResult> {
+       // Ensure no emojis
+       if (this.containsEmojis(content)) {
+         return { valid: false, reason: 'Contains emojis' };
        }
-       return false;
+
+       // Ensure no hashtags
+       if (this.containsHashtags(content)) {
+         return { valid: false, reason: 'Contains hashtags' };
+       }
+
+       // Check uniqueness
+       if (!await this.isUniqueFormat(content)) {
+         return { valid: false, reason: 'Similar format exists' };
+       }
+
+       return { valid: true };
      }
-     ```
-  
-  2. Login with Retry Mechanism:
-     - Exponential backoff for retry attempts
-     - Handles Twitter's ACID challenges
-     - Automatic session recovery
-     - Cookie persistence between sessions
+   }
+   ```
 
-  3. Mock Mode Support:
-     - Activates when Twitter client unavailable
-     - Simulates Twitter functionality
-     - Enables development without credentials
-     - Logs mock mode activation: "Running in mock mode - Twitter functionality will be simulated"
+3. **Rate Limiting Service**
+   ```typescript
+   interface RateLimitManager {
+     checkLimit(action: TwitterAction): Promise<boolean>;
+     trackRequest(action: TwitterAction): void;
+     getRemainingQuota(): RateLimit;
+   }
 
-  **Configuration:**
-  ```env
-  # Authentication (Required for live mode)
-  TWITTER_USERNAME=your_username        # Twitter account username
-  TWITTER_PASSWORD=your_password        # Twitter account password
-  TWITTER_EMAIL=your_email             # Twitter account email
-
-  # Rate Limiting (Optional)
-  TWITTER_RATE_LIMIT_WINDOW=900000     # 15 minutes in milliseconds
-  TWITTER_MAX_REQUESTS=300             # Maximum requests per window
-  TWITTER_RETRY_DELAY=60000           # Delay between retries
-
-  # Automation Settings
-  TWEET_INTERVAL=300000               # Tweet posting interval
-  ```
-
-  **Important Notes:**
-  - Service falls back to mock mode if credentials missing
-  - Implements exponential backoff for rate limits
-  - Handles Twitter's anti-automation challenges
-  - Supports session persistence via cookies
-
-- **Tweet Generator** (`src/services/ai/tweetGenerator.ts`)
-  ```typescript
-  interface TweetGenerator {
-    generateMarketTweet(data: MarketData): Promise<string>;
-    generateEngagementResponse(context: Context): Promise<string>;
-  }
-  ```
+   class TwitterRateLimiter implements RateLimitManager {
+     private readonly limits = {
+       tweets: { window: 900000, max: 300 },      // 15-minute window
+       engagements: { window: 600000, max: 1000 } // 10-minute window
+     };
+   }
+   ```
 
 #### Service Interactions
-1. **Market Update Flow**
+
+1. **Market Update Pipeline**
    ```
-   Market Data → AI Analysis → Tweet Generation → Twitter Post
-   [Jupiter] → [Groq/Mixtral] → [TweetGenerator] → [TwitterService]
+   Market Data Collection → Data Validation → Content Generation → Spam Check → Post
+   [Jupiter/Helius] → [Validator] → [TweetGenerator] → [ContentRules] → [Twitter]
    ```
 
-2. **Engagement Flow**
+2. **Authentication Pipeline**
    ```
-   Monitor Stream → Sentiment Analysis → Response Generation → Reply Post
-   [TwitterStream] → [AI Analysis] → [TweetGenerator] → [TwitterService]
+   Load Credentials → Session Check → Auth Flow → Cookie Management → Ready
+   [.env] → [Validator] → [AuthService] → [SessionManager] → [TwitterService]
+   ```
+
+3. **Error Recovery Flow**
+   ```
+   Error Detection → Classification → Retry Strategy → Session Refresh → Resume
+   [Monitor] → [ErrorHandler] → [RetryService] → [SessionManager] → [Service]
    ```
 
 #### Integration Features
@@ -534,4 +597,4 @@ These components work together to provide:
 - Message queue processing
 - Real-time communication
 - Performance testing
-- Dependency analysis         
+- Dependency analysis            
