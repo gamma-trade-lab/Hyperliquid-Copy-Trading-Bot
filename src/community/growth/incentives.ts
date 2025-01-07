@@ -1,7 +1,7 @@
 // src/community/growth/incentives.ts
 
 import { EventEmitter } from 'events';
-import { RewardSystem } from './rewardSystem';
+import { RewardSystem } from './rewardSystem.js';
 
 interface Incentive {
   id: string;

@@ -1,5 +1,5 @@
-import { getTransactionsForAddress, getNFTEvents, getTokenTransfers, getJupiterSwaps } from '../heliusIntegration';
-import redisClient from '../../../config/inMemoryDB';
+import { getTransactionsForAddress, getNFTEvents, getTokenTransfers, getJupiterSwaps } from '../heliusIntegration.js';
+import redisClient from '../../../config/inMemoryDB.js';
 
 // Mock Redis client
 jest.mock('../../../config/inMemoryDB', () => ({

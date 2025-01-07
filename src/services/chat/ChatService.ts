@@ -1,8 +1,8 @@
 import { createInterface } from 'readline';
-import { ChatHistoryManager } from './ChatHistoryManager';
-import { ModeManager } from './ModeManager';
-import { CommandHandler } from './CommandHandler';
-import { Mode, ModeConfig } from './types';
+import { ChatHistoryManager } from './ChatHistoryManager.js';
+import { ModeManager } from './ModeManager.js';
+import { CommandHandler } from './CommandHandler.js';
+import { Mode, ModeConfig } from './types.js';
 
 export class ChatService {
   private history: ChatHistoryManager;

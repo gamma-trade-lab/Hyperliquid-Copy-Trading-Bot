@@ -1,5 +1,5 @@
-import { Command } from './types';
-import { ModeManager } from './ModeManager';
+import { Command } from './types.js';
+import { ModeManager } from './ModeManager.js';
 
 export class CommandHandler {
   private commands: Map<string, Command>;

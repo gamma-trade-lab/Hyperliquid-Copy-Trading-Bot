@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-import { AIService } from '../ai';
-import { AIServiceConfig, ChatRequest, ChatResponse, LLMProvider, MarketData } from '../types';
+import { AIService } from '../ai.js';
+import { AIServiceConfig, ChatRequest, ChatResponse, LLMProvider, MarketData } from '../types.js';
 
 // Mock the settings module
 jest.mock('../../../config/settings');

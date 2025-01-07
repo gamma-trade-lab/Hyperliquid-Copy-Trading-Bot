@@ -8,7 +8,7 @@
  */
 
 import axios from 'axios';
-import { LLMProvider, ChatRequest, ChatResponse } from '../types';
+import { LLMProvider, ChatRequest, ChatResponse } from '../types.js';
 
 /**
  * DeepSeek API provider implementation

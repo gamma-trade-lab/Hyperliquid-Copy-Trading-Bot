@@ -1,4 +1,4 @@
-import { MarketAction } from "@/config/constants";
+import { MarketAction } from "../../config/constants.js";
 
 export interface AIServiceConfig {
   useDeepSeek: boolean;
@@ -53,7 +53,7 @@ export interface MarketAnalysis {
 }
 
 
-import { MarketData } from '../../types/market';
+import { MarketData } from '../../types/market.js';
 export { MarketData };
   
   export interface CommunityMetrics {

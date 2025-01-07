@@ -13,12 +13,12 @@ import {
     ACCOUNT_SIZE,
     ERROR_MESSAGES,
     ACCOUNT_STATE
-  } from './constants';
+  } from './constants.js';
   import {
     createInitializeAccountInstruction,
     createAssociatedTokenAccountInstruction,
     createInitializeMintInstruction,
-  } from './instructions';
+  } from './instructions.js';
   
   export interface TokenAccount {
     mint: PublicKey;
@@ -41,7 +41,9 @@ import {
   }
   
   export async function getAssociatedTokenAddress(
-mint: PublicKey, owner: PublicKey, p0: boolean  ): Promise<PublicKey> {
+    mint: PublicKey,
+    owner: PublicKey
+  ): Promise<PublicKey> {
     const [address] = await PublicKey.findProgramAddress(
       [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
       ASSOCIATED_TOKEN_PROGRAM_ID
@@ -50,7 +52,12 @@ mint: PublicKey, owner: PublicKey, p0: boolean  ): Promise<PublicKey> {
   }
   
   export async function createMint(
-connection: Connection, payer: Keypair, mintAuthority: PublicKey, freezeAuthority: PublicKey | null, decimals: number, mintKeypair: Keypair  ): Promise<PublicKey> {
+    connection: Connection,
+    payer: Keypair,
+    mintAuthority: PublicKey,
+    freezeAuthority: PublicKey | null,
+    decimals: number
+  ): Promise<PublicKey> {
     const mintAccount = Keypair.generate();
     const lamports = await connection.getMinimumBalanceForRentExemption(MINT_SIZE);
   
@@ -111,7 +118,7 @@ connection: Connection, payer: Keypair, mintAuthority: PublicKey, freezeAuthorit
     owner: PublicKey,
     skipPreflight = false
   ): Promise<PublicKey> {
-    const associatedToken = await getAssociatedTokenAddress(mint, owner, false);
+    const associatedToken = await getAssociatedTokenAddress(mint, owner);
   
     const transaction = new Transaction().add(
       createAssociatedTokenAccountInstruction(
@@ -133,8 +140,11 @@ connection: Connection, payer: Keypair, mintAuthority: PublicKey, freezeAuthorit
   }
   
   export async function getAccount(
-connection: Connection, address: PublicKey, commitment: string  ): Promise<TokenAccount> {
-    const info = await connection.getAccountInfo(address);
+    connection: Connection,
+    address: PublicKey,
+    commitment?: "processed" | "confirmed" | "finalized" | "recent" | "single" | "singleGossip" | "root" | "max"
+  ): Promise<TokenAccount> {
+    const info = await connection.getAccountInfo(address, commitment);
     if (!info) throw new Error(ERROR_MESSAGES.INVALID_ACCOUNT);
     if (!info.owner.equals(TOKEN_PROGRAM_ID)) throw new Error(ERROR_MESSAGES.INVALID_ACCOUNT);
     if (info.data.length !== ACCOUNT_SIZE) throw new Error(ERROR_MESSAGES.INVALID_ACCOUNT);

@@ -1,5 +1,5 @@
-import { initializeDatabases, closeDatabases } from './index';
-import { PostgresDataSource } from './postgresql.config';
+import { initializeDatabases, closeDatabases } from './index.js';
+import { PostgresDataSource } from './postgresql.config.js';
 import dotenv from 'dotenv';
 
 dotenv.config();

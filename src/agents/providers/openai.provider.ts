@@ -1,10 +1,10 @@
 import OpenAI from 'openai';
-import { AIProvider, ModelConfig, ModelResponse, PromptConfig } from './base.provider';
-import { logger } from '../../utils/logger';
+import { AIProvider, ModelConfig, ModelResponse, PromptConfig } from './base.provider.js';
+import { logger } from '../../utils/logger.js';
 
 export class OpenAIProvider implements AIProvider {
-  private client: OpenAI;
-  private model: string;
+  private client!: OpenAI;
+  private model!: string;
   public readonly name = 'openai';
 
   async initialize(config: { apiKey: string; model?: string }): Promise<void> {
@@ -96,8 +96,8 @@ export class OpenAIProvider implements AIProvider {
     };
   }
 
-  private formatPrompt(prompt: PromptConfig): Array<{ role: string; content: string }> {
-    const messages: Array<{ role: string; content: string }> = [];
+  private formatPrompt(prompt: PromptConfig): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
 
     if (prompt.systemPrompt) {
       messages.push({ role: 'system', content: prompt.systemPrompt });
@@ -114,4 +114,4 @@ export class OpenAIProvider implements AIProvider {
 
     return messages;
   }
-} 
+}       

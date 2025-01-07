@@ -1,6 +1,6 @@
 import axios from 'axios';
-import { RedisCache } from '../../../services/market/data/RedisCache';
-import { JupiterPriceResponse, TokenPrice, MarketDepth, PriceImpact, TokenMetrics } from './types';
+import { RedisCache } from '../../../services/market/data/RedisCache.js';
+import { JupiterPriceResponse, TokenPrice, MarketDepth, PriceImpact, TokenMetrics } from './types.js';
 
 export class JupiterPriceV2Service {
   private static readonly BASE_URL = 'https://price.jup.ag/v2';

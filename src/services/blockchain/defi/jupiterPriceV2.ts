@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { sleep } from '../../../utils/common';
+import { sleep } from '../../../utils/common.js';
 
 export interface JupiterPriceResponse {
   data: {

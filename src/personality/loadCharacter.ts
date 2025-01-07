@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { CharacterSchema, Character } from '@/personality/types';
+import { CharacterSchema, Character } from '../../src/personality/types';
 
 export class CharacterLoadError extends Error {
   constructor(message: string) {

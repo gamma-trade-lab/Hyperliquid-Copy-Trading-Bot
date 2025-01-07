@@ -1,7 +1,7 @@
 // src/services/ai/integration/socialIntegration.ts
 
 import { EventEmitter } from 'events';
-import { AIService } from '../ai';
+import { AIService } from '../ai.js';
 
 interface SocialMessage {
   id: string;

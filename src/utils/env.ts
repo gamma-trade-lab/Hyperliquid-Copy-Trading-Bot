@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-import { TwitterAuthError } from '../types/errors';
+import { TwitterAuthError } from '../types/errors.js';
 
 // Load environment variables from .env file
 dotenv.config();

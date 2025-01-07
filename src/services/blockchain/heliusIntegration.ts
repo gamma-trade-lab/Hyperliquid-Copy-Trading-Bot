@@ -1,5 +1,5 @@
 import { Connection, PublicKey, TransactionError } from '@solana/web3.js';
-import redisClient from '../../config/inMemoryDB';
+import redisClient from '../../config/inMemoryDB.js';
 
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
 const HELIUS_BASE_URL = 'https://api.helius.xyz/v0';
@@ -11,7 +11,7 @@ interface TransactionSignature {
   slot: number;
   err: TransactionError | null;
   memo: string | null;
-  blockTime?: number | undefined;
+  blockTime?: number;
 }
 
 interface TokenTransfer {
@@ -67,9 +67,9 @@ async function getSignaturesForAddress(
   let retries = 0;
   while (retries < MAX_RETRIES) {
     try {
-      const options = { limit };
+      const options: { limit: number; before?: string } = { limit };
       if (before) {
-        options['before'] = before;
+        options.before = before;
       }
 
       const signatures = await connection.getSignaturesForAddress(
@@ -82,7 +82,7 @@ async function getSignaturesForAddress(
         slot: sig.slot,
         err: sig.err,
         memo: sig.memo,
-        blockTime: sig.blockTime
+        blockTime: sig.blockTime ?? undefined
       }));
     } catch (error) {
       retries++;
@@ -121,7 +121,8 @@ async function getTransactionDetails(signatures: string[]): Promise<HeliusTransa
         throw new Error(`Helius API error: ${response.statusText}`);
       }
 
-      return await response.json();
+      const data = await response.json() as HeliusTransaction[];
+      return data;
     } catch (error) {
       retries++;
       if (retries === MAX_RETRIES) throw error;

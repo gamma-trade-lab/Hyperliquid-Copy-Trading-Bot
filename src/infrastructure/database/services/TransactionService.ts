@@ -1,5 +1,5 @@
-import { PostgresDataSource } from '../postgresql.config';
-import { RedisService } from './RedisService';
+import { PostgresDataSource } from '../postgresql.config.js';
+import { RedisService } from './RedisService.js';
 import { EntityManager } from 'typeorm';
 
 export class TransactionService {

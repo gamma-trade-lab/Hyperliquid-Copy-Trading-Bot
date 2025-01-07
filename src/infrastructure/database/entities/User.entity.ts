@@ -1,26 +1,26 @@
 import { Entity, Column } from 'typeorm';
-import { BaseEntity } from './BaseEntity';
+import { BaseEntity } from './BaseEntity.js';
 
 @Entity('users')
 export class User extends BaseEntity {
   @Column({ unique: true })
-  username: string;
+  username!: string;
 
   @Column()
-  email: string;
+  email!: string;
 
   @Column({ select: false })
-  password: string;
+  password!: string;
 
   @Column({ type: 'jsonb', nullable: true })
-  preferences: Record<string, any>;
+  preferences!: Record<string, any>;
 
   @Column({ type: 'jsonb', nullable: true })
-  metadata: Record<string, any>;
+  metadata!: Record<string, any>;
 
   @Column({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @Column({ type: 'timestamp', nullable: true })
-  lastLoginAt: Date;
-} 
+  lastLoginAt!: Date;
+}    

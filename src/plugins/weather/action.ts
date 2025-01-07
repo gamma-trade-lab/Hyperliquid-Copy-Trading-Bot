@@ -1,6 +1,6 @@
 import { Action, IAgentRuntime, Memory, State } from "@ai16z/eliza";
-import { WeatherActionContent, WeatherData } from "./types.ts";
-import { weatherProvider } from "./provider.ts";
+import { WeatherActionContent, WeatherData } from "./types.js";
+import { weatherProvider } from "./provider.js";
 
 export const getWeatherAction: Action = {
   name: "GET_WEATHER",

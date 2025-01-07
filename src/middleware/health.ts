@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import { RedisService } from '../infrastructure/database/services/RedisService';
-import { PostgresDataSource } from '../infrastructure/database/postgresql.config';
+import { RedisService } from '../infrastructure/database/services/RedisService.js';
+import { PostgresDataSource } from '../infrastructure/database/postgresql.config.js';
 import mongoose from 'mongoose';
-import { logger } from '../utils/logger';
+import { logger } from '../utils/logger.js';
 
 interface HealthStatus {
   status: 'ok' | 'error';

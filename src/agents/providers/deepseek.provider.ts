@@ -1,11 +1,11 @@
 import axios from 'axios';
-import { AIProvider, ModelConfig, ModelResponse, PromptConfig } from './base.provider';
-import { logger } from '../../utils/logger';
+import { AIProvider, ModelConfig, ModelResponse, PromptConfig } from './base.provider.js';
+import { logger } from '../../utils/logger.js';
 
 export class DeepSeekProvider implements AIProvider {
-  private apiKey: string;
-  private baseUrl: string;
-  private model: string;
+  private apiKey!: string;
+  private baseUrl!: string;
+  private model!: string;
   public readonly name = 'deepseek';
 
   async initialize(config: { apiKey: string; baseUrl?: string; model?: string }): Promise<void> {
@@ -142,4 +142,4 @@ export class DeepSeekProvider implements AIProvider {
 
     return messages;
   }
-} 
+}    

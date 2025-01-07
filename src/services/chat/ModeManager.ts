@@ -1,5 +1,5 @@
-import { Mode, ChatState, ModeConfig } from './types';
-import { ChatHistoryManager } from './ChatHistoryManager';
+import { Mode, ChatState, ModeConfig } from './types.js';
+import { ChatHistoryManager } from './ChatHistoryManager.js';
 
 export class ModeManager {
   private currentMode: Mode = 'chat';

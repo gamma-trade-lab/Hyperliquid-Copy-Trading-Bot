@@ -1,9 +1,9 @@
 // src/services/social/viral/contentAmplifier.ts
 
 import { EventEmitter } from 'events';
-import { Platform } from '../../../personality/traits/responsePatterns';
-import { TrendDetector, TrendStage } from './trendDetector';
-import { ResponsePatternManager, ResponseType } from '../../../personality/traits/responsePatterns';
+import { Platform } from '../../../personality/traits/responsePatterns.js';
+import { TrendDetector, TrendStage } from './trendDetector.js';
+import { ResponsePatternManager, ResponseType } from '../../../personality/traits/responsePatterns.js';
 
 interface AmplificationStrategy {
   id: string;

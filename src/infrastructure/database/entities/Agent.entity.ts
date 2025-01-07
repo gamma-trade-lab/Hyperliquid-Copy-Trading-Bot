@@ -1,34 +1,34 @@
 import { Entity, Column } from 'typeorm';
-import { BaseEntity } from './BaseEntity';
+import { BaseEntity } from './BaseEntity.js';
 
 @Entity('agents')
 export class Agent extends BaseEntity {
   @Column({ unique: true })
-  name: string;
+  name!: string;
 
   @Column()
-  type: string;
+  type!: string;
 
   @Column({ type: 'text' })
-  description: string;
+  description!: string;
 
   @Column({ type: 'jsonb', nullable: true })
-  capabilities: string[];
+  capabilities!: string[];
 
   @Column({ type: 'jsonb', nullable: true })
-  configuration: Record<string, any>;
+  configuration!: Record<string, any>;
 
   @Column({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @Column({ type: 'timestamp', nullable: true })
-  lastActiveAt: Date;
+  lastActiveAt!: Date;
 
   @Column({ type: 'jsonb', nullable: true })
-  metrics: {
+  metrics!: {
     successRate?: number;
     totalTasks?: number;
     averageResponseTime?: number;
     errorRate?: number;
   };
-} 
+}    

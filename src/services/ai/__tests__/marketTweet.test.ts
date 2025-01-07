@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-import { TweetGenerator } from '../tweetGenerator';
-import { MarketData } from '../types';
+import { TweetGenerator } from '../tweetGenerator.js';
+import { MarketData } from '../types.js';
 
 describe('Market Tweet Generation', () => {
   let generator: TweetGenerator;

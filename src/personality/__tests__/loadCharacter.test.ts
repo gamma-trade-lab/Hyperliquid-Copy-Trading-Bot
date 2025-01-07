@@ -1,4 +1,4 @@
-import { loadCharacter, CharacterLoadError } from '../loadCharacter';
+import { loadCharacter, CharacterLoadError } from '../loadCharacter.js';
 import path from 'path';
 import fs from 'fs';
 

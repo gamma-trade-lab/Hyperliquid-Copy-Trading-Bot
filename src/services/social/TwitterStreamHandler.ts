@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
-import { SentimentAnalyzer } from './analytics/sentiment';
-import { AgentTwitterClientService } from './agentTwitterClient';
-import { AIService } from '../ai/ai';
-import { TwitterStreamEvent } from '../../types/twitter';
+import { SentimentAnalyzer } from './analytics/sentiment.js';
+import { AgentTwitterClientService } from './agentTwitterClient.js';
+import { AIService } from '../ai/ai.js';
+import { TwitterStreamEvent } from '../../types/twitter.js';
 
 interface StreamConfig {
   replyThreshold: number;

@@ -3,15 +3,20 @@ import {
     SystemProgram,
     TransactionInstruction,
     SYSVAR_RENT_PUBKEY,
+    Connection,
+    Keypair,
+    Transaction
   } from '@solana/web3.js';
   import { Buffer } from 'buffer';
   import {
     TOKEN_PROGRAM_ID,
     ASSOCIATED_TOKEN_PROGRAM_ID,
     INSTRUCTION_TYPES,
-    MINT_SIZE,
-    ACCOUNT_SIZE,
-  } from './constants';
+  } from './constants.js';
+  import {
+    getAccount,
+    getAssociatedTokenAddress
+  } from './accounts.js';
   
   export function createInitializeMintInstruction(
     mint: PublicKey,
@@ -63,12 +68,22 @@ import {
   }
   
   export function createTransferInstruction(
-source: PublicKey, destination: PublicKey, owner: PublicKey, amount: number | bigint, p0: any[], TOKEN_PROGRAM_ID: PublicKey,
+    source: PublicKey,
+    destination: PublicKey,
+    owner: PublicKey,
+    amount: number | bigint,
+    multiSigners: PublicKey[] = [],
+    programId: PublicKey = TOKEN_PROGRAM_ID
   ): TransactionInstruction {
     const keys = [
       { pubkey: source, isSigner: false, isWritable: true },
       { pubkey: destination, isSigner: false, isWritable: true },
       { pubkey: owner, isSigner: true, isWritable: false },
+      ...multiSigners.map((signer) => ({
+        pubkey: signer,
+        isSigner: true,
+        isWritable: false,
+      })),
     ];
   
     const data = Buffer.alloc(9);
@@ -81,7 +96,7 @@ source: PublicKey, destination: PublicKey, owner: PublicKey, amount: number | bi
   
     return new TransactionInstruction({
       keys,
-      programId: TOKEN_PROGRAM_ID,
+      programId,
       data,
     });
   }
@@ -183,4 +198,29 @@ source: PublicKey, destination: PublicKey, owner: PublicKey, amount: number | bi
       programId: TOKEN_PROGRAM_ID,
       data,
     });
+  }
+
+  export async function getOrCreateAssociatedTokenAccount(
+    connection: Connection,
+    payer: Keypair,
+    mint: PublicKey,
+    owner: PublicKey,
+  ): Promise<{ address: PublicKey; }> {
+    const associatedToken = await getAssociatedTokenAddress(mint, owner);
+    try {
+      // Try to get the token account
+      await getAccount(connection, associatedToken);
+      return { address: associatedToken };
+    } catch (error) {
+      // If the account doesn't exist, create it
+      const instruction = createAssociatedTokenAccountInstruction(
+        payer.publicKey,
+        associatedToken,
+        owner,
+        mint
+      );
+      const transaction = new Transaction().add(instruction);
+      await connection.sendTransaction(transaction, [payer]);
+      return { address: associatedToken };
+    }
   }

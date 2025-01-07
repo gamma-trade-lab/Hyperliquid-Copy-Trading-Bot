@@ -22,7 +22,7 @@ import {
     type Action,
 } from "@elizaos/core";
 
-import { walletProvider } from "../providers/wallet";
+import { walletProvider } from "../providers/wallet.js";
 import { getAssociatedTokenAddress } from "@/utils/spl-token";
 
 interface CreateTokenMetadata {
@@ -66,7 +66,6 @@ export const createAndBuyToken = async ({
     buyAmountSol,
     priorityFee,
     requiredLiquidity = 85,
-    allowOffCurve,
     commitment = "finalized",
     fomo,
     connection,
@@ -77,7 +76,6 @@ export const createAndBuyToken = async ({
     buyAmountSol: bigint;
     priorityFee: number;
     requiredLiquidity: number;
-    allowOffCurve: boolean;
     commitment?:
         | "processed"
         | "confirmed"
@@ -141,8 +139,7 @@ export const createAndBuyToken = async ({
         );
         const ata = await getAssociatedTokenAddress(
             mint.publicKey,
-            deployer.publicKey,
-            allowOffCurve
+            deployer.publicKey
         );
         const balance = await connection.getTokenAccountBalance(
             ata,
@@ -179,7 +176,6 @@ export const buyToken = async ({
     mint,
     amount,
     priorityFee,
-    allowOffCurve,
     slippage,
     connection,
     currency = "sol",
@@ -190,7 +186,6 @@ export const buyToken = async ({
     mint: PublicKey;
     amount: number;
     priorityFee: number;
-    allowOffCurve: boolean;
     slippage: number;
     connection: Connection;
     currency: PurchaseCurrency;
@@ -248,8 +243,7 @@ export const buyToken = async ({
         console.log("Success:", `https://fomo.fund/token/${mint.toBase58()}`);
         const ata = await getAssociatedTokenAddress(
             mint,
-            buyer.publicKey,
-            allowOffCurve
+            buyer.publicKey
         );
         const balance = await connection.getTokenAccountBalance(
             ata,
@@ -272,7 +266,6 @@ export const sellToken = async ({
     mint,
     amount,
     priorityFee,
-    allowOffCurve,
     slippage,
     connection,
     currency = "token",
@@ -283,7 +276,6 @@ export const sellToken = async ({
     mint: PublicKey;
     amount: number;
     priorityFee: number;
-    allowOffCurve: boolean;
     slippage: number;
     connection: Connection;
     currency: PurchaseCurrency;
@@ -341,8 +333,7 @@ export const sellToken = async ({
         console.log("Success:", `https://fomo.fund/token/${mint.toBase58()}`);
         const ata = await getAssociatedTokenAddress(
             mint,
-            seller.publicKey,
-            allowOffCurve
+            seller.publicKey
         );
         const balance = await connection.getTokenAccountBalance(
             ata,
@@ -554,7 +545,7 @@ export default {
                 buyAmountSol: BigInt(lamports),
                 priorityFee: priorityFee.unitPrice,
                 requiredLiquidity: Number(requiredLiquidity),
-                allowOffCurve: false,
+
                 fomo: sdk,
                 connection,
                 slippage,

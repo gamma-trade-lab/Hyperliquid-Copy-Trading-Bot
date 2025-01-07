@@ -1,6 +1,6 @@
 // src/config/personality.ts
 
-import { MarketCondition, SentimentLevel } from './constants';
+import { MarketCondition, SentimentLevel } from './constants.js';
 
 export interface PersonalityTrait {
   name: string;

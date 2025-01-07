@@ -1,10 +1,7 @@
-import { redisService } from '../services/redis/redis-service';
-import { Logger } from '../utils/logger';
+import { redisService } from '../services/redis/redis-service.js';
+import { Logger } from '../utils/logger.js';
 
-const logger = new Logger({
-  minLevel: 'debug',
-  service: 'redis-test'
-});
+const logger = new Logger('redis-test');
 
 interface TestResult {
   name: string;
@@ -125,7 +122,7 @@ async function testHealthCheck() {
 async function testErrorHandling() {
   // Test invalid JSON
   const invalidKey = 'test:invalid';
-  await redisService.client.set(invalidKey, 'invalid json');
+  await redisService.set(invalidKey, 'invalid json');
   
   try {
     await redisService.get(invalidKey);
@@ -135,15 +132,15 @@ async function testErrorHandling() {
   }
 
   // Test connection error handling
-  const originalClient = redisService.client;
   try {
-    await redisService.client.disconnect();
+    await redisService.disconnect();
     await redisService.get('any-key');
     throw new Error('Error handling test failed: should throw on disconnected client');
   } catch (error) {
     // Expected error
   } finally {
-    redisService.client = originalClient;
+    // Reconnect if needed
+    await redisService.initialize();
   }
 }
 
@@ -217,4 +214,4 @@ if (require.main === module) {
     logger.error('Test suite failed:', error);
     process.exit(1);
   });
-} 
+}       

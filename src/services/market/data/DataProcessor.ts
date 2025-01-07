@@ -1,4 +1,4 @@
-import { PriceData, TokenMetrics, VolatilityMetrics } from '../../../types/market';
+import { PriceData, TokenMetrics, VolatilityMetrics } from '../../../types/market.js';
 import Redis from 'ioredis';
 import * as zlib from 'zlib';
 import { promisify } from 'util';

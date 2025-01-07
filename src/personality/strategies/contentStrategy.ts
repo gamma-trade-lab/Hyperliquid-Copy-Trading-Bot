@@ -1,8 +1,8 @@
 // src/personality/strategies/contentStrategy.ts
 
-import { TraitManager, TraitCategory } from '../traits';
-import { MemeGenerator } from '../traits/memeGenerator';
-import { ResponsePatternManager, ResponseType, Platform } from '../traits/responsePatterns';
+import { TraitManager, TraitCategory, Trait } from '../traits.js';
+import { MemeGenerator } from '../traits/memeGenerator.js';
+import { ResponsePatternManager, ResponseType, Platform } from '../traits/responsePatterns.js';
 import { EventEmitter } from 'events';
 
 interface ContentSchedule {
@@ -172,7 +172,7 @@ export class ContentStrategy extends EventEmitter {
 
   private async generateEngagementContent(context: any): Promise<string> {
     const traits = this.traitManager.getTraitsByCategory(TraitCategory.SOCIAL);
-    const engagementLevel = traits.reduce((acc, trait) => acc + trait.weight, 0) / traits.length;
+    const engagementLevel = traits.reduce((acc: number, trait: Trait) => acc + trait.weight, 0) / traits.length;
 
     return await this.responseManager.generateResponse(
       ResponseType.COMMUNITY_ENGAGEMENT,

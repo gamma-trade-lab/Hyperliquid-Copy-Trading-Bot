@@ -1,9 +1,9 @@
 // src/services/social/engagement/postQueue.ts
 
 import { EventEmitter } from 'events';
-import { Platform } from '../../../personality/traits/responsePatterns';
-import { IAIService, ChatResponse } from '../../ai/types';
-import { TwitterService } from '../twitter';
+import { Platform } from '../../../personality/traits/responsePatterns.js';
+import { IAIService, ChatResponse } from '../../ai/types.js';
+import { TwitterService } from '../twitter.js';
 
 interface PostQueueConfig {
   aiService: IAIService;

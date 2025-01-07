@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { retry } from '../../../utils/common';
+import { retry } from '../../../utils/common.js';
 
 interface AMMDexHealth {
   health: number;

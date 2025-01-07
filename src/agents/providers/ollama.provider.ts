@@ -1,10 +1,10 @@
-import { Ollama } from 'node-ollama';
-import { AIProvider, ModelConfig, ModelResponse, PromptConfig } from './base.provider';
-import { logger } from '../../utils/logger';
+import Ollama from 'node-ollama';
+import { AIProvider, ModelConfig, ModelResponse, PromptConfig } from './base.provider.js';
+import { logger } from '../../utils/logger.js';
 
 export class OllamaProvider implements AIProvider {
-  private client: Ollama;
-  private model: string;
+  private client!: Ollama;
+  private model!: string;
   public readonly name = 'ollama';
 
   async initialize(config: { host: string; model?: string }): Promise<void> {
@@ -29,7 +29,7 @@ export class OllamaProvider implements AIProvider {
         prompt: formattedPrompt,
         options: {
           temperature: modelConfig.temperature,
-          topP: modelConfig.topP,
+          top_p: modelConfig.topP,
           stop: modelConfig.stop
         }
       });
@@ -45,8 +45,8 @@ export class OllamaProvider implements AIProvider {
           model: this.model,
           totalDuration: response.total_duration,
           loadDuration: response.load_duration,
-          promptEvalCount: response.prompt_eval_count,
-          evalCount: response.eval_count
+          promptEvalDuration: response.prompt_eval_duration,
+          evalDuration: response.eval_duration
         }
       };
     } catch (error) {
@@ -65,7 +65,7 @@ export class OllamaProvider implements AIProvider {
         prompt: formattedPrompt,
         options: {
           temperature: modelConfig.temperature,
-          topP: modelConfig.topP,
+          top_p: modelConfig.topP,
           stop: modelConfig.stop
         }
       });
@@ -113,4 +113,4 @@ export class OllamaProvider implements AIProvider {
 
     return formattedPrompt;
   }
-} 
+}         

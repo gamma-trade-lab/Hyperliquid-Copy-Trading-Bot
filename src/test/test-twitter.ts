@@ -1,6 +1,6 @@
-import { TwitterService } from '../services/social/twitter';
-import { IAIService, Tweet } from '../services/ai/types';
-import { MarketAction } from '../config/constants';
+import { TwitterService } from '../services/social/twitter.js';
+import { IAIService, Tweet } from '../services/ai/types.js';
+import { MarketAction } from '../config/constants.js';
 import dotenv from 'dotenv';
 
 // Load environment variables

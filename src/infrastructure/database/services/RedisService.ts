@@ -1,4 +1,5 @@
-import { redisClient } from '../redis.config';
+import { redis } from '../redis.config.js';
+import { Redis } from 'ioredis';
 
 export class RedisService {
   private static instance: RedisService;
@@ -17,29 +18,31 @@ export class RedisService {
   async set(key: string, value: any, ttl?: number): Promise<void> {
     const serializedValue = JSON.stringify(value);
     if (ttl) {
-      await redisClient.setEx(key, ttl, serializedValue);
+      await redis.setex(key, ttl, serializedValue);
     } else {
-      await redisClient.setEx(key, this.defaultTTL, serializedValue);
+      await redis.setex(key, this.defaultTTL, serializedValue);
     }
   }
 
   async get<T>(key: string): Promise<T | null> {
-    const value = await redisClient.get(key);
+    const value = await redis.get(key);
     if (!value) return null;
     return JSON.parse(value) as T;
   }
 
   async delete(key: string): Promise<void> {
-    await redisClient.del(key);
+    await redis.del(key);
   }
 
   // Pub/Sub operations
   async publish(channel: string, message: any): Promise<void> {
-    await redisClient.publish(channel, JSON.stringify(message));
+    await redis.publish(channel, JSON.stringify(message));
   }
 
-  async subscribe(channel: string, callback: (message: any) => void): Promise<void> {
-    await redisClient.subscribe(channel, (message) => {
+  async subscribe(channel: string, callback: (message: string | Record<string, unknown>) => void): Promise<void> {
+    await redis.subscribe(channel);
+    redis.on('message', (chan: string, message: string) => {
+      if (chan !== channel) return;
       try {
         const parsedMessage = JSON.parse(message);
         callback(parsedMessage);
@@ -51,49 +54,50 @@ export class RedisService {
   }
 
   async unsubscribe(channel: string): Promise<void> {
-    await redisClient.unsubscribe(channel);
+    await redis.unsubscribe(channel);
   }
 
   // List operations
   async pushToList(key: string, value: any): Promise<void> {
-    await redisClient.lPush(key, JSON.stringify(value));
+    await redis.lpush(key, JSON.stringify(value));
   }
 
   async getListRange<T>(key: string, start: number, end: number): Promise<T[]> {
-    const values = await redisClient.lRange(key, start, end);
+    const values = await redis.lrange(key, start, end);
     return values.map(value => JSON.parse(value)) as T[];
   }
 
   // Set operations
   async addToSet(key: string, value: any): Promise<void> {
-    await redisClient.sAdd(key, JSON.stringify(value));
+    await redis.sadd(key, JSON.stringify(value));
   }
 
   async getSetMembers<T>(key: string): Promise<T[]> {
-    const values = await redisClient.sMembers(key);
+    const values = await redis.smembers(key);
     return values.map(value => JSON.parse(value)) as T[];
   }
 
   // Sorted Set operations
   async addToSortedSet(key: string, score: number, value: any): Promise<void> {
-    await redisClient.zAdd(key, { score, value: JSON.stringify(value) });
+    await redis.zadd(key, score, JSON.stringify(value));
   }
 
   async getSortedSetRange<T>(key: string, start: number, end: number): Promise<T[]> {
-    const values = await redisClient.zRange(key, start, end);
+    const values = await redis.zrange(key, start, end);
     return values.map(value => JSON.parse(value)) as T[];
   }
 
   // Lock mechanism for distributed operations
   async acquireLock(lockKey: string, ttl: number): Promise<boolean> {
-    const acquired = await redisClient.setNX(lockKey, 'locked');
-    if (acquired) {
-      await redisClient.expire(lockKey, ttl);
+    const acquired = await redis.setnx(lockKey, 'locked');
+    if (acquired === 1) {
+      await redis.expire(lockKey, ttl);
+      return true;
     }
-    return acquired;
+    return false;
   }
 
   async releaseLock(lockKey: string): Promise<void> {
-    await redisClient.del(lockKey);
+    await redis.del(lockKey);
   }
-} 
+}          

@@ -1,8 +1,9 @@
 import dotenv from 'dotenv';
-import { initializeDatabases, closeDatabases } from './infrastructure/database';
-import { AgentCoordinationService } from './infrastructure/database/services/AgentCoordinationService';
-import { createServer } from './server';
-import { logger } from './utils/logger';
+import { initializeDatabases, closeDatabases } from './infrastructure/database/index.js';
+import { AgentCoordinationService } from './infrastructure/database/services/AgentCoordinationService.js';
+import { createServer } from './server.js';
+import { Server } from 'http';
+import { logger } from './utils/logger.js';
 
 dotenv.config();
 
@@ -17,12 +18,13 @@ async function startApplication() {
     logger.info('Agent coordination service initialized');
 
     // Create and start HTTP server
-    const server = await createServer();
+    const app = await createServer();
     const port = process.env.APP_PORT || 3000;
-    
-    server.listen(port, () => {
+    const server: Server = app.listen(port, () => {
       logger.info(`Server is running on port ${port}`);
     });
+    
+
 
     // Handle graceful shutdown
     process.on('SIGTERM', async () => {

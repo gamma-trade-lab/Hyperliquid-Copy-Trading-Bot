@@ -1,6 +1,6 @@
-import { MarketData, CommunityMetrics, TweetGenerationError, TweetGenerationResult } from './types';
-import { GroqAIService } from './groq';
-import { CONFIG } from '../../config/settings';
+import { MarketData, CommunityMetrics, TweetGenerationError, TweetGenerationResult } from './types.js';
+import { GroqAIService } from './groq.js';
+import { CONFIG } from '../../config/settings.js';
 
 interface TweetContext {
   marketData?: MarketData;
@@ -188,7 +188,7 @@ ${marketData.onChainData ?
 Market Intelligence:
 - Overall Trend: ${this.determineMarketCondition(marketData)}
 - Market Depth: ${marketData.volume24h > 1000000 ? 'Substantial liquidity' : marketData.volume24h > 100000 ? 'Average depth' : 'Developing liquidity'}
-- Trading Pattern: ${marketData.onChainData?.recentSwaps > 10 ? 'Active market participation' : marketData.onChainData?.recentSwaps > 5 ? 'Steady trading flow' : 'Conservative trading activity'}\n\n`;
+- Trading Pattern: ${marketData.onChainData?.recentSwaps !== undefined ? (marketData.onChainData.recentSwaps > 10 ? 'Active market participation' : marketData.onChainData.recentSwaps > 5 ? 'Steady trading flow' : 'Conservative trading activity') : 'No trading data'}\n\n`;
     }
 
     if (communityMetrics) {

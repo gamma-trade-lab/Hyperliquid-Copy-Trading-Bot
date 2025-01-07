@@ -1,25 +1,35 @@
 import { Request, Response, NextFunction } from 'express';
+import { ParamsDictionary } from 'express-serve-static-core';
+import { ParsedQs } from 'qs';
 import { ZodSchema, z } from 'zod';
-import { AppError } from './error';
+import { AppError } from './error.js';
 
-export const validate = <T>(schema: ZodSchema<T>) => {
+interface ValidatedRequest<T> {
+  body: T;
+  query: ParsedQs;
+  params: ParamsDictionary;
+}
+
+export const validate = <T>(schema: ZodSchema<ValidatedRequest<T>>) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await schema.parseAsync({
+      const validatedData = await schema.parseAsync({
         body: req.body,
-        query: req.query,
-        params: req.params
-      });
+        query: req.query || {},
+        params: req.params || {}
+      }) as ValidatedRequest<T>;
 
       // Add validated data to request
-      req.body = data.body;
-      req.query = data.query;
-      req.params = data.params;
+      req.body = validatedData.body;
+      req.query = validatedData.query;
+      req.params = validatedData.params;
 
       next();
     } catch (error) {
       if (error instanceof z.ZodError) {
-        next(new AppError(400, 'Validation error', error.errors));
+        const validationError = new AppError(400, 'Validation error');
+        validationError.details = error.errors;
+        next(validationError);
       } else {
         next(error);
       }
@@ -85,4 +95,4 @@ export const updateTaskStatusSchema = z.object({
     status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED']),
     result: z.any().optional()
   })
-}); 
+});         

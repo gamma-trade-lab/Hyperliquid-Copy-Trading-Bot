@@ -2,9 +2,9 @@
 
 import { PublicKey } from '@solana/web3.js';
 import * as dotenv from 'dotenv';
-import { NetworkType } from './constants';
-import bs58 from 'bs58';
-import { validateSolanaConfig } from '../utils/solana-validator';
+import { NetworkType } from './constants.js';
+// Import removed: bs58 (unused)
+import { validateSolanaConfig } from '../utils/solana-validator.js';
 
 // Load environment variables
 dotenv.config();
@@ -31,10 +31,20 @@ function getRequiredEnvVar(key: string, defaultValue?: string): string {
 }
 
 export const CONFIG = {
+  security: {
+    jwtSecret: process.env.JWT_SECRET || 'default-secret',
+    jwtExpiration: '24h'
+  },
+  helius: {
+    apiKey: process.env.HELIUS_API_KEY || ''
+  },
+  solana: {
+    traderAddress: process.env.SOLANA_TRADER_ADDRESS || ''
+  },
     // Blockchain Settings
     SOLANA: {
         NETWORK: getRequiredEnvVar('NETWORK_TYPE', 'devnet') as NetworkType,
-        RPC_URL: getRequiredEnvVar('RPC_ENDPOINT', 'https://api.devnet.solana.com'),
+        RPC_URL: getRequiredEnvVar('SOLANA_RPC_URL', 'https://api.devnet.solana.com'),
         PRIVATE_KEY: getRequiredEnvVar('SOLANA_PRIVATE_KEY'),
         PUBLIC_KEY: getRequiredEnvVar('SOLANA_PUBLIC_KEY'),
         TOKEN_SETTINGS: {

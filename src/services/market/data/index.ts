@@ -1,1 +1,1 @@
-export * from './DataProcessor';
+export * from './DataProcessor.js';

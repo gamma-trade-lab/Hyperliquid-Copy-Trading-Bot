@@ -1,9 +1,9 @@
 // src/actions/uploadToIpfs.ts
 
 import fs from 'fs';
-import { FleekSdk, PersonalAccessTokenService } from '@fleek-platform/sdk';
+import { createFleekSdk } from '@fleek-platform/sdk';
 import dotenv from 'dotenv';
-import { TokenMetadata } from './metadata';
+import { TokenMetadata } from './metadata.js';
 
 dotenv.config();
 
@@ -19,22 +19,15 @@ interface UploadMetadata {
   website?: string;
 }
 
-const pat = process.env.PAT || '';
-const project_id = process.env.PROJECT_ID || '';
+const apiKey = process.env.FLEEK_API_KEY || '';
 const imageName = "./upload/bolt.jpg";
 const metadataName = "./upload/metadata.json";
 
-const patService = new PersonalAccessTokenService({
-  personalAccessToken: pat,
-  projectId: project_id,
-});
-
-const fleekSdk = new FleekSdk({ accessTokenService: patService });
+const fleekSdk = createFleekSdk({ apiKey });
 
 export async function uploadFileToIPFS(filename: string, content: Buffer) {
   const result = await fleekSdk.ipfs().add({
-    path: filename,
-    content: content
+    data: content
   });
   return result;
 }
@@ -45,13 +38,13 @@ export const getUploadedMetadataURI = async (metadata: UploadMetadata): Promise<
   try {
     const imageUploadResult = await uploadFileToIPFS(imageName, fileContent);
     console.log('Image uploaded to IPFS:', imageUploadResult);
-    console.log('IPFS URL:', `https://cf-ipfs.com/ipfs/${imageUploadResult.cid}`);
+    console.log('IPFS URL:', `https://cf-ipfs.com/ipfs/${imageUploadResult.hash}`);
 
     const data: UploadMetadata = {
       name: metadata.name,
       symbol: metadata.symbol,
       description: metadata.description,
-      image: `https://cf-ipfs.com/ipfs/${imageUploadResult.cid}`,
+      image: `https://cf-ipfs.com/ipfs/${imageUploadResult.hash}`,
       showName: metadata.showName,
       createdOn: metadata.createdOn || new Date().toISOString(),
       twitter: metadata.twitter,
@@ -66,9 +59,9 @@ export const getUploadedMetadataURI = async (metadata: UploadMetadata): Promise<
 
     const metadataUploadResult = await uploadFileToIPFS(metadataName, metadataContent);
     console.log('File uploaded to IPFS:', metadataUploadResult);
-    console.log('IPFS URL:', `https://cf-ipfs.com/ipfs/${metadataUploadResult.cid}`);
+    console.log('IPFS URL:', `https://cf-ipfs.com/ipfs/${metadataUploadResult.hash}`);
     
-    return `https://cf-ipfs.com/ipfs/${metadataUploadResult.cid}`;
+    return `https://cf-ipfs.com/ipfs/${metadataUploadResult.hash}`;
   } catch (error) {
     console.error('Error uploading to IPFS:', error);
     return "";

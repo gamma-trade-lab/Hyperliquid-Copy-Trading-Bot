@@ -1,10 +1,10 @@
 import { Collection, ChromaClient } from 'chromadb';
-import { Memory, MemorySearchOptions, MemoryServiceConfig, ClusteringResult } from './types';
+import { Memory, MemorySearchOptions, MemoryServiceConfig, ClusteringResult } from './types.js';
 import { EventEmitter } from 'events';
 
 export class AgentMemoryService extends EventEmitter {
   private client: ChromaClient;
-  private collection: Collection;
+  private collection!: Collection;
   private initialized: boolean = false;
   private config: MemoryServiceConfig;
 

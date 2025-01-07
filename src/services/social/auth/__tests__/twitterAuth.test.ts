@@ -1,5 +1,5 @@
-import { TwitterCookieAuth } from '../twitterAuth';
-import { TwitterAuthError } from '../../../../types/errors';
+import { TwitterCookieAuth } from '../twitterAuth.js';
+import { TwitterAuthError } from '../../../../types/errors.js';
 import { CookieJar } from 'tough-cookie';
 
 jest.mock('node-fetch');

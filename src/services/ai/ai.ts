@@ -15,11 +15,11 @@
 
 import { Groq } from 'groq-sdk';
 import { randomBytes } from 'crypto';
-import { MarketAction } from '../../config/constants';
-import { DeepSeekProvider } from './providers/deepSeekProvider';
-import { LLMProvider, ChatRequest, ChatResponse, Tweet, MarketData, MarketAnalysis, IAIService } from './types';
-import CONFIG from '../../config/settings';
-import personalityConfig from '../../config/personality';
+import { MarketAction } from '../../config/constants.js';
+import { DeepSeekProvider } from './providers/deepSeekProvider.js';
+import { LLMProvider, ChatRequest, ChatResponse, Tweet, MarketData, MarketAnalysis, IAIService } from './types.js';
+import CONFIG from '../../config/settings.js';
+import personalityConfig from '../../config/personality.js';
 
 interface AIServiceConfig {
   groqApiKey?: string;
