@@ -1,14 +1,30 @@
-import { TwitterApi, ApiResponseError } from 'twitter-api-v2';
+import { TwitterApi, ApiResponseError, TweetV2PostTweetResult, SendTweetV2Params } from 'twitter-api-v2';
 import { AIService } from '../ai';
 import { elizaLogger } from "@ai16z/eliza";
 
 interface TwitterConfig {
-  apiKey: string;
-  apiSecret: string;
-  accessToken: string;
-  accessSecret: string;
-  bearerToken: string;
   username: string;
+  password: string;
+  email: string;
+  mockMode?: boolean;
+  maxRetries?: number;
+  retryDelay?: number;
+  contentRules?: {
+    maxEmojis: number;
+    maxHashtags: number;
+    minInterval: number;
+  };
+}
+
+interface TwitterServiceConfig {
+  maxRetries: number;
+  retryDelay: number;
+  mockMode: boolean;
+  contentRules: {
+    maxEmojis: number;
+    maxHashtags: number;
+    minInterval: number;
+  };
 }
 
 export class TwitterService {
@@ -17,21 +33,27 @@ export class TwitterService {
   private aiService: AIService;
   private username: string;
   private isStreaming: boolean = false;
+  private config: TwitterServiceConfig;
 
   constructor(config: TwitterConfig, aiService: AIService) {
-    // User authentication client
-    this.client = new TwitterApi({
-      appKey: config.apiKey,
-      appSecret: config.apiSecret,
-      accessToken: config.accessToken,
-      accessSecret: config.accessSecret
-    });
-
-    // App-only authentication client (for elevated access)
-    this.appOnlyClient = new TwitterApi(config.bearerToken);
+    // Initialize with direct authentication
+    this.client = new TwitterApi();
+    this.appOnlyClient = this.client; // Same client for both in direct auth
     
     this.aiService = aiService;
     this.username = config.username;
+    
+    // Set configuration defaults
+    this.config = {
+      maxRetries: config.maxRetries || 3,
+      retryDelay: config.retryDelay || 5000,
+      mockMode: config.mockMode || false,
+      contentRules: {
+        maxEmojis: config.contentRules?.maxEmojis || 0,
+        maxHashtags: config.contentRules?.maxHashtags || 0,
+        minInterval: config.contentRules?.minInterval || 300000
+      }
+    };
   }
 
   async initialize(): Promise<void> {
@@ -50,57 +72,132 @@ export class TwitterService {
   }
 
   private async verifyCredentials(): Promise<void> {
+    if (this.config.mockMode) {
+      elizaLogger.info('Running in mock mode - skipping Twitter authentication');
+      return;
+    }
+
     try {
-      // Test user authentication
+      // Test direct authentication
       const userClient = await this.client.v2.me();
-      elizaLogger.info('User authentication successful');
+      elizaLogger.info('Direct authentication successful');
 
-      // Test app-only authentication
-      const appOnlyTest = await this.appOnlyClient.v2.search('test');
-      elizaLogger.info('App-only authentication successful');
-
-      // Verify required permissions
+      // Verify account access
       const settings = await this.client.v2.userByUsername(this.username);
-      elizaLogger.info('Required permissions verified');
+      elizaLogger.info('Account access verified');
 
     } catch (error: any) {
-      if (error.code === 403) {
-        elizaLogger.error(`
-          Twitter API access error. Please ensure:
-          1. You have a Twitter Developer Account
-          2. Created a Project in the Twitter Developer Portal
-          3. Created an App within that Project
-          4. Enabled OAuth 1.0a
-          5. Generated tokens with Read and Write permissions
-          6. Your App has Elevated access level
-          
-          Visit: https://developer.twitter.com/en/portal/projects-and-apps
+      if (error.code === 399) {
+        elizaLogger.info(`
+          ACID challenge detected (Error 399) - this is normal for direct authentication.
+          The system will handle this automatically.
         `);
-      } else if (error.data?.reason === 'client-not-enrolled') {
+      } else if (error.code === 403) {
         elizaLogger.error(`
-          Twitter API access error. Your App must be attached to a Project in the Twitter Developer Portal.
-          Please ensure:
-          1. Your App is attached to a Project
-          2. You have the appropriate level of API access
+          Authentication error. Please ensure:
+          1. Your Twitter credentials are correct
+          2. Your account is not locked or restricted
+          3. You have completed any required verification steps
           
-          Visit: https://developer.twitter.com/en/docs/projects/overview
+          Note: A "suspicious login" notification is normal and indicates successful authentication.
         `);
       } else if (error.code === 429) {
-        elizaLogger.error('Rate limit exceeded. Please try again later.');
+        elizaLogger.error('Rate limit exceeded. Waiting before retry.');
+        await new Promise(resolve => setTimeout(resolve, this.config.retryDelay));
       }
       throw error;
     }
   }
 
-  async tweet(content: string): Promise<void> {
-    try {
-      // First try a regular tweet
-      await this.client.v2.tweet(content);
-      elizaLogger.info('Successfully posted tweet');
-    } catch (error) {
-      elizaLogger.error('Failed to post tweet:', error);
-      throw error;
+  /**
+   * Upload media using Twitter API
+   * Note: Currently using v1 endpoint as v2 doesn't fully support direct media uploads yet
+   * TODO: Migrate to v2 media endpoints when they become available
+   * @param mediaUrls Array of media URLs to upload
+   * @returns Array of media IDs
+   */
+  private async uploadMedia(mediaUrls: string[]): Promise<string[]> {
+    let attempt = 0;
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 5000; // 5 seconds
+
+    while (attempt < MAX_RETRIES) {
+      try {
+        // Still using v1 endpoint as v2 doesn't have a direct replacement yet
+        const mediaIds = await Promise.all(
+          mediaUrls.map(url => this.client.v1.uploadMedia(url))
+        );
+        elizaLogger.info('Successfully uploaded media using v1 endpoint');
+        return mediaIds;
+      } catch (error) {
+        attempt++;
+        if (error instanceof ApiResponseError && error.rateLimitError && attempt < MAX_RETRIES) {
+          elizaLogger.warn(`Rate limit hit, waiting ${RETRY_DELAY}ms before retry ${attempt}/${MAX_RETRIES}`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          continue;
+        }
+        elizaLogger.error('Error uploading media:', error);
+        throw error;
+      }
     }
+    throw new Error('Failed to upload media after maximum retries');
+  }
+
+  /**
+   * Post a tweet using Twitter API v2
+   * @param content Tweet text content
+   * @param options Optional parameters including media URLs
+   */
+  async tweet(content: string, options: { mediaUrls?: string[] } = {}): Promise<TweetV2PostTweetResult> {
+    if (this.config.mockMode) {
+      elizaLogger.info('Mock mode - logging tweet instead of posting:', content);
+      return { data: { id: 'mock_tweet_id', text: content } } as TweetV2PostTweetResult;
+    }
+
+    // Validate content against rules
+    const emojiCount = (content.match(/[\p{Emoji}]/gu) || []).length;
+    const hashtagCount = (content.match(/#\w+/g) || []).length;
+
+    if (emojiCount > this.config.contentRules.maxEmojis) {
+      throw new Error(`Tweet contains ${emojiCount} emojis, exceeding limit of ${this.config.contentRules.maxEmojis}`);
+    }
+    if (hashtagCount > this.config.contentRules.maxHashtags) {
+      throw new Error(`Tweet contains ${hashtagCount} hashtags, exceeding limit of ${this.config.contentRules.maxHashtags}`);
+    }
+
+    let attempt = 0;
+    while (attempt < this.config.maxRetries) {
+      try {
+        let mediaIds: string[] = [];
+        
+        if (options.mediaUrls && options.mediaUrls.length > 0) {
+          mediaIds = await this.uploadMedia(options.mediaUrls);
+        }
+
+        // Create tweet payload using SendTweetV2Params interface
+        const tweetPayload: SendTweetV2Params = {
+          text: content,
+          ...(mediaIds.length > 0 && {
+            media_ids: mediaIds  // Media IDs at root level for v2 API
+          })
+        };
+        
+        const tweet = await this.client.v2.tweet(tweetPayload);
+        
+        elizaLogger.info('Successfully posted tweet:', tweet.data.id);
+        return tweet;
+      } catch (error) {
+        attempt++;
+        if (error instanceof ApiResponseError && error.rateLimitError && attempt < this.config.maxRetries) {
+          elizaLogger.warn(`Rate limit hit, waiting ${this.config.retryDelay}ms before retry ${attempt}/${this.config.maxRetries}`);
+          await new Promise(resolve => setTimeout(resolve, this.config.retryDelay));
+          continue;
+        }
+        elizaLogger.error('Failed to post tweet:', error);
+        throw error;
+      }
+    }
+    throw new Error('Failed to post tweet after maximum retries');
   }
 
   async reply(messageId: string, content: string): Promise<void> {

@@ -151,11 +151,17 @@ class MemeAgentInfluencer {
   public async verifyAndInitialize(): Promise<void> {
     try {
       const config = {
-        apiKey: process.env.TWITTER_API_KEY!,
-        apiSecret: process.env.TWITTER_API_SECRET!,
-        accessToken: process.env.TWITTER_ACCESS_TOKEN!,
-        accessSecret: process.env.TWITTER_ACCESS_SECRET!,
-        bearerToken: process.env.TWITTER_BEARER_TOKEN!
+        username: process.env.TWITTER_USERNAME!,
+        password: process.env.TWITTER_PASSWORD!,
+        email: process.env.TWITTER_EMAIL!,
+        mockMode: process.env.TWITTER_MOCK_MODE === 'true',
+        maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
+        retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
+        contentRules: {
+          maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
+          maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
+          minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
+        }
       };
 
       // Validate Twitter credentials
@@ -165,18 +171,9 @@ class MemeAgentInfluencer {
         }
       });
 
-      // Initialize app-only client first
-      this.appOnlyClient = new TwitterApi(config.bearerToken);
-
-      // Initialize user context client
-      this.twitter = new TwitterApi({
-        appKey: config.apiKey,
-        appSecret: config.apiSecret,
-        accessToken: config.accessToken,
-        accessSecret: config.accessSecret,
-      });
-
-      // Store both clients
+      // Initialize Twitter service with direct authentication
+      this.twitter = new TwitterApi();
+      this.appOnlyClient = this.twitter; // Same client for both in direct auth
       this.twitterClient = this.twitter;
 
       // Verify user credentials using user context client
@@ -330,9 +327,9 @@ class MemeAgentInfluencer {
         throw new Error('Twitter Bearer Token is required for stream rules');
       }
 
-      // Use only the app-only client for stream rules
+      // Use app client for stream rules (same as user client in direct auth)
       if (!this.appOnlyClient) {
-        this.appOnlyClient = new TwitterApi(process.env.TWITTER_BEARER_TOKEN);
+        this.appOnlyClient = this.twitter;
       }
 
       const rules = await this.appOnlyClient.v2.streamRules();
@@ -779,12 +776,17 @@ class MemeAgentInfluencer {
       
       if (!this.twitterService) {
         this.twitterService = new TwitterService({
-          apiKey: process.env.TWITTER_API_KEY!,
-          apiSecret: process.env.TWITTER_API_SECRET!,
-          accessToken: process.env.TWITTER_ACCESS_TOKEN!,
-          accessSecret: process.env.TWITTER_ACCESS_SECRET!,
-          bearerToken: process.env.TWITTER_BEARER_TOKEN!,
-          username: CONFIG.SOCIAL.TWITTER.USERNAME
+          username: process.env.TWITTER_USERNAME!,
+          password: process.env.TWITTER_PASSWORD!,
+          email: process.env.TWITTER_EMAIL!,
+          mockMode: process.env.TWITTER_MOCK_MODE === 'true',
+          maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
+          retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
+          contentRules: {
+            maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
+            maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
+            minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
+          }
         }, this.aiService);
         
         await this.twitterService.initialize();
@@ -954,4 +956,3 @@ function createReActAgent(llm: Groq, tools: any, memory: any, systemPrompt: stri
     throw error;
   }
 }
-

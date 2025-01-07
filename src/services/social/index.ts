@@ -28,12 +28,17 @@ export class SocialService {
   constructor(config: SocialConfig) {
     if (config.twitter?.tokens) {
       const twitterConfig = {
-        apiKey: config.twitter.tokens.appKey ?? '',
-        apiSecret: config.twitter.tokens.appSecret ?? '',
-        accessToken: config.twitter.tokens.accessToken ?? '',
-        accessSecret: config.twitter.tokens.accessSecret ?? '',
-        bearerToken: config.twitter.tokens.bearerToken ?? '', // Include bearerToken
-        username: config.twitter.tokens.username ?? '' // Include username
+        username: config.twitter.tokens.username ?? '',
+        password: process.env.TWITTER_PASSWORD ?? '',
+        email: process.env.TWITTER_EMAIL ?? '',
+        mockMode: process.env.TWITTER_MOCK_MODE === 'true',
+        maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
+        retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
+        contentRules: {
+          maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
+          maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
+          minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
+        }
       };
       
       this.twitterService = new TwitterService(twitterConfig, config.services.ai);
