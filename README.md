@@ -1,183 +1,249 @@
+# Meme Agent - Advanced AI Trading System
 
-# Meme Agent
+## Overview
 
-An AI-driven platform for autonomous market analysis, trading, and social media engagement.
+Meme Agent is a sophisticated AI-powered trading system designed for the Solana ecosystem, specializing in meme tokens. The system leverages a polyglot persistence architecture and multiple AI models for advanced market analysis, automated trading, and risk management.
 
-## Features
+### Key Features
 
-### Market Analysis & Trading
-- Multi-period market analysis using Jupiter API
-- Volatility-based position management with dynamic adjustments
-- Cross-DEX arbitrage detection and execution
-- Automatic risk management with dynamic stop-loss
-- Market sentiment analysis from multiple sources
+- **Multi-Model AI Integration**
+  - Primary: DeepSeek (33B parameters)
+  - Secondary: Groq, OpenAI GPT-4, Claude-3, Ollama
+  - Model fallback and load balancing
+  - Custom prompt engineering
 
-### Social Media Integration
-- Autonomous Twitter posting and engagement
-- AI-powered content generation
-- Community engagement tracking
-- Multi-platform social metrics analysis
+- **Advanced Trading Capabilities**
+  - Real-time market analysis and execution
+  - Multi-DEX integration (Jupiter, Orca)
+  - Dynamic slippage protection
+  - Automated portfolio optimization
+  - Social sentiment correlation
 
-### Technical Infrastructure
-- Redis caching with compression optimization
-- Circuit breaker pattern for API resilience
-- Automatic error recovery and retries
-- Memory usage and API rate limit monitoring
-- Enhanced type safety across services
+- **Data Infrastructure**
+  - PostgreSQL: Structured data (users, agents, tasks)
+  - MongoDB: Unstructured data (analysis, logs)
+  - Redis: Caching and real-time operations
+  - Distributed transaction support
 
-## Installation
+- **Integration & Monitoring**
+  - Birdeye & Helius market data
+  - Twitter & Discord social feeds
+  - Comprehensive logging system
+  - Real-time metrics and alerts
 
+## System Requirements
+
+### Minimum Requirements
+- CPU: 4 cores
+- RAM: 16GB
+- Storage: 100GB SSD
+- Network: 100Mbps stable connection
+
+### Software Prerequisites
+- Node.js ≥18.0.0
+- pnpm ≥8.0.0
+- PostgreSQL ≥14.0
+- MongoDB ≥6.0
+- Redis ≥7.0
+- Solana CLI tools
+
+## Quick Start
+
+1. **Clone and Setup**
+   ```bash
+   git clone https://github.com/yourusername/meme-agent.git
+   cd meme-agent
+   ```
+
+2. **Environment Setup**
+   ```bash
+   # Unix/Linux/macOS
+   ./scripts/setup.sh
+
+   # Windows (Run as Administrator)
+   .\scripts\setup.ps1
+   ```
+
+3. **Configuration**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys and settings
+   ```
+
+4. **Database Initialization**
+   ```bash
+   pnpm run db:setup
+   ```
+
+5. **Start the System**
+   ```bash
+   # Development mode with hot reload
+   pnpm run start:dev
+
+   # Production mode
+   pnpm run start:prod
+   ```
+
+## Architecture Overview
+
+### AI Model Pipeline
+- Model selection based on task complexity
+- Parallel processing for high-throughput analysis
+- Automatic failover and load balancing
+- Response validation and quality control
+
+### Database Architecture
+- Polyglot persistence for optimal data storage
+- Distributed transactions with saga pattern
+- Automatic data partitioning and archiving
+- Real-time caching with invalidation strategies
+
+### Trading Engine
+- Multi-DEX order routing
+- Dynamic slippage adjustment
+- Risk management system
+- Performance monitoring
+- Automated position management
+
+## Advanced Configuration
+
+### AI Model Settings
+```env
+DEEPSEEK_API_KEY=your_key
+DEEPSEEK_MODEL=deepseek-coder-33b-instruct
+OPENAI_API_KEY=your_key
+CLAUDE_API_KEY=your_key
+OLLAMA_HOST=http://localhost:11434
+```
+
+### Trading Parameters
+```env
+MAX_POSITION_SIZE=1000
+SLIPPAGE_TOLERANCE=0.5
+RISK_LEVEL=medium
+TRADING_HOURS=24/7
+```
+
+### Character Configuration
+Edit `characters/jenna.character.json` to customize:
+- Trading personality
+- Risk tolerance
+- Analysis preferences
+- Communication style
+
+## Monitoring & Maintenance
+
+### Log Management
+- `logs/error.log`: Critical issues
+- `logs/combined.log`: All system events
+- `logs/agents.log`: AI agent activities
+- `logs/trades.log`: Trading activities
+
+### Performance Metrics
+- Trading performance dashboard
+- System resource utilization
+- Model performance analytics
+- Network latency monitoring
+
+### Alerts & Notifications
+- Slack integration
+- Discord webhooks
+- Email notifications
+- SMS alerts (optional)
+
+## Security Best Practices
+
+### API Security
+- Regular key rotation
+- Rate limiting
+- Request validation
+- IP whitelisting
+
+### Data Protection
+- Encryption at rest
+- Secure key storage
+- Access control
+- Audit logging
+
+### Network Security
+- SSL/TLS encryption
+- VPN support
+- DDoS protection
+- Firewall configuration
+
+## Troubleshooting Guide
+
+### Common Issues
+1. **Database Connectivity**
+   - Check service status
+   - Verify credentials
+   - Test network connectivity
+   - Review connection limits
+
+2. **AI Model Errors**
+   - Validate API keys
+   - Check rate limits
+   - Monitor response times
+   - Verify model availability
+
+3. **Trading Issues**
+   - Confirm wallet balance
+   - Check RPC endpoints
+   - Verify price feeds
+   - Monitor slippage
+
+## Development & Testing
+
+### Running Tests
 ```bash
-git clone https://github.com/arhansuba/meme-agent.git
-cd meme-agent
-pnpm install
-```
-
-## Dependencies
-
-Key dependencies include:
-```json
-{
-  "ioredis": "^5.3.2",
-  "agent-twitter-client": "latest",
-  "@jup-ag/core": "latest",
-  "@solana/web3.js": "latest",
-  "groq-sdk": "0.9.1",
-  "deepseek-api": "latest"     // DeepSeek API integration
-}
-```
-
-### DeepSeek API Integration
-The project integrates with DeepSeek's AI models for enhanced natural language processing:
-
-- **Base URL Options**: 
-  - Primary: `https://api.deepseek.com`
-  - OpenAI Compatible: `https://api.deepseek.com/v1`
-
-- **Model Information**:
-  - Default Model: DeepSeek-V3 (deepseek-chat)
-  - Compatibility: OpenAI API format
-  - Features: Streaming support, temperature control
-
-- **Configuration**:
-  Configure DeepSeek in your `.env` file using the environment variables defined in `.env.example`:
-  ```plaintext
-  DEEPSEEK_BASE_URL=https://api.deepseek.com
-  DEEPSEEK_API_VERSION=v1
-  DEEPSEEK_MODEL=deepseek-chat
-  ```
-
-For API key acquisition and detailed documentation, visit the [DeepSeek API Documentation](https://api-docs.deepseek.com/)
-
-## Configuration
-
-1. Copy the environment template:
-```bash
-cp .env.example .env
-```
-
-2. Configure required environment variables in `.env`:
-```plaintext
-# AI Configuration
-- GROQ_API_KEY          # Groq API authentication
-- DEEPSEEK_API_KEY      # DeepSeek API authentication
-- DEEPSEEK_BASE_URL     # DeepSeek API endpoint
-- DEEPSEEK_MODEL        # Model selection (default: deepseek-chat)
-- DEEPSEEK_TEMPERATURE  # Response temperature control
-
-# Blockchain Configuration
-- SOLANA_RPC_URL
-- NETWORK_TYPE
-- PROGRAM_ID
-
-# Social Media Configuration
-- TWITTER_API_KEY
-- TWITTER_API_SECRET
-- DISCORD_TOKEN
-
-# Redis Configuration
-- REDIS_URL
-- REDIS_PASSWORD
-```
-
-## Usage
-
-Start the agent with a character configuration:
-```bash
-pnpm start --character="characters/[character-name].character.json"
-```
-
-## Architecture
-
-### Core Components
-- Market Analysis Engine
-  * Price monitoring and analysis
-  * Volatility tracking
-  * Sentiment analysis
-- Trading Engine
-  * Position management
-  * Risk assessment
-  * Order execution
-- Social Integration
-  * Twitter automation
-  * Discord integration
-  * Community engagement
-- Data Processing
-  * Redis caching
-  * Rate limiting
-  * Circuit breakers
-
-### Modified Files
-Recent updates include changes to:
-- src/services/market/volatility/VolatilityManager.ts (Position management)
-- src/services/market/data/DataProcessor.ts (Market data processing)
-- src/services/blockchain/defi/tradingEngine.ts (Trading logic)
-- src/services/social/twitter.ts (Twitter integration)
-- src/services/ai/tweetGenerator.ts (Content generation)
-- src/services/memory/agentMemoryIntegration.ts (AI memory)
-
-## Development
-
-```bash
-# Install dependencies
-pnpm install
-
-# Run linting
-pnpm run lint
-
-# Fix linting issues
-pnpm run lint --fix
-
-# Build the project
-pnpm run build
-```
-
-## Testing
-
-```bash
-# Run all tests
+# Unit tests
 pnpm test
 
-# Run specific test file
-pnpm test src/services/ai/__tests__/tweetGenerator.test.ts
+# Integration tests
+pnpm test:integration
+
+# Load tests
+pnpm test:load
+```
+
+### Code Quality
+```bash
+# Linting
+pnpm lint
+
+# Type checking
+pnpm type-check
+
+# Format code
+pnpm format
+```
+
+### Documentation
+```bash
+# Generate API docs
+pnpm docs
+
+# View docs locally
+pnpm docs:serve
 ```
 
 ## Contributing
 
-1. Create a new branch:
-```bash
-git checkout -b feature/your-feature-name
-```
+1. Fork the repository
+2. Create a feature branch
+3. Follow coding standards
+4. Add tests for new features
+5. Submit a pull request
 
-2. Make your changes and commit:
-```bash
-git add .
-git commit -m "feat: add your feature"
-```
+## Support & Community
 
-3. Push changes and create PR:
-```bash
-git push origin feature/your-feature-name
-```
+- Documentation: [docs.meme-agent.io](https://docs.meme-agent.io)
+- Discord: [Join our community](https://discord.gg/meme-agent)
+- GitHub Issues: [Report bugs](https://github.com/yourusername/meme-agent/issues)
+- Email: support@meme-agent.io
+
+## License
+
+MIT License - See [LICENSE](LICENSE) for details
 
 

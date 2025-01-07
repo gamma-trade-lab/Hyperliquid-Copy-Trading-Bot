@@ -1,43 +1,33 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ES2022",
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020"],
     "moduleResolution": "node",
-    "esModuleInterop": true,
+    "rootDir": "src",
+    "outDir": "dist",
     "allowSyntheticDefaultImports": true,
-    "strict": true,
-    "skipLibCheck": true,
+    "importHelpers": true,
+    "alwaysStrict": true,
+    "sourceMap": true,
     "forceConsistentCasingInFileNames": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "resolveJsonModule": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "strictNullChecks": true,
+    "declaration": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "*": ["node_modules/*", "src/types/*"]
     },
-    "allowJs": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "types": ["node", "jest"],
-    "allowImportingTsExtensions": true,
-    "emitDeclarationOnly": true,
-    "noEmit": false,
-    "noImplicitAny": false,
-    "strictNullChecks": false
+    "types": ["node", "jest"]
   },
-  "include": [
-    "src/**/*",
-    "src/**/*.d.ts",
-    "src/services/social/*.d.ts",
-    "src/**/*.ts",
-    "test/**/*.ts"
-  ],
-  "exclude": ["node_modules", "dist"],
-  "ts-node": {
-    "esm": true,
-    "experimentalSpecifierResolution": "node"
-  }
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
