@@ -1,6 +1,4 @@
-import { Scraper, SearchMode, Profile } from 'agent-twitter-client';
-import { TwitterStreamEvent } from '../../types/twitter.js';
-import type { TwitterResponse, TwitterProfile, TwitterCookies } from './agentTwitterClient.types.js';
+import { Scraper } from 'agent-twitter-client';
 import { TwitterStreamHandler } from './TwitterStreamHandler.js';
 import { AIService } from '../ai/ai.js';
 

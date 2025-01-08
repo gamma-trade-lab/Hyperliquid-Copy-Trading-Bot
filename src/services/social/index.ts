@@ -1,6 +1,6 @@
 import { TwitterService } from './twitter';
 import { DiscordService } from './discord';
-import { TwitterApiTokens } from 'twitter-api-v2';
+import { TweetV2PostTweetResult } from 'twitter-api-v2';
 
 export interface SocialMetrics {
   followers: number;
@@ -12,12 +12,26 @@ export interface SocialConfig {
   services: {
     ai: any; // Let the concrete implementations handle AI type checking
   };
-  discord: {
+  discord?: {
     token: string;
     guildId: string;
   };
-  twitter: {
-    tokens: TwitterApiTokens & { bearerToken: string; username: string }; // Ensure bearerToken and username are included
+  twitter?: {
+    oauthClientId: string;
+    oauthClientSecret: string;
+    apiKey: string;
+    apiSecret: string;
+    accessToken: string;
+    accessSecret: string;
+    bearerToken: string;
+    mockMode?: boolean;
+    maxRetries?: number;
+    retryDelay?: number;
+    contentRules?: {
+      maxEmojis: number;
+      maxHashtags: number;
+      minInterval: number;
+    };
   };
 }
 
@@ -26,22 +40,24 @@ export class SocialService {
   private discordService?: DiscordService;
 
   constructor(config: SocialConfig) {
-    if (config.twitter?.tokens) {
-      const twitterConfig = {
-        username: config.twitter.tokens.username ?? '',
-        password: process.env.TWITTER_PASSWORD ?? '',
-        email: process.env.TWITTER_EMAIL ?? '',
-        mockMode: process.env.TWITTER_MOCK_MODE === 'true',
-        maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
-        retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
-        contentRules: {
-          maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
-          maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
-          minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
-        }
-      };
-      
-      this.twitterService = new TwitterService(twitterConfig, config.services.ai);
+    if (config.twitter) {
+      this.twitterService = new TwitterService(
+        {
+          apiKey: config.twitter.apiKey,
+          apiSecret: config.twitter.apiSecret,
+          accessToken: config.twitter.accessToken,
+          accessSecret: config.twitter.accessSecret,
+          bearerToken: config.twitter.bearerToken,
+          mockMode: config.twitter.mockMode,
+          maxRetries: config.twitter.maxRetries,
+          retryDelay: config.twitter.retryDelay,
+          contentRules: config.twitter.contentRules,
+          oauthClientId: config.twitter.oauthClientId,
+          oauthClientSecret: config.twitter.oauthClientSecret,
+          
+        },
+        config.services.ai
+      );
     }
 
     if (config.discord) {
@@ -55,16 +71,16 @@ export class SocialService {
 
   async initialize(): Promise<void> {
     const initPromises: Promise<void>[] = [];
-    
+
     if (this.twitterService) {
       initPromises.push(this.twitterService.initialize());
     }
-    
+
     if (this.discordService) {
       // DiscordService auto-initializes in constructor
       initPromises.push(Promise.resolve());
     }
-    
+
     await Promise.all(initPromises);
   }
 
@@ -80,13 +96,17 @@ export class SocialService {
     const promises: Promise<void>[] = [];
 
     if (this.twitterService) {
-      promises.push(this.twitterService.tweet(content).then(() => {}));
+      this.twitterService.tweet(content, { replyToTweetId: undefined })
+        .then(() => promises.push(Promise.resolve()))
+        .catch(error => promises.push(Promise.reject(error)));
     }
-    
+
     if (this.discordService) {
-      promises.push(this.discordService.sendMessage('System', content).then(() => {}));
+      promises.push(
+        this.discordService.sendMessage('System', content)
+      );
     }
-    
+
     await Promise.all(promises);
   }
 
@@ -94,7 +114,7 @@ export class SocialService {
     switch (platform.toLowerCase()) {
       case 'twitter':
         if (this.twitterService) {
-          await this.twitterService.reply(messageId, content); // Ensure TwitterService has a reply method
+          await this.twitterService.tweet(content, { replyToTweetId: messageId as string | undefined });
         }
         break;
       case 'discord':

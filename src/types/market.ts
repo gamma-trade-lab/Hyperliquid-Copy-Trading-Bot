@@ -44,3 +44,11 @@ export interface MarketAnalysis {
   action: 'BUY' | 'SELL' | 'HOLD';
   metrics: MarketData;
 }
+
+export interface MarketUpdateData {
+  price: number;
+  volume24h: number;
+  priceChange24h: number;
+  marketCap: number;
+  topHolders: string[];
+}

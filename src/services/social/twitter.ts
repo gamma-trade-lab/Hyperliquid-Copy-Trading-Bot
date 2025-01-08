@@ -1,273 +1,197 @@
-import { TwitterApi, ApiResponseError, TweetV2PostTweetResult, SendTweetV2Params } from 'twitter-api-v2';
+import { 
+  TwitterApi, 
+  ApiResponseError, 
+  TweetV2PostTweetResult, 
+  SendTweetV2Params
+} from 'twitter-api-v2';
 import { AIService } from '../ai';
 import { elizaLogger } from "@ai16z/eliza";
-import { MarketAction } from '@/config/constants';
-import { MarketData } from '@/types/market';
+import { MarketUpdateData } from '@/types/market';
 
 interface TwitterConfig {
-  username: string;
-  password: string;
-  email: string;
+  apiKey: string;
+  apiSecret: string;
+  accessToken: string;
+  accessSecret: string;
+  bearerToken: string;
+  oauthClientId: string;
+  oauthClientSecret: string;
   mockMode?: boolean;
   maxRetries?: number;
   retryDelay?: number;
-  contentRules?: {
-    maxEmojis: number;
-    maxHashtags: number;
-    minInterval: number;
-  };
+  contentRules?: ContentRules;
+  streamingEnabled?: boolean; // Make streaming optional
 }
 
-interface TwitterServiceConfig {
-  maxRetries: number;
-  retryDelay: number;
-  mockMode: boolean;
-  contentRules: {
-    maxEmojis: number;
-    maxHashtags: number;
-    minInterval: number;
-  };
+interface ContentRules {
+  maxEmojis: number;
+  maxHashtags: number;
+  minInterval: number;
+}
+
+interface TweetOptions {
+  mediaUrls?: string[];
+  replyToTweetId?: string; // Allow string or undefined
 }
 
 export class TwitterService {
-  private client: TwitterApi;
-  private appOnlyClient: TwitterApi;
+  private userClient: TwitterApi;
+  private appClient: TwitterApi;
   private aiService: AIService;
-  private username: string;
   private isStreaming: boolean = false;
-  private config: TwitterServiceConfig;
-  logger: any;
-  async publishMarketUpdate(action: MarketAction, data: MarketData): Promise<void> {
-    try {
-      // Format the market data into a tweet
-      const tweet = this.formatMarketUpdate(action, data);
-      
-      // Post the tweet
-      await this.postTweet(tweet);
-    } catch (error) {
-      this.logger.error('Failed to publish market update:', error);
-      throw error;
-    }
-  }
-  postTweet(tweet: string) {
-    throw new Error('Method not implemented.');
-  }
-
-  private formatMarketUpdate(action: MarketAction, data: MarketData): string {
-    const priceFormatted = data.price.toFixed(4);
-    const changeFormatted = data.priceChange24h.toFixed(2);
-    const volumeFormatted = (data.volume24h / 1000000).toFixed(2);
-
-    return `${action === MarketAction.PRICE_UPDATE ? '📊' : '📈'} Market Update:\n` +
-      `Price: $${priceFormatted}\n` +
-      `24h Change: ${changeFormatted}%\n` +
-      `Volume: $${volumeFormatted}M`;
-  }
-
+  private readonly config: Required<TwitterConfig>;
+  private userId?: string;
+  private readonly MONTHLY_TWEET_LIMIT: number = 3000; // Define the monthly tweet limit
+  
   constructor(config: TwitterConfig, aiService: AIService) {
-    // Initialize with direct authentication
-    this.client = new TwitterApi();
-    this.appOnlyClient = this.client; // Same client for both in direct auth
+    this.validateConfig(config);
     
-    this.aiService = aiService;
-    this.username = config.username;
-    
-    // Set configuration defaults
     this.config = {
-      maxRetries: config.maxRetries || 3,
-      retryDelay: config.retryDelay || 5000,
-      mockMode: config.mockMode || false,
+      ...config,
+      mockMode: config.mockMode ?? false,
+      maxRetries: config.maxRetries ?? 3,
+      retryDelay: config.retryDelay ?? 5000,
+      streamingEnabled: config.streamingEnabled ?? false,
       contentRules: {
-        maxEmojis: config.contentRules?.maxEmojis || 0,
-        maxHashtags: config.contentRules?.maxHashtags || 0,
-        minInterval: config.contentRules?.minInterval || 300000
+        maxEmojis: config.contentRules?.maxEmojis ?? 0,
+        maxHashtags: config.contentRules?.maxHashtags ?? 0,
+        minInterval: config.contentRules?.minInterval ?? 300000
       }
     };
+
+    this.aiService = aiService;
+
+    // Initialize clients with OAuth 2.0 authentication
+    this.userClient = new TwitterApi({
+      clientId: config.oauthClientId,
+      clientSecret: config.oauthClientSecret
+    });
+
+    // Initialize app-only client
+    this.appClient = new TwitterApi(config.bearerToken);
+  }
+
+  private validateConfig(config: TwitterConfig): void {
+    const requiredFields: (keyof TwitterConfig)[] = [
+      'apiKey', 'apiSecret',
+      'accessToken', 'accessSecret',
+      'bearerToken',
+      'oauthClientId', 'oauthClientSecret'
+    ];
+
+    const missing = requiredFields.filter(field => !config[field]);
+    if (missing.length > 0) {
+      throw new Error(`Missing required Twitter configuration fields: ${missing.join(', ')}`);
+    }
   }
 
   async initialize(): Promise<void> {
     try {
       elizaLogger.info('Initializing Twitter service...');
 
-      // Verify credentials before proceeding
-      await this.verifyCredentials();
-      
-      elizaLogger.info(`Twitter bot initialized as @${this.username}`);
-
-    } catch (error) {
-      elizaLogger.error('Failed to initialize Twitter service:', error);
-      throw error;
-    }
-  }
-
-  private async verifyCredentials(): Promise<void> {
-    if (this.config.mockMode) {
-      elizaLogger.info('Running in mock mode - skipping Twitter authentication');
-      return;
-    }
-
-    try {
-      // Test direct authentication
-      const userClient = await this.client.v2.me();
-      elizaLogger.info('Direct authentication successful');
-
-      // Verify account access
-      const settings = await this.client.v2.userByUsername(this.username);
-      elizaLogger.info('Account access verified');
-
-    } catch (error: any) {
-      if (error.code === 399) {
-        elizaLogger.info(`
-          ACID challenge detected (Error 399) - this is normal for direct authentication.
-          The system will handle this automatically.
-        `);
-      } else if (error.code === 403) {
-        elizaLogger.error(`
-          Authentication error. Please ensure:
-          1. Your Twitter credentials are correct
-          2. Your account is not locked or restricted
-          3. You have completed any required verification steps
-          
-          Note: A "suspicious login" notification is normal and indicates successful authentication.
-        `);
-      } else if (error.code === 429) {
-        elizaLogger.error('Rate limit exceeded. Waiting before retry.');
-        await new Promise(resolve => setTimeout(resolve, this.config.retryDelay));
+      if (!this.config.mockMode) {
+        await this.initializeWithRetry();
       }
+
+      elizaLogger.success('Twitter service initialized successfully');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      elizaLogger.error('Failed to initialize Twitter service:', msg);
       throw error;
     }
   }
 
-  /**
-   * Upload media using Twitter API
-   * Note: Currently using v1 endpoint as v2 doesn't fully support direct media uploads yet
-   * TODO: Migrate to v2 media endpoints when they become available
-   * @param mediaUrls Array of media URLs to upload
-   * @returns Array of media IDs
-   */
-  private async uploadMedia(mediaUrls: string[]): Promise<string[]> {
+  private async initializeWithRetry(maxRetries = 3): Promise<void> {
     let attempt = 0;
-    const MAX_RETRIES = 3;
-    const RETRY_DELAY = 5000; // 5 seconds
-
-    while (attempt < MAX_RETRIES) {
+    while (attempt < maxRetries) {
       try {
-        // Still using v1 endpoint as v2 doesn't have a direct replacement yet
-        const mediaIds = await Promise.all(
-          mediaUrls.map(url => this.client.v1.uploadMedia(url))
-        );
-        elizaLogger.info('Successfully uploaded media using v1 endpoint');
-        return mediaIds;
+        await this.verifyUserAuth();
+        return;
       } catch (error) {
         attempt++;
-        if (error instanceof ApiResponseError && error.rateLimitError && attempt < MAX_RETRIES) {
-          elizaLogger.warn(`Rate limit hit, waiting ${RETRY_DELAY}ms before retry ${attempt}/${MAX_RETRIES}`);
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-          continue;
+        if (error instanceof ApiResponseError && error.code === 429) {
+          const resetTime = this.getRateLimitReset(error);
+          if (resetTime) {
+            const waitTime = resetTime - Date.now();
+            if (waitTime > 0) {
+              elizaLogger.info(`Rate limit hit. Waiting ${Math.ceil(waitTime / 1000)} seconds before retry...`);
+              await this.delay(waitTime);
+              continue;
+            }
+          }
         }
-        elizaLogger.error('Error uploading media:', error);
         throw error;
       }
     }
-    throw new Error('Failed to upload media after maximum retries');
+    throw new Error(`Failed to initialize after ${maxRetries} attempts`);
   }
 
-  /**
-   * Post a tweet using Twitter API v2
-   * @param content Tweet text content
-   * @param options Optional parameters including media URLs
-   */
-  async tweet(content: string, options: { mediaUrls?: string[] } = {}): Promise<TweetV2PostTweetResult> {
-    if (this.config.mockMode) {
-      elizaLogger.info('Mock mode - logging tweet instead of posting:', content);
-      return { data: { id: 'mock_tweet_id', text: content } } as TweetV2PostTweetResult;
-    }
-
-    // Validate content against rules
-    const emojiCount = (content.match(/[\p{Emoji}]/gu) || []).length;
-    const hashtagCount = (content.match(/#\w+/g) || []).length;
-
-    if (emojiCount > this.config.contentRules.maxEmojis) {
-      throw new Error(`Tweet contains ${emojiCount} emojis, exceeding limit of ${this.config.contentRules.maxEmojis}`);
-    }
-    if (hashtagCount > this.config.contentRules.maxHashtags) {
-      throw new Error(`Tweet contains ${hashtagCount} hashtags, exceeding limit of ${this.config.contentRules.maxHashtags}`);
-    }
-
-    let attempt = 0;
-    while (attempt < this.config.maxRetries) {
-      try {
-        let mediaIds: string[] = [];
-        
-        if (options.mediaUrls && options.mediaUrls.length > 0) {
-          mediaIds = await this.uploadMedia(options.mediaUrls);
-        }
-
-        // Create tweet payload using SendTweetV2Params interface
-        const tweetPayload: SendTweetV2Params = {
-          text: content,
-          ...(mediaIds.length > 0 && {
-            media_ids: mediaIds  // Media IDs at root level for v2 API
-          })
-        };
-        
-        const tweet = await this.client.v2.tweet(tweetPayload);
-        
-        elizaLogger.info('Successfully posted tweet:', tweet.data.id);
-        return tweet;
-      } catch (error) {
-        attempt++;
-        if (error instanceof ApiResponseError && error.rateLimitError && attempt < this.config.maxRetries) {
-          elizaLogger.warn(`Rate limit hit, waiting ${this.config.retryDelay}ms before retry ${attempt}/${this.config.maxRetries}`);
-          await new Promise(resolve => setTimeout(resolve, this.config.retryDelay));
-          continue;
-        }
-        elizaLogger.error('Failed to post tweet:', error);
-        throw error;
-      }
-    }
-    throw new Error('Failed to post tweet after maximum retries');
-  }
-
-  async reply(messageId: string, content: string): Promise<void> {
+  private getRateLimitReset(error: ApiResponseError): number | null {
     try {
-      await this.client.v2.reply(content, messageId);
-      elizaLogger.info('Successfully replied to tweet');
+      const resetHeader = error.rateLimit?.reset;
+      if (resetHeader) {
+        return resetHeader * 1000; // Convert to milliseconds
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async verifyUserAuth(): Promise<void> {
+    try {
+      const me = await this.userClient.v2.me();
+      this.userId = me.data.id;
+      elizaLogger.success(`User authentication verified for @${me.data.username}`);
     } catch (error) {
-      elizaLogger.error('Failed to reply to tweet:', error);
+      this.handleAuthError(error, 'User authentication');
       throw error;
     }
   }
 
-  private async setupStreamRules(): Promise<void> {
+  private handleAuthError(error: unknown, context: string): void {
+    if (error instanceof ApiResponseError) {
+      switch (error.code) {
+        case 401:
+          elizaLogger.error(`${context} failed: Unauthorized. Check your credentials.`);
+          break;
+        case 403:
+          elizaLogger.error(`${context} failed: Forbidden. Check your API permissions.`);
+          break;
+        case 429:
+          elizaLogger.error(`${context} failed: Rate limit exceeded. Try again later.`);
+          break;
+        default:
+          elizaLogger.error(`${context} failed with code ${error.code}:`, error.data);
+      }
+    } else {
+      elizaLogger.error(`${context} failed with unexpected error:`, error);
+    }
+  }
+
+  private async verifyAppAuth(): Promise<void> {
     try {
-      // Always use appOnlyClient for stream rules
-      const rules = await this.appOnlyClient.v2.streamRules();
-      
-      // Clear existing rules
-      if (rules.data?.length) {
-        await this.appOnlyClient.v2.updateStreamRules({
-          delete: { ids: rules.data.map(rule => rule.id) }
-        });
-      }
-
-      // Set new rules using app-only client
-      await this.appOnlyClient.v2.updateStreamRules({
-        add: [
-          { value: `@${this.username}`, tag: 'mentions' }
-        ]
-      });
-
-      elizaLogger.info('Twitter stream rules set successfully');
-    } catch (error: any) {
-      if (error.code === 403 && error.data?.title === 'Unsupported Authentication') {
-        elizaLogger.error('Authentication error: Using app-only client for stream rules');
-      }
+      // Use a simple search query to verify app-only auth
+      await this.appClient.v2.search('test');
+      elizaLogger.success('App-only authentication verified');
+    } catch (error) {
+      this.handleAuthError(error, 'App-only authentication');
       throw error;
     }
   }
 
   async startStream(): Promise<void> {
+    if (!this.config.streamingEnabled) {
+      elizaLogger.warn(`
+        Twitter streaming is not enabled. 
+        To enable streaming functionality, you need:
+        1. Elevated API access level
+        2. App attached to a Project
+        Visit: https://developer.twitter.com/en/portal/projects-and-apps
+      `);
+      return;
+    }
+
     if (this.isStreaming) {
       elizaLogger.warn('Twitter stream is already running');
       return;
@@ -275,12 +199,9 @@ export class TwitterService {
 
     try {
       elizaLogger.info('Starting Twitter stream...');
-
-      // Set up stream rules first
       await this.setupStreamRules();
 
-      // Create stream with app-only client
-      const stream = await this.appOnlyClient.v2.searchStream({
+      const stream = await this.appClient.v2.searchStream({
         'tweet.fields': ['referenced_tweets', 'author_id', 'created_at'],
         'user.fields': ['username'],
         expansions: ['referenced_tweets.id', 'author_id']
@@ -289,95 +210,202 @@ export class TwitterService {
       this.isStreaming = true;
       elizaLogger.success('Twitter stream started successfully');
 
-      stream.on('data', async tweet => {
-        try {
-          // Process incoming tweets
-          await this.handleTweet(tweet);
-        } catch (error) {
-          elizaLogger.error('Error processing tweet:', error);
-        }
-      });
+      stream.on('data', this.handleStreamData.bind(this));
+      stream.on('error', this.handleStreamError.bind(this));
 
-      stream.on('error', error => {
-        elizaLogger.error('Stream error:', error);
-        this.isStreaming = false;
-        // Attempt to restart stream after delay
-        setTimeout(() => this.startStream(), 30000);
-      });
-
-    } catch (error: any) {
-      if (error.data?.reason === 'client-not-enrolled') {
-        elizaLogger.error(`
-          Twitter API access error. Your App must be attached to a Project in the Twitter Developer Portal.
-          Please ensure:
-          1. Your App is attached to a Project
-          2. You have the appropriate level of API access
-          
-          Visit: https://developer.twitter.com/en/docs/projects/overview
+    } catch (error) {
+      // If we get a 403 error, disable streaming
+      if (error instanceof ApiResponseError && error.code === 403) {
+        this.config.streamingEnabled = false;
+        elizaLogger.warn(`
+          Stream setup failed due to insufficient API access.
+          Streaming has been disabled.
+          Basic tweet functionality will continue to work.
         `);
-      } else if (error.code === 429) {
-        elizaLogger.error('Rate limit exceeded. Please try again later.');
-      } else if (error.code === 403 && error.data?.title === 'Unsupported Authentication') {
-        elizaLogger.error(`
-          Unsupported Authentication. Please ensure you are using OAuth 2.0 Application-Only authentication for this endpoint.
-          Visit: https://developer.twitter.com/en/docs/authentication/oauth-2-0
-        `);
+      } else {
+        this.handleStreamSetupError(error);
+        throw error;
       }
-      elizaLogger.error('Error starting stream:', error);
-      this.isStreaming = false;
+    }
+  }
+
+  private async setupStreamRules(): Promise<void> {
+    try {
+      const rules = await this.appClient.v2.streamRules();
+      
+      if (rules.data?.length) {
+        await this.appClient.v2.updateStreamRules({
+          delete: { ids: rules.data.map(rule => rule.id) }
+        });
+      }
+
+      const me = await this.userClient.v2.me();
+      await this.appClient.v2.updateStreamRules({
+        add: [
+          { value: `@${me.data.username}`, tag: 'mentions' }
+        ]
+      });
+
+      elizaLogger.success('Stream rules configured successfully');
+    } catch (error) {
+      elizaLogger.error('Failed to configure stream rules:', error);
       throw error;
     }
   }
 
-  private async handleTweet(tweet: any): Promise<void> {
-    // Don't respond to our own tweets
-    if (tweet.data.author_id === await this.getUserId()) {
-      return;
-    }
-
+  private async handleStreamData(tweet: any): Promise<void> {
     try {
+      if (!this.userId) {
+        const me = await this.userClient.v2.me();
+        this.userId = me.data.id;
+      }
+      
+      if (tweet.data.author_id === this.userId) return;
+
       const response = await this.aiService.generateResponse({
         content: tweet.data.text,
         platform: 'twitter',
         author: tweet.data.author_id,
-        messageId: tweet.data.id // Ensure this property is included in the type definition
+        messageId: tweet.data.id
       });
 
       if (response) {
-        await this.client.v2.reply(response, tweet.data.id);
+        await this.tweet(response, { replyToTweetId: tweet.data.id });
+        elizaLogger.info('Successfully replied to tweet');
       }
     } catch (error) {
-      elizaLogger.error('Error handling tweet:', error);
+      elizaLogger.error('Error processing stream data:', error);
     }
   }
 
-  private async getUserId(): Promise<string> {
-    try {
-      const user = await this.client.v2.userByUsername(this.username);
-      return user.data.id;
-    } catch (error) {
-      elizaLogger.error('Error getting user ID:', error);
-      throw error;
+  private handleStreamError(error: Error): void {
+    elizaLogger.error('Stream error:', error);
+    this.isStreaming = false;
+    
+    setTimeout(() => {
+      if (!this.isStreaming) {
+        this.startStream().catch(e => 
+          elizaLogger.error('Failed to restart stream:', e)
+        );
+      }
+    }, this.config.retryDelay);
+  }
+
+  private handleStreamSetupError(error: unknown): void {
+    if (error instanceof ApiResponseError) {
+      switch (error.code) {
+        case 403:
+          elizaLogger.error(`
+            Stream setup failed: Access forbidden
+            Please ensure your App is configured for all required permissions
+            Visit: https://developer.twitter.com/en/docs/twitter-api/getting-started/about-twitter-api
+          `);
+          break;
+        case 429:
+          elizaLogger.error('Stream setup failed: Rate limit exceeded. Please try again later.');
+          break;
+        default:
+          elizaLogger.error('Stream setup failed:', error);
+      }
+    } else {
+      elizaLogger.error('Unexpected error during stream setup:', error);
     }
+  }
+
+  private shouldRetry(error: unknown, attempt: number): boolean {
+    return (
+      attempt < this.config.maxRetries &&
+      error instanceof ApiResponseError &&
+      (error.rateLimitError || error.code === 429)
+    );
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   async stop(): Promise<void> {
-    try {
-      if (this.isStreaming) {
-        // Clean up rules when stopping
-        const rules = await this.appOnlyClient.v2.streamRules();
-        if (rules.data?.length) {
-          await this.appOnlyClient.v2.updateStreamRules({
-            delete: { ids: rules.data.map(rule => rule.id) }
-          });
+    elizaLogger.info('Twitter service stopped');
+  }
+
+  getTweetCount(): number {
+    return this.getTweetCount();
+  }
+
+  getRemainingTweets(): number {
+    return this.MONTHLY_TWEET_LIMIT - this.getTweetCount();
+  }
+
+  async tweet(content: string, options: TweetOptions = {}): Promise<TweetV2PostTweetResult> {
+    if (this.config.mockMode) {
+      elizaLogger.info('Mock mode - logging tweet:', content);
+      return { data: { id: 'mock_tweet_id', text: content } } as TweetV2PostTweetResult;
+    }
+  
+    await this.validateTweetContent(content);
+    let attempt = 0;
+  
+    while (attempt < this.config.maxRetries) {
+      try {
+        const mediaIds = options.mediaUrls ? await this.uploadMedia(options.mediaUrls) : [];
+  
+        const tweetPayload: SendTweetV2Params = {
+          text: content,
+          ...(mediaIds.length && { media: { media_ids: mediaIds as [string] | [string, string] | [string, string, string] | [string, string, string, string] } }),
+          ...(options.replyToTweetId && { reply: { in_reply_to_tweet_id: options.replyToTweetId } })
+        };
+  
+        const tweet = await this.userClient.v2.tweet(tweetPayload);
+        
+        elizaLogger.success('Tweet posted successfully:', tweet.data.id);
+        return tweet;
+      } catch (error) {
+        attempt++;
+        
+        if (this.shouldRetry(error, attempt)) {
+          await this.delay(this.config.retryDelay * attempt);
+          continue;
+        }
+        
+        elizaLogger.error('Failed to post tweet:', error);
+        throw error;
+      }
+    }
+  
+    throw new Error(`Failed to post tweet after ${this.config.maxRetries} attempts`);
+  }
+  validateTweetContent(content: string) {
+    throw new Error('Method not implemented.');
+  }
+  private async uploadMedia(urls: string[]): Promise<string[]> {
+    const uploadPromises = urls.map(async url => {
+      let attempt = 0;
+      while (attempt < this.config.maxRetries) {
+        try {
+          return await this.userClient.v1.uploadMedia(url);
+        } catch (error) {
+          attempt++;
+          if (this.shouldRetry(error, attempt)) {
+            await this.delay(this.config.retryDelay * attempt);
+            continue;
+          }
+          throw error;
         }
       }
-      
-      this.isStreaming = false;
-      elizaLogger.info('Twitter stream stopped');
-    } catch (error) {
-      elizaLogger.error('Error stopping Twitter service:', error);
-      throw error;
-    }
+      throw new Error(`Failed to upload media ${url} after ${this.config.maxRetries} attempts`);
+    });
+  
+    return Promise.all(uploadPromises);
+  }
+
+  async publishMarketUpdate(data: MarketUpdateData): Promise<void> {
+    const content = `Market Update:
+    - Price: ${data.price}
+    - 24h Volume: ${data.volume24h}
+    - 24h Price Change: ${data.priceChange24h}
+    - Market Cap: ${data.marketCap}
+    - Top Holders: ${data.topHolders.join(', ')}`;
+
+    await this.tweet(content);
   }
 }

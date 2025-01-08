@@ -2,7 +2,7 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { TwitterApi } from 'twitter-api-v2';
 import { Client as DiscordClient, Message } from 'discord.js';
 import Groq from "groq-sdk";
-import { CONFIG } from './config/settings';
+// import { CONFIG } from './config/settings';
 import { config } from 'dotenv';
 import { MemorySaver } from "@langchain/langgraph";
 // Import services
@@ -10,8 +10,8 @@ import { SocialService } from './services/social';
 import { ContentUtils } from './utils/content';
 import { Parser } from './utils/parser';
 import { TradingService } from './services/blockchain/trading';
-import { AIService } from './services/ai';
-import { TwitterService } from './services/social/twitter';
+// import { AIService } from './services/ai';
+// import { TwitterService } from './services/social/twitter';
 
 // Types
 import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext } from './services/blockchain/types';
@@ -365,7 +365,7 @@ class MemeAgentInfluencer {
       // Add new rules using app-only client
       await this.appOnlyClient.v2.updateStreamRules({
         add: [
-          { value: `@${CONFIG.SOCIAL.TWITTER.USERNAME}`, tag: 'mentions' },
+         // { value: `@${CONFIG.SOCIAL.TWITTER.USERNAME}`, tag: 'mentions' },
           { value: CONFIG.SOLANA.TOKEN_SETTINGS.SYMBOL, tag: 'token_mentions' }
         ]
       });
@@ -816,9 +816,13 @@ class MemeAgentInfluencer {
       
       if (!this.twitterService) {
         this.twitterService = new TwitterService({
-          username: process.env.TWITTER_USERNAME!,
-          password: process.env.TWITTER_PASSWORD!,
-          email: process.env.TWITTER_EMAIL!,
+          apiKey: process.env.TWITTER_API_KEY!,
+          apiSecret: process.env.TWITTER_API_SECRET!,
+          accessToken: process.env.TWITTER_ACCESS_TOKEN!,
+          accessSecret: process.env.TWITTER_ACCESS_SECRET!,
+          bearerToken: process.env.TWITTER_BEARER_TOKEN!,
+          oauthClientId: process.env.OAUTH_CLIENT_ID!,
+          oauthClientSecret: process.env.OAUTH_CLIENT_SECRET!,
           mockMode: process.env.TWITTER_MOCK_MODE === 'true',
           maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
           retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
@@ -833,7 +837,7 @@ class MemeAgentInfluencer {
       }
       
       // Use TwitterService's methods instead of direct implementation
-      await this.twitterService.startStream();
+      //await this.twitterService.startStream();
       this.scheduleTwitterContent();
       
       elizaLogger.success('Twitter bot started successfully');
@@ -870,11 +874,16 @@ async function validateWalletBalance(connection: Connection) {
   }
 }
 
+import { config as loadConfig } from 'dotenv';
+import { TwitterService } from './services/social/twitter';
+import { AIService } from './services/ai';
+import { CONFIG } from './config/settings';
+
 async function main() {
   try {
     console.log('Meme Agent Starting...');
     console.log('Loading configuration...');
-    config();
+    loadConfig();
 
     // Log configuration (redact sensitive info)
     console.log('Configuration loaded:', {
@@ -889,45 +898,67 @@ async function main() {
     console.log('Twitter Access Token:', process.env.TWITTER_ACCESS_TOKEN);
     console.log('Twitter Access Secret:', process.env.TWITTER_ACCESS_SECRET);
     console.log('Twitter Bearer Token:', process.env.TWITTER_BEARER_TOKEN);
+    console.log('OAuth Client ID:', process.env.OAUTH_CLIENT_ID);
+    console.log('OAuth Client Secret:', process.env.OAUTH_CLIENT_SECRET);
 
-    // Initialize Solana connection
-    const connection = await initializeSolanaConnection();
+    const aiService = new AIService({
+      groqApiKey: process.env.GROQ_API_KEY!,
+      defaultModel: CONFIG.AI.GROQ.MODEL,
+      maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
+      temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
+    });
+    const twitterService = new TwitterService({
+      apiKey: process.env.TWITTER_API_KEY!,
+      apiSecret: process.env.TWITTER_API_SECRET!,
+      accessToken: process.env.TWITTER_ACCESS_TOKEN!,
+      accessSecret: process.env.TWITTER_ACCESS_SECRET!,
+      bearerToken: process.env.TWITTER_BEARER_TOKEN!,
+      oauthClientId: process.env.OAUTH_CLIENT_ID!,
+      oauthClientSecret: process.env.OAUTH_CLIENT_SECRET!,
+      mockMode: process.env.TWITTER_MOCK_MODE === 'true',
+      maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
+      retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
+      contentRules: {
+        maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
+        maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
+        minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
+      },
+      streamingEnabled: process.env.TWITTER_STREAMING_ENABLED === 'true'
+    }, aiService);
 
-    // Check wallet balance
-    await validateWalletBalance(connection);
+    await twitterService.initialize();
 
-    // Create and initialize the MemeAgentInfluencer
-    const agent = new MemeAgentInfluencer();
-    await agent.verifyAndInitialize();
-    
-    // Start Twitter bot functionality
-    await agent.startTwitterBot();
-    
-    elizaLogger.success('MemeAgent fully initialized and running!');
-
-    // Handle shutdown gracefully
-    process.on('SIGINT', async () => {
-      elizaLogger.info('Shutting down MemeAgent...');
-      await agent.shutdown();
-      process.exit(0);
+    // Example call to publishMarketUpdate
+    await twitterService.publishMarketUpdate({
+      price: 123.45,
+      volume24h: 67890,
+      priceChange24h: 1.23,
+      marketCap: 987654321,
+      topHolders: ['Holder1', 'Holder2']
     });
 
-    process.on('SIGTERM', async () => {
-      elizaLogger.info('Shutting down MemeAgent...');
-      await agent.shutdown();
-      process.exit(0);
+    console.log('MemeAgent fully initialized and running!');
+
+    console.log("2. auto    - Autonomous action mode");
+
+    const choice = await new Promise<string>(resolve => {
+      process.stdout.write("\nChoose a mode (enter number or name): ");
+      process.stdin.once('data', data => resolve(data.toString().trim().toLowerCase()));
     });
 
+    if (choice === "1" || choice === "chat") {
+      return "chat";
+    } else if (choice === "2" || choice === "auto") {
+      return "auto";
+    }
+    console.log("Invalid choice. Please try again.");
   } catch (error) {
-    console.error('Fatal error during initialization:', error);
-    process.exit(1);
+    console.error('Error during initialization:', error);
+    throw error;
   }
 }
 
-main().catch((error) => {
-  console.error('Fatal error:', error);
-  process.exit(1);
-});
+main();
 
 const agent = new MemeAgentInfluencer();
 agent.main().catch(error => {

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
+import { TwitterApi } from 'twitter-api-v2';
 import { AIService } from '../ai/ai.js';
-import { AgentTwitterClientService } from './agentTwitterClient.js';
 import { SentimentAnalyzer } from './analytics/sentiment.js';
 import { ContentStrategy } from '../../personality/strategies/contentStrategy.js';
 import { Platform } from '../../personality/traits/responsePatterns.js';
@@ -17,7 +17,7 @@ export class CommunityEngagementService extends EventEmitter {
   private lastEngagement: number = Date.now();
 
   constructor(
-    private readonly twitterClient: AgentTwitterClientService,
+    private readonly twitterClient: TwitterApi,
     private readonly aiService: AIService,
     private readonly contentStrategy: ContentStrategy
   ) {
@@ -48,7 +48,7 @@ export class CommunityEngagementService extends EventEmitter {
         });
 
         // Post engagement content
-        await this.twitterClient.postTweet(content);
+        await this.twitterClient.v2.tweet(content);
 
         // Update metrics
         this.emit('engagement', {
@@ -102,8 +102,8 @@ export class CommunityEngagementService extends EventEmitter {
 
   private async getFollowerCount(): Promise<number> {
     try {
-      const profile = await this.twitterClient.getProfile(CONFIG.SOCIAL.TWITTER.USERNAME);
-      return profile?.followers_count || 0;
+      const { data } = await this.twitterClient.v2.me();
+      return data.public_metrics ? data.public_metrics.followers_count ?? 0 : 0;
     } catch (error) {
       console.error('Error getting follower count:', error);
       return 0;

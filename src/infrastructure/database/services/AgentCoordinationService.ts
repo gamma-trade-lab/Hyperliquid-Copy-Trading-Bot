@@ -113,7 +113,7 @@ export class AgentCoordinationService {
       
       setInterval(async () => {     
         try {
-          await this.twitterService?.publishMarketUpdate(MarketAction.PRICE_UPDATE, {
+          await this.twitterService?.publishMarketUpdate({
             price: 0,
             volume24h: 0,
             priceChange24h: 0,

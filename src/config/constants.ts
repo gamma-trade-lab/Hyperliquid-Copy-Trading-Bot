@@ -30,7 +30,8 @@ export enum MarketAction {
     PRICE_UPDATE = 'price_update',
     VOLUME_UPDATE = 'volume_update',
     MARKET_ALERT = 'market_alert',
-    TREND_UPDATE = 'trend_update'
+    TREND_UPDATE = 'trend_update',
+    UPDATE = "UPDATE"
 }
 
 export enum MarketCondition {

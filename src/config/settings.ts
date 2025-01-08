@@ -14,7 +14,10 @@ const requiredEnvVars = [
     'SOLANA_PRIVATE_KEY',
     'GROQ_API_KEY',
     'TWITTER_API_KEY',
-    'DISCORD_TOKEN'
+    'TWITTER_API_SECRET',
+    'TWITTER_ACCESS_TOKEN',
+    'TWITTER_ACCESS_SECRET',
+    'TWITTER_BEARER_TOKEN'
 ];
 
 requiredEnvVars.forEach((envVar) => {
@@ -71,7 +74,7 @@ export const CONFIG = {
     // Social Media Settings
     SOCIAL: {
         TWITTER: {
-            USERNAME: process.env.TWITTER_USERNAME || '',
+            //USERNAME: process.env.TWITTER_USERNAME || '',
             tokens: {
                 appKey: process.env.TWITTER_API_KEY || '',
                 appSecret: process.env.TWITTER_API_SECRET || '',
@@ -223,9 +226,9 @@ function validateConfig() {
     }
 
     // Validate social media settings
-    if (!CONFIG.SOCIAL.TWITTER.USERNAME) {
-        throw new Error('Invalid Twitter username.');
-    }
+    //if (!CONFIG.SOCIAL.TWITTER.USERNAME) {
+    //    throw new Error('Invalid Twitter username.');
+    //}
     if (!CONFIG.SOCIAL.DISCORD.GUILD_ID) {
         throw new Error('Invalid Discord guild ID.');
     }
@@ -269,3 +272,5 @@ function validateConfig() {
         }
     }
 }
+
+

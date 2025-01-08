@@ -213,7 +213,7 @@ export class PostQueue extends EventEmitter {
         // Post to appropriate platform
         switch (post.platform) {
           case 'twitter':
-            await this.twitterService.tweet(content);
+            this.twitterService.tweet(content, { replyToTweetId: undefined });
             break;
           default:
             throw new Error(`Unsupported platform: ${post.platform}`);
