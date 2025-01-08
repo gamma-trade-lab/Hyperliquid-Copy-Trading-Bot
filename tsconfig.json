@@ -9,7 +9,6 @@
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true,
     "declaration": true,
     "sourceMap": true,
     "allowJs": true,

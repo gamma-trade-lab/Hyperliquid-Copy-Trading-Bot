@@ -20,7 +20,7 @@ declare global {
 export const authenticate = (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {     
       throw new AppError(401, 'No token provided');
     }
 

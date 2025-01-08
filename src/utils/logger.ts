@@ -1,5 +1,5 @@
 import winston from 'winston';
-import 'winston-daily-rotate-file';
+import DailyRotateFile from 'winston-daily-rotate-file';
 import path from 'path';
 
 const logDir = 'logs';
@@ -20,7 +20,7 @@ export class Logger {
       ),
       defaultMeta: { service },
       transports: [
-        new winston.transports.DailyRotateFile({
+        new DailyRotateFile({
           filename: path.join(logDir, 'error-%DATE%.log'),
           datePattern: 'YYYY-MM-DD',
           level: 'error',

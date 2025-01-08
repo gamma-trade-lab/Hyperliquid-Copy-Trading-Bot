@@ -6,7 +6,7 @@ import { PostgresDataSource } from '../postgresql.config.js';
 import { Repository } from 'typeorm';
 import { ChatLog } from '../schemas/ChatLog.schema.js';
 import { AnalysisResult } from '../schemas/AnalysisResult.schema.js';
-import { TwitterService, TwitterConfig } from '../../../services/social/twitter.js';
+import { TwitterService } from '../../../services/social/twitter.js';
 import { IAIService } from '../../../services/ai/types.js';
 import { Logger } from '../../../utils/logger.js';
 import { MarketAction } from '../../../config/constants.js';
@@ -111,7 +111,7 @@ export class AgentCoordinationService {
       // Start market monitoring and posting if Twitter is available
       const MARKET_MONITORING_INTERVAL = parseInt(process.env.MARKET_MONITORING_INTERVAL || '60000');
       
-      setInterval(async () => {
+      setInterval(async () => {     
         try {
           await this.twitterService?.publishMarketUpdate(MarketAction.PRICE_UPDATE, {
             price: 0,

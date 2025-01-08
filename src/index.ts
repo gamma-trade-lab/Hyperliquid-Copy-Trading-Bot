@@ -29,20 +29,28 @@ interface ExtendedAgentRuntime extends IAgentRuntime {
     llm: Groq;
 }
 
+// Add interfaces
+interface MarketData {
+  price: number;
+  volume24h: number;
+  marketCap: number;
+  // Add other market data properties as needed
+}
+
 class MemeAgentInfluencer {
-  private connection: Connection;
-  private groq: Groq;
-  private twitter: TwitterApi;
-  private discord: DiscordClient;
-  private aiService: AIService;
-  private socialService: SocialService;
-  private tradingService: TradingService;
-  private twitterService: TwitterService;
+  private connection!: Connection;
+  private groq!: Groq;
+  private twitter!: TwitterApi;
+  private discord!: DiscordClient;
+  private aiService!: AIService;
+  private socialService!: SocialService;
+  private tradingService!: TradingService;
+  private twitterService!: TwitterService;
   private tokenAddress: string;
   private isInitialized: boolean;
-  private twitterClient: TwitterApi;  // Add separate client for app-only auth
-  private appOnlyClient: TwitterApi;
-  private runtime: ExtendedAgentRuntime;
+  private twitterClient!: TwitterApi;  // Add separate client for app-only auth
+  private appOnlyClient!: TwitterApi;
+  private runtime!: ExtendedAgentRuntime;
 
   constructor() {
     // Minimal initialization in constructor
@@ -111,7 +119,7 @@ class MemeAgentInfluencer {
       const version = await this.connection.getVersion();
       console.log('Solana connection established:', version);
 
-      const publicKey = new PublicKey(CONFIG.SOLANA.PUBKEY);
+      const publicKey = new PublicKey(CONFIG.SOLANA.PUBLIC_KEY);
       const balance = await this.connection.getBalance(publicKey);
       console.log('Wallet balance:', balance / 1e9, 'SOL');
 
@@ -419,6 +427,7 @@ class MemeAgentInfluencer {
     await this.setupTwitterStream();
   }
 
+  // Fix the startAutomation method
   private async startAutomation(): Promise<void> {
     await Promise.all([
       this.startContentGeneration(),
@@ -426,22 +435,36 @@ class MemeAgentInfluencer {
       this.startCommunityEngagement()
     ]);
 
-    // Schedule periodic AI tweets
-    const tweetChain = Array.isArray(mainCharacter.settings.chains) ? mainCharacter.settings.chains.find(chain => chain.type === 'tweet' && chain.enabled) : undefined;
-    const tweetInterval = tweetChain?.config?.interval ?? 1800000; // Default to 30 minutes
+    // Add type check for mainCharacter.settings
+    if (!mainCharacter.settings?.chains) {
+      elizaLogger.warn('No tweet chains configured, using default interval');
+      const defaultInterval = 1800000; // 30 minutes
+      this.scheduleTweets(defaultInterval);
+      return;
+    }
 
+    const tweetChain = Array.isArray(mainCharacter.settings.chains) 
+      ? mainCharacter.settings.chains.find(chain => chain.type === 'tweet' && chain.enabled) 
+      : mainCharacter.settings.chains.twitter?.[0];
+      
+    const tweetInterval = tweetChain?.interval ?? 1800000;
+    this.scheduleTweets(tweetInterval);
+  }
+
+  // Add helper method for tweet scheduling
+  private scheduleTweets(interval: number): void {
     setInterval(async () => {
       try {
         const marketData = await this.tradingService.getMarketData(this.tokenAddress);
         await this.postAITweet({
           topic: CONFIG.SOLANA.TOKEN_SETTINGS.SYMBOL,
-          price: marketData.price,
-          volume: marketData.volume24h
+          price: marketData.price.toString(), // Convert to string
+          volume: marketData.volume24h.toString() // Convert to string
         });
       } catch (error) {
         elizaLogger.error('Error in automated tweet generation:', error);
       }
-    }, tweetInterval);
+    }, interval);
   }
 
   private async startContentGeneration(): Promise<void> {
@@ -510,7 +533,7 @@ class MemeAgentInfluencer {
 
   private async analyzeMarket(): Promise<MarketAnalysis> {
     const metrics = await this.tradingService.getMarketData(this.tokenAddress);
-    const aiAnalysis = await this.aiService.analyzeMarket(metrics);
+    const aiAnalysis = await this.aiService.analyzeMarket(this.tokenAddress);
     
     // Return a properly formatted MarketAnalysis object
     return {
@@ -745,7 +768,11 @@ class MemeAgentInfluencer {
             temperature: 0.7
         });
 
-        return response.choices[0].message.content.trim();
+        const message = response.choices[0]?.message?.content;
+        if (!message) {
+            throw new Error('Failed to generate tweet content');
+        }
+        return message.trim();
     } catch (error) {
         elizaLogger.error('Error generating tweet content:', error);
         throw error;
@@ -820,7 +847,7 @@ async function initializeSolanaConnection() {
 async function validateWalletBalance(connection: Connection) {
   console.log('Checking wallet balance...');
   try {
-    const publicKey = new PublicKey(CONFIG.SOLANA.PUBKEY);
+    const publicKey = new PublicKey(CONFIG.SOLANA.PUBLIC_KEY);
     const balance = await connection.getBalance(publicKey);
     console.log('Wallet balance:', balance / 1e9, 'SOL');
     return balance;
@@ -840,7 +867,7 @@ async function main() {
     console.log('Configuration loaded:', {
       network: CONFIG.SOLANA.NETWORK,
       rpcUrl: CONFIG.SOLANA.RPC_URL,
-      pubkey: CONFIG.SOLANA.PUBKEY
+      pubkey: CONFIG.SOLANA.PUBLIC_KEY
     });
 
     // Log environment variables to verify they are loaded correctly

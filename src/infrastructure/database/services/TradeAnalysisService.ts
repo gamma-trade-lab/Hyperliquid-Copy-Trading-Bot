@@ -168,10 +168,10 @@ export class TradeAnalysisService {
         // Execute trade using Jupiter
         const exchange = await this.jupiter.exchange({
           routeInfo: analysis.route as unknown as RouteInfo,
-          userPublicKey: new PublicKey(config.solana.traderAddress)
+          userPublicKey: new PublicKey(config.SOLANA.PUBLIC_KEY)
         });
         
-        // Execute the swap
+        // Execute the swap 
         const swapResult = await exchange.execute();
         const txid = typeof swapResult === 'object' && 'txid' in swapResult ? swapResult.txid : '';
 

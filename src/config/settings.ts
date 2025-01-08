@@ -38,7 +38,7 @@ export const CONFIG = {
         NETWORK: getRequiredEnvVar('NETWORK_TYPE', 'devnet') as NetworkType,
         RPC_URL: getRequiredEnvVar('RPC_ENDPOINT', 'https://api.devnet.solana.com'),
         PRIVATE_KEY: getRequiredEnvVar('SOLANA_PRIVATE_KEY'),
-        PUBKEY: getRequiredEnvVar('SOLANA_PUBLIC_KEY'), // Changed from SOLANA_PUBKEY
+        PUBLIC_KEY: getRequiredEnvVar('SOLANA_PUBLIC_KEY'), // Changed from SOLANA_PUBKEY
         TOKEN_SETTINGS: {
             NAME: getRequiredEnvVar('TOKEN_NAME', 'Meme Token'),
             SYMBOL: getRequiredEnvVar('TOKEN_SYMBOL', 'MEME'),
@@ -176,7 +176,7 @@ function validateConfig() {
 
     // Validate Solana public key
     try {
-        new PublicKey(CONFIG.SOLANA.PUBKEY);
+        new PublicKey(CONFIG.SOLANA.PUBLIC_KEY);
     } catch (error) {
         throw new Error('Invalid Solana public key format.');
     }

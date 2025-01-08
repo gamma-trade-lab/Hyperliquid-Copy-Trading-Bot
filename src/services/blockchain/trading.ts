@@ -39,7 +39,7 @@ export class TradingService {
     }
   }
 
-  async getMarketData(): Promise<MarketData> {
+  async getMarketData(tokenAddress: string): Promise<MarketData> {
     try {
       // TODO: Implement real market data fetching
       return {
