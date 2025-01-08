@@ -11,8 +11,8 @@ describe('TwitterCookieAuth', () => {
   beforeEach(() => {
     // Mock environment variables
     process.env.twitter_username = 'test_user';
-    process.env.twitter_password = 'test_pass';
-    process.env.twitter_email = 'test@example.com';
+    process.env.twitter_password = 'placeholder_password';
+    process.env.twitter_email = 'placeholder@example.test';
     auth = new TwitterCookieAuth();
   });
 

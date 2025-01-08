@@ -102,7 +102,7 @@ export class CommunityEngagementService extends EventEmitter {
 
   private async getFollowerCount(): Promise<number> {
     try {
-      const profile = await this.twitterClient.getProfile(CONFIG.SOCIAL.TWITTER.username);
+      const profile = await this.twitterClient.getProfile(CONFIG.SOCIAL.TWITTER.USERNAME);
       return profile?.followers_count || 0;
     } catch (error) {
       console.error('Error getting follower count:', error);

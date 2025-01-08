@@ -12,9 +12,9 @@ const PROVIDER_CONFIG = {
     DEFAULT_RPC: "https://api.mainnet-beta.solana.com",
     GRAPHQL_ENDPOINT: "https://graph.codex.io/graphql",
     TOKEN_ADDRESSES: {
-        SOL: "So11111111111111111111111111111111111111112",
-        BTC: "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh",
-        ETH: "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs",
+        SOL: process.env.SOL_ADDRESS || "So11111111111111111111111111111111111111112",
+        BTC: process.env.BTC_ADDRESS,
+        ETH: process.env.ETH_ADDRESS,
     },
 };
 

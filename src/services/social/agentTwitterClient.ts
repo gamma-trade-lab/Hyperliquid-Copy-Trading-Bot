@@ -20,11 +20,7 @@ export class AgentTwitterClientService {
     // Remove @ from username if present
     this.username = this.username.startsWith('@') ? this.username.substring(1) : this.username;
     
-    console.log('Twitter client configured with:', {
-      username: this.username,
-      hasPassword: !!this.password,
-      hasEmail: !!this.email
-    });
+    console.log('Twitter client configuration loaded');
   }
 
   private getSanitizedUsername(): string {
@@ -68,7 +64,7 @@ export class AgentTwitterClientService {
         // Always wait before attempting login to avoid rate limits
         await new Promise(resolve => setTimeout(resolve, 15000));
 
-        console.log(`Attempting login with username: ${this.getSanitizedUsername()}`);
+        console.log('Attempting Twitter authentication...');
         
         // Try to use existing session first
         const existingCookies = await this.loadCookies();
@@ -177,11 +173,7 @@ export class AgentTwitterClientService {
       await this.startStream();
       
       this.isInitialized = true;
-      console.log('Twitter client initialized successfully', {
-        username: this.username,
-        isAuthenticated: true,
-        streamActive: true
-      });
+      console.log('Twitter client initialized successfully');
     } catch (error) {
       console.error('Failed to initialize Twitter client:', {
         error: error instanceof Error ? error.message : 'Unknown error',

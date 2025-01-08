@@ -21,8 +21,8 @@ export class DataProcessor {
   private lastErrorTime: number = 0;
 
   constructor() {
-    // Use provided Redis cloud credentials
-    const redisUrl = 'redis://:pWFdJwcx9YpojFdQxoCXzGOjMbAvtRwc@redis-17909.c74.us-east-1-4.ec2.redns.redis-cloud.com:17909/0';
+    // Use Redis configuration from environment
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
     this.redis = new Redis(redisUrl, {
       retryStrategy: (times: number) => {
         const delay = Math.min(times * 50, 2000);
