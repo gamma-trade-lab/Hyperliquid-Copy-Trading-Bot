@@ -3,7 +3,6 @@
 import { PublicKey } from '@solana/web3.js';
 import * as dotenv from 'dotenv';
 import { NetworkType } from './constants';
-import bs58 from 'bs58';
 import { validateSolanaConfig } from '../utils/solana-validator';
 
 // Load environment variables
@@ -18,11 +17,11 @@ const requiredEnvVars = [
     'DISCORD_TOKEN'
 ];
 
-for (const envVar of requiredEnvVars) {
-    if (!process.env[envVar]) {
-        throw new Error(`Missing required environment variable: ${envVar}`);
-    }
-}
+requiredEnvVars.forEach((envVar) => {
+  if (!process.env[envVar]) {
+    throw new Error(`Missing required environment variable: ${envVar}`);
+  }
+});
 
 function getRequiredEnvVar(key: string, defaultValue?: string): string {
     const value = process.env[key];
@@ -35,20 +34,24 @@ function getRequiredEnvVar(key: string, defaultValue?: string): string {
 export const CONFIG = {
     // Blockchain Settings
     SOLANA: {
-        NETWORK: getRequiredEnvVar('NETWORK_TYPE', 'devnet') as NetworkType,
-        RPC_URL: getRequiredEnvVar('RPC_ENDPOINT', 'https://api.devnet.solana.com'),
-        PRIVATE_KEY: getRequiredEnvVar('SOLANA_PRIVATE_KEY'),
-        PUBLIC_KEY: getRequiredEnvVar('SOLANA_PUBLIC_KEY'), // Changed from SOLANA_PUBKEY
+        NETWORK: process.env.SOLANA_NETWORK as NetworkType,
+        RPC_URL: process.env.SOLANA_RPC_URL || '',
+        PRIVATE_KEY: process.env.SOLANA_PRIVATE_KEY || '',
+        PUBLIC_KEY: process.env.SOLANA_PUBLIC_KEY || '',
         TOKEN_SETTINGS: {
-            NAME: getRequiredEnvVar('TOKEN_NAME', 'Meme Token'),
-            SYMBOL: getRequiredEnvVar('TOKEN_SYMBOL', 'MEME'),
-            DECIMALS: parseInt(getRequiredEnvVar('TOKEN_DECIMALS', '9')),
-            METADATA: JSON.parse(getRequiredEnvVar('TOKEN_METADATA', '{"description":"Meme Token for Testing"}'))
+            NAME: 'Token Name',
+            SYMBOL: 'TKN',
+            DECIMALS: 9,
+            METADATA: {}
         },
         TRADING: {
-            BASE_AMOUNT: parseFloat(getRequiredEnvVar('TRADING_BASE_AMOUNT', '0.1')),
-            MIN_CONFIDENCE: parseFloat(getRequiredEnvVar('TRADING_MIN_CONFIDENCE', '0.7')),
-            SLIPPAGE: parseFloat(getRequiredEnvVar('TRADING_SLIPPAGE', '0.01'))
+            BASE_AMOUNT: parseFloat(process.env.TRADING_BASE_AMOUNT || '0.1'),
+            MIN_CONFIDENCE: parseFloat(process.env.TRADING_MIN_CONFIDENCE || '0.7'),
+            SLIPPAGE: parseFloat(process.env.TRADING_SLIPPAGE || '0.01')
+        },
+        helius: {
+            API_KEY: process.env.HELIUS_API_KEY || '',
+            BASE_URL: process.env.HELIUS_BASE_URL || 'https://api.helius.xyz'
         }
     },
 
@@ -118,6 +121,11 @@ export const CONFIG = {
         INITIAL_LIQUIDITY: 1000,
         SLIPPAGE_BPS: 50,
         PRIORITY_FEE: 0.001
+    },
+
+    security: {
+        jwtSecret: process.env.JWT_SECRET || 'your-default-secret-key',
+        jwtExpiration: process.env.JWT_EXPIRATION || '24h',
     }
 } as const;
 
@@ -140,6 +148,10 @@ export type SolanaConfig = typeof CONFIG.SOLANA;
 export type AIConfig = typeof CONFIG.AI;
 export type SocialConfig = typeof CONFIG.SOCIAL;
 export type MarketConfig = typeof CONFIG.MARKET;
+export interface SecurityConfig {
+  jwtSecret: string;
+  jwtExpiration: string;
+}
 
 // Validation helper
 function isValidPrivateKey(key: string): boolean {

@@ -1,6 +1,8 @@
 import { TwitterApi, ApiResponseError, TweetV2PostTweetResult, SendTweetV2Params } from 'twitter-api-v2';
 import { AIService } from '../ai';
 import { elizaLogger } from "@ai16z/eliza";
+import { MarketAction } from '@/config/constants';
+import { MarketData } from '@/types/market';
 
 interface TwitterConfig {
   username: string;
@@ -34,6 +36,33 @@ export class TwitterService {
   private username: string;
   private isStreaming: boolean = false;
   private config: TwitterServiceConfig;
+  logger: any;
+  async publishMarketUpdate(action: MarketAction, data: MarketData): Promise<void> {
+    try {
+      // Format the market data into a tweet
+      const tweet = this.formatMarketUpdate(action, data);
+      
+      // Post the tweet
+      await this.postTweet(tweet);
+    } catch (error) {
+      this.logger.error('Failed to publish market update:', error);
+      throw error;
+    }
+  }
+  postTweet(tweet: string) {
+    throw new Error('Method not implemented.');
+  }
+
+  private formatMarketUpdate(action: MarketAction, data: MarketData): string {
+    const priceFormatted = data.price.toFixed(4);
+    const changeFormatted = data.priceChange24h.toFixed(2);
+    const volumeFormatted = (data.volume24h / 1000000).toFixed(2);
+
+    return `${action === MarketAction.PRICE_UPDATE ? '📊' : '📈'} Market Update:\n` +
+      `Price: $${priceFormatted}\n` +
+      `24h Change: ${changeFormatted}%\n` +
+      `Volume: $${volumeFormatted}M`;
+  }
 
   constructor(config: TwitterConfig, aiService: AIService) {
     // Initialize with direct authentication

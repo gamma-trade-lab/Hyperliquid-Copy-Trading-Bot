@@ -158,11 +158,15 @@ class MemeAgentInfluencer {
 
   public async verifyAndInitialize(): Promise<void> {
     try {
-      const config = {
+      const twitterConfig = {
         username: process.env.TWITTER_USERNAME!,
         password: process.env.TWITTER_PASSWORD!,
         email: process.env.TWITTER_EMAIL!,
-        mockMode: process.env.TWITTER_MOCK_MODE === 'true',
+        apiKey: process.env.TWITTER_API_KEY!,
+        apiSecret: process.env.TWITTER_API_SECRET!,
+        accessToken: process.env.TWITTER_ACCESS_TOKEN!,
+        accessSecret: process.env.TWITTER_ACCESS_SECRET!,
+        bearerToken: process.env.TWITTER_BEARER_TOKEN!,
         maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
         retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
         contentRules: {
@@ -171,33 +175,42 @@ class MemeAgentInfluencer {
           minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
         }
       };
-
-      // Validate Twitter credentials
-      Object.entries(config).forEach(([key, value]) => {
-        if (!value) {
-          throw new Error(`Missing Twitter credential: ${key}`);
+  
+      // Validate all required credentials
+      const requiredCredentials = [
+        'username', 'password', 'email', 
+        'apiKey', 'apiSecret', 
+        'accessToken', 'accessSecret', 
+        'bearerToken'
+      ];
+  
+      (requiredCredentials as Array<keyof typeof twitterConfig>).forEach((key) => {
+        if (!twitterConfig[key]) {
+          throw new Error(`Missing required Twitter credential: ${key}`);
         }
       });
-
-      // Initialize Twitter service with direct authentication
-      this.twitter = new TwitterApi();
-      this.appOnlyClient = this.twitter; // Same client for both in direct auth
+  
+      // Initialize Twitter clients with credentials
+      this.twitter = new TwitterApi({
+        appKey: twitterConfig.apiKey,
+        appSecret: twitterConfig.apiSecret,
+        accessToken: twitterConfig.accessToken,
+        accessSecret: twitterConfig.accessSecret
+      });
+  
+      // Initialize app-only client for streams
+      this.appOnlyClient = new TwitterApi(twitterConfig.bearerToken);
       this.twitterClient = this.twitter;
-
-      // Verify user credentials using user context client
-      const me = await this.twitter.v2.me();
-      elizaLogger.success(`Twitter credentials verified for @${me.data.username}`);
-
-      // Verify app-only credentials
-      await this.appOnlyClient.v2.tweets(['1']); // Simple test request
-      elizaLogger.success('App-only authentication verified');
-
+  
+      // Verify credentials
+      await this.verifyTwitterCredentials();
+      elizaLogger.success('Twitter authentication successful');
+  
     } catch (error) {
       elizaLogger.error('Twitter authentication error:', error);
       throw new Error('Failed to initialize Twitter: ' + (error as Error).message);
     }
   }
-
   private async setupTwitterStream(): Promise<void> {
     try {
       if (!this.appOnlyClient) {

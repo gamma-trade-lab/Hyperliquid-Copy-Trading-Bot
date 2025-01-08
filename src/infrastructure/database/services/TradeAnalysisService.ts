@@ -5,7 +5,7 @@ import { RedisService } from './RedisService.js';
 import { TradeAnalysis, ITradeAnalysis } from '../schemas/TradeAnalysis.schema.js';
 import { Logger } from '../../../utils/logger.js';
 const logger = new Logger('TradeAnalysisService');
-import config from '../../../config/settings.js';
+import  CONFIG  from '../../../config/settings.js';
 
 interface HeliusAssetResponse {
   content?: {
@@ -46,9 +46,14 @@ export class TradeAnalysisService {
   private redisService: RedisService;
   private jupiter!: Jupiter;
   private helius: Helius;
+  private heliusApiKey: string;
+  private heliusBaseUrl: string;
+
   private constructor() {
     this.redisService = RedisService.getInstance();
-    this.helius = new Helius(config.helius.apiKey);
+    this.helius = new Helius(CONFIG.SOLANA.helius.API_KEY);
+    this.heliusApiKey = CONFIG.SOLANA.helius.API_KEY;
+    this.heliusBaseUrl = CONFIG.SOLANA.helius.BASE_URL;
   }
 
   public static getInstance(): TradeAnalysisService {
@@ -168,7 +173,7 @@ export class TradeAnalysisService {
         // Execute trade using Jupiter
         const exchange = await this.jupiter.exchange({
           routeInfo: analysis.route as unknown as RouteInfo,
-          userPublicKey: new PublicKey(config.SOLANA.PUBLIC_KEY)
+          userPublicKey: new PublicKey(CONFIG.SOLANA.PUBLIC_KEY)
         });
         
         // Execute the swap 
@@ -322,4 +327,11 @@ export class TradeAnalysisService {
     if (avgVolatility > 20) return 'MODERATELY_VOLATILE';
     return 'STABLE';
   }
-}                                                              
+
+  async analyzeTrades() {
+    // Use heliusApiKey and heliusBaseUrl for trade analysis
+    console.log(`Using Helius API Key: ${this.heliusApiKey}`);
+    console.log(`Using Helius Base URL: ${this.heliusBaseUrl}`);
+    
+  }
+}

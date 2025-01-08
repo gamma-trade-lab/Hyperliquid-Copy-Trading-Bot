@@ -1,0 +1,577 @@
+[33mcommit 3ca918f94da26b64318619812ecd3ff05865a64a[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Wed Jan 8 09:22:24 2025 +0000
+
+    security: remove sensitive information and improve configuration\n\n- Remove hardcoded credentials\n- Update configuration to use environment variables\n- Clean up sensitive information\n- Improve security practices
+    
+    Co-Authored-By: Leon zhao <leonchiuchikwan@gmail.com>
+
+[33mcommit e1324fdb3e53e777ce373d7310565c1b87e39e0a[m
+Merge: b85d95e 3e50d1d
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Wed Jan 8 08:54:31 2025 +0000
+
+    Merge branch 'devin/1736278518-merge-main'
+
+[33mcommit 3e50d1dbc398cbd89834cf0869cdaeb2dcb23d88[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Wed Jan 8 02:39:21 2025 +0000
+
+    chore: clean up sensitive information and update Twitter API v2 integration
+    
+    Co-Authored-By: Leon zhao <leonchiuchikwan@gmail.com>
+
+[33mcommit c87608c3c0313bbf1bd0fda7a950d38a1ef54e56[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Wed Jan 8 02:25:10 2025 +0000
+
+    chore: update gitignore to prevent committing sensitive env files
+    
+    Co-Authored-By: Leon zhao <leonchiuchikwan@gmail.com>
+
+[33mcommit 05b1f7206a9a16c7da57674057ce4df390a0deaf[m
+Merge: 93fc5b2 b85d95e
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Wed Jan 8 02:00:19 2025 +0000
+
+    chore: resolve merge conflicts and update Twitter API v2 configuration
+    
+    Co-Authored-By: Leon zhao <leonchiuchikwan@gmail.com>
+
+[33mcommit 99fdb8528cf1a7d8441435e4fa10a12cce68b00e[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Tue Jan 7 20:58:02 2025 +0000
+
+    feat: migrate to Twitter API v2 and update docs
+    
+    - Replace OAuth tokens with direct authentication
+    - Add mock mode and retry configuration
+    - Implement content validation rules
+    - Update documentation with Twitter v2 setup
+    - Add troubleshooting guide for common issues
+    
+    Co-Authored-By: Leon zhao <leonchiuchikwan@gmail.com>
+
+[33mcommit 93fc5b27ea2f3982add2a810de4d1435321bf8d4[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Tue Jan 7 20:03:56 2025 +0000
+
+    docs: enhance Twitter integration documentation
+    
+    - Add comprehensive Twitter authentication guide
+    - Document elizaOS pattern implementation
+    - Update environment configuration examples
+    - Add troubleshooting for common Twitter issues
+    - Include mock mode and testing instructions
+    - Document content generation rules and spam prevention
+    
+    Co-Authored-By: Leon zhao <leonchiuchikwan@gmail.com>
+
+[33mcommit 64b7b0ab3f6c2a3437ad4f7b0cbec4b9fc03ba2a[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Tue Jan 7 19:39:45 2025 +0000
+
+    docs: update documentation and improve Twitter integration
+    
+    - Update README.md with detailed setup instructions
+    - Add TROUBLESHOOTING.md for common issues
+    - Update TECHFEATURE.md with technical details
+    - Improve Twitter service implementation
+    - Enhance test coverage and ESM compatibility
+    - Update environment configuration examples
+    
+    Co-Authored-By: Leon zhao <leonchiuchikwan@gmail.com>
+
+[33mcommit c99303acf4f001eac3a834575d7994abf21579e0[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Tue Jan 7 15:31:14 2025 +0000
+
+    Fix TypeScript and ESM module configuration
+    
+    - Add .js extensions to import statements
+    - Update type declarations for better type safety
+    - Fix SPL token module imports and types
+    - Improve module resolution in tsconfig.json
+    - Update package dependencies
+    - Add type declarations for external modules
+    
+    Co-Authored-By: Leon zhao <leonchiuchikwan@gmail.com>
+
+[33mcommit ba662f0dbc9b2b0b96b20edb74fe65b0aa4dfe22[m
+Merge: b061034 86da89d
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Tue Jan 7 00:38:53 2025 +0000
+
+    feat: integrate Helius and Jupiter market data with proper Redis caching
+
+[33mcommit b0610341e570d33d358c481cdb6e0cc6e0a97e7b[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 23:03:04 2025 +0000
+
+    feat: add Twitter auth delay settings and improve market data processing
+
+[33mcommit 9a9a0c250ad8eaf2199a7e42ea59c7aab67a4b18[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 21:35:40 2025 +0000
+
+    feat: implement Jupiter Price API V2 service with Redis caching
+
+[33mcommit 3a9bd6be6de6d7f52d54ef33f18a8b5bc8e400e7[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 20:56:29 2025 +0000
+
+    fix: improve Twitter authentication handling for ACID challenges
+
+[33mcommit 857435ab4c7276225797609811182856923a4c74[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 20:46:25 2025 +0000
+
+    fix: update Redis configuration to use URL format with proper authentication
+
+[33mcommit b6123063504e7e8a36eef06f68e2dc0915fbd646[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 20:21:51 2025 +0000
+
+    feat: integrate Helius and Jupiter APIs for AI content generation
+    
+    - Enhanced market data integration with Jupiter Price API V2
+    - Added content sanitization to remove emojis and hashtags
+    - Improved tweet length handling with sentence-aware truncation
+    - Updated AI prompts for professional market analysis
+    - Added unit tests for content generation requirements
+
+[33mcommit 84e53fc722a04594bb12c8fa423068dd31899e73[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 18:29:33 2025 +0000
+
+    fix: handle unknown error type in Jupiter price fetching
+
+[33mcommit 01fbb9b0c72b41e18758dcf6b26f144d1009b858[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 18:09:50 2025 +0000
+
+    fix: improve JSON parsing, content type handling, and tweet length enforcement
+    
+    - Add strict JSON response validation in AI service
+    - Implement proper content type handling
+    - Enforce 280 character tweet length limit with truncation option
+    - Add comprehensive test coverage for tweet generation
+    - Update type definitions for better type safety
+    - Improve error handling in Twitter client integration
+
+[33mcommit de7c0d1ebf7ac76f83d926b18edfe878f9b5d5d3[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 11:29:57 2025 +0000
+
+    docs: enhance DeepSeek API documentation
+
+[33mcommit 0bc8dae5601f700b78e7f40ccd07ef6fe79fb268[m
+Merge: 8eb89cb d302bd4
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 10:46:56 2025 +0000
+
+    chore: merge main into analysis-enhancements
+
+[33mcommit d302bd4b974bb6c2f73a51acc831624cc5b0700e[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 10:46:01 2025 +0000
+
+    chore: add untracked files
+
+[33mcommit 8eb89cbe51a6048e9c8790df81a15c4ffeeb8edf[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 10:34:03 2025 +0000
+
+    docs: update README with comprehensive documentation
+    
+    - Add detailed feature documentation
+    - List dependencies and configuration
+    - Document architecture and components
+    - Add development and testing instructions
+    - Update modified files list
+
+[33mcommit e34d9f564c647d4ef7f4a4b41ea1777193bd4325[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 10:21:11 2025 +0000
+
+    chore: remove embedded git repository
+
+[33mcommit b5c6792d575b7b9c67d885879b17c495a112167b[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 10:20:31 2025 +0000
+
+    feat: implement market analysis and security enhancements
+
+[33mcommit 48e4a27fba38dbfdf3213ba3e3a72c254058270a[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 10:12:12 2025 +0000
+
+    chore: remove cached agentmemory package
+
+[33mcommit a8b8921af583f346bd2cd6069cd458cab729f92a[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 10:11:40 2025 +0000
+
+    fix: resolve lint errors and clean up sensitive information exposure
+
+[33mcommit 96d186cbc9aeb03d99dd5a3101e9bfd8b788f47f[m
+Merge: 387725d 903be6b
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 09:01:59 2025 +0000
+
+    chore: merge main
+
+[33mcommit 387725d90f4716fc9e13567bc20236d4e5b73568[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 05:59:47 2025 +0000
+
+    feat: implement Helius API integration with Redis caching
+    
+    - Add Helius API integration for transaction data
+    - Implement Redis caching with TTL
+    - Add support for NFT events and token transfers
+    - Add Jupiter swap transaction filtering
+    - Implement retry mechanism for API calls
+
+[33mcommit 9a755edc1985e08a270cdd195245bff5908d5062[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Mon Jan 6 04:16:12 2025 +0000
+
+    feat: integrate agentmemory for persistent AI memory
+    
+    - Add ChromaDB-based memory service implementation
+    - Implement memory search with improved query operators
+    - Add tweet and sentiment memory integration
+    - Add memory type definitions
+
+[33mcommit bc26de5f065c95a6636887c14b0721076c8c481f[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 21:48:41 2025 +0000
+
+    fix: enhance Twitter integration with proper cleanup and error handling
+    
+    - Add stopStream method to AgentTwitterClientService
+    - Add cleanup method to TwitterStreamHandler
+    - Make Discord initialization optional
+    - Improve Twitter authentication with better error handling
+    - Fix username sanitization
+    - Update package dependencies
+
+[33mcommit c263a61b18ae958456d8db4f39707117e6183255[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 21:08:34 2025 +0000
+
+    fix: improve Twitter username handling by sanitizing @ prefix
+
+[33mcommit 22d60ecb97fdd1c17215aa29e4c1191c359b6d35[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 20:57:38 2025 +0000
+
+    fix: update twitter type imports
+
+[33mcommit 4de90921963a085239def9fb5a388b5307e86d91[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 20:55:50 2025 +0000
+
+    refactor: rename twitter.d.ts to twitter.types.ts
+
+[33mcommit 822c86d64294ddd7651d731054af1ace9136beb4[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 20:52:04 2025 +0000
+
+    fix: add missing interface properties and implement required AIService methods
+
+[33mcommit de720b608c883352f26e14717f49659a74cca543[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 20:44:26 2025 +0000
+
+    fix: make Discord completely optional and improve Twitter initialization
+
+[33mcommit 71fecec199bc3e3b5eeeacd5105e18a4ae6d56ec[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 20:24:07 2025 +0000
+
+    fix: make Discord token optional and update Twitter validation
+
+[33mcommit b80283a901594bbaaf99fcca746d7f9a01b2e836[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 20:20:51 2025 +0000
+
+    fix: enhance Twitter authentication with better ACID challenge handling and logging
+
+[33mcommit a6e8f8d92e448e23ea22f60e11e721f830a92813[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 20:10:07 2025 +0000
+
+    fix: update Solana config to use PUBLIC_KEY consistently
+
+[33mcommit aedad100d6b79b1cd7e1aa2edaa27dfa01665a81[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 20:06:58 2025 +0000
+
+    chore: move test-twitter.ts to src/test directory
+
+[33mcommit f2e196e88d57949c5a767c5fa1d9a2a4a3c524e3[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 20:05:22 2025 +0000
+
+    fix: make Discord optional and improve Twitter auth handling
+    
+    - Remove Discord token from required environment variables
+    - Fix Solana config validation to use PUBKEY
+    - Implement robust Twitter authentication with retry logic
+    - Add proper handling for ACID challenges (error 399)
+    - Improve error logging and cookie management
+
+[33mcommit 8cf97067fecb37d58d7ec2aeb58b43672d7088b9[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 18:43:36 2025 +0000
+
+    refactor: improve Twitter integration with enhanced error handling and type safety
+
+[33mcommit 965b554d9706aa2fea1d6416687d2b6ac8a5b9b2[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 18:41:25 2025 +0000
+
+    fix: update publishMarketUpdate return type handling
+
+[33mcommit d63a067a5e554f197874c887aa8b96038e654eb9[m
+Merge: 4634854 48aec66
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 15:45:17 2025 +0000
+
+    feat: merge Twitter integration branches with market analysis improvements
+    
+    - Combine agent-twitter-client integration with enhanced market analysis
+    - Preserve type compatibility between services
+    - Update dependencies and regenerate lock file cleanly
+    - Maintain autonomous posting capabilities with market data integration
+    
+    Resolves conflicts between:
+    - devin/1736084006-agent-twitter-client-integration
+    - devin/1736083297-twitter-integration
+
+[33mcommit 48aec660b39c23470c1d68fa3a3d10c473a4295e[m
+Merge: 432ba60 b88569a
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 15:38:11 2025 +0000
+
+    chore: resolve merge conflicts between twitter integration branches
+    
+    - Update AIService interface with comprehensive type definitions
+    - Fix Twitter client integration in index.ts
+    - Add proper error handling for market analysis
+    - Ensure type safety across the codebase
+
+[33mcommit 432ba60521eb5320ee8e055028c8d7174ef68227[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 14:45:51 2025 +0000
+
+    feat: implement CommunityEngagementService
+    
+    - Add metric-based engagement tracking
+    - Integrate with ContentStrategy for dynamic content
+    - Add scheduled community updates
+    - Implement activity-based interaction
+    - Add proper error handling and logging
+
+[33mcommit 5cd46a6877368a123638dcccc3b37bad5c370db3[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 14:41:59 2025 +0000
+
+    feat: integrate TwitterStreamHandler with AgentTwitterClient
+    
+    - Add TwitterStreamHandler initialization
+    - Implement tweet, reply, like, and retweet methods
+    - Add error handling and initialization checks
+    - Ensure proper integration with sentiment analysis
+
+[33mcommit 32de0ffa1ba93f380e1eb089cc351b9668e9eba7[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 14:40:50 2025 +0000
+
+    feat: implement interactive tweet replies with sentiment analysis
+    
+    - Add TwitterStreamHandler for real-time monitoring
+    - Update TwitterStreamEvent interface with author and created_at
+    - Implement sentiment-based reply filtering (threshold 0.5)
+    - Add contextual response generation
+    - Implement rate limiting for replies
+
+[33mcommit 2dcf3ea17c076438c9f43ab9f8396074c0e9bc23[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 14:35:42 2025 +0000
+
+    feat: implement periodic market updates with MarketTweetCron
+    
+    - Add MarketTweetCron for 30-minute market updates
+    - Fix trading service getMarketData interface
+    - Add postTweet alias to AgentTwitterClientService
+    - Integrate market updates with social service
+    - Use CONFIG.AUTOMATION.MARKET_MONITORING_INTERVAL for timing
+
+[33mcommit 47b1bb7e91a1e845b2b25992929798cf3946e7c0[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 14:30:22 2025 +0000
+
+    feat: enhance AI tweet generation with robust error handling and types
+    
+    - Add TweetGenerationError and TweetGenerationResult interfaces
+    - Implement comprehensive error handling in TweetGenerator
+    - Add test cases for error scenarios
+    - Update GroqAIService with improved system prompt
+    - Ensure 280 character limit enforcement
+
+[33mcommit 46348540fb61b7141dd78ab3d3ead428424f920c[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 14:20:55 2025 +0000
+
+    feat: implement cookie-based Twitter authentication
+    
+    - Add TwitterCookieAuth class for cookie-based authentication
+    - Create environment variable utility for credentials
+    - Add comprehensive test suite for Twitter auth
+    - Implement error handling for auth failures
+
+[33mcommit 52a536bd17941282c357a4f417dd6c11d4312cf4[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 14:12:00 2025 +0000
+
+    refactor: improve AI service initialization
+    
+    - Add configuration validation
+    - Implement safer singleton creation
+    - Add error handling for missing config
+    - Make default export more flexible
+
+[33mcommit b170d52d35c6b77bad795714914b38e34cd3326e[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 14:10:37 2025 +0000
+
+    feat: implement character system and fix AI test suite
+    
+    - Add character configuration system with JSON templates
+    - Create loadCharacter utility for parsing character files
+    - Fix TypeScript typing in AI service tests
+    - Add Jest configuration and mocks
+
+[33mcommit 25ff9f1d1b77f7281f8f90049f8321051143053b[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 13:51:20 2025 +0000
+
+    chore: add package-lock.json for dependency tracking
+
+[33mcommit e94d3c118b4f3e506d8086ebcc0c738750e86fc5[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 13:48:56 2025 +0000
+
+    fix: update Twitter config properties to use lowercase keys
+
+[33mcommit b3747dcfac44617096dfddf960109380b8ae4d7a[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 13:43:50 2025 +0000
+
+    feat: integrate AgentTwitterClientService into SocialService
+
+[33mcommit 0ecc3f0d148c36415aacc8624013ada12cc6eaaa[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 13:40:53 2025 +0000
+
+    feat: implement AgentTwitterClientService with password-based authentication
+
+[33mcommit acb754d61a76b779c2dc412fb198c3d7efcdec56[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 13:38:13 2025 +0000
+
+    feat: add Twitter password and email to config system for agent-twitter-client integration
+
+[33mcommit b005de330a5c00b106b3fbc1c943baf8208a4746[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 13:35:48 2025 +0000
+
+    feat: add agent-twitter-client package for autonomous Twitter interactions
+
+[33mcommit 269c8689d6113d36d50aabf16f176092213a5abf[m
+Merge: b88569a 8c6e7a4
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 11:14:33 2025 +0000
+
+    Merge branch 'devin/1736068200-remove-sensitive-info'
+
+[33mcommit 8c6e7a45efa667d44a86c9fdf6fd9cfab95f7289[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 11:08:15 2025 +0000
+
+    docs: add comprehensive documentation and update README
+    
+    - Add JSDoc comments to key files
+    - Document DeepSeek API integration
+    - Document agent-twitter-client implementation
+    - Update README with recent changes and configuration
+    - Add package update information
+
+[33mcommit 1c182904b22795447bef70be4780da28324cd7d8[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 11:03:35 2025 +0000
+
+    chore: update dependencies to latest versions
+
+[33mcommit 533c98d7e181beaf014bf7d2a1c523e7408156ce[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 09:59:36 2025 +0000
+
+    refactor: update configuration to use environment variables for sensitive data
+
+[33mcommit c0bab1ac09d2119150d97c98bd1a0a18ac20157b[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 09:10:00 2025 +0000
+
+    Remove hardcoded credentials and replace with placeholders
+
+[33mcommit 5c36900c909df8b03adbbc775711dc859989b606[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 08:46:05 2025 +0000
+
+    feat: integrate AI content generation with PostQueue for auto-posting
+
+[33mcommit a2d3712764bba26f2b8594e6db35350bee96fc61[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 08:40:48 2025 +0000
+
+    refactor: update TwitterService to use agent-twitter-client scraping
+
+[33mcommit b75abeae239316d3ca156b10acd78fc8f8ea2723[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 08:34:42 2025 +0000
+
+    chore: install @eslint/js and update configuration
+
+[33mcommit 3295ca5f82bb4faeaa5b03d77bc0a31523b8b5da[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 08:34:20 2025 +0000
+
+    chore: add ESLint configuration for easier Linux deployment
+
+[33mcommit e7c1eae09825e8358f1a983aef092ba0d24a4a54[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 08:22:41 2025 +0000
+
+    test: update AI service tests with proper mocking
+
+[33mcommit 7ab666a5ea219ce159f0fddec060d62aaa54e6dd[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 08:21:52 2025 +0000
+
+    refactor: update AI service types and implementation for Groq provider
+
+[33mcommit dec57f1b3e367268ddee3cfca0b0a5f780e0997e[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 08:12:57 2025 +0000
+
+    feat: add AIService tests and update types for DeepSeek integration
+
+[33mcommit cadde9690b6ae54809dac9a2079ca674aac1b243[m
+Author: Devin AI <158243242+[1;31mdevin-ai-integration[m[bot]@users.noreply.github.com>
+Date:   Sun Jan 5 07:36:28 2025 +0000
+
+    refactor: remove twitter-api-v2 references and prepare for agent-twitter-client integration

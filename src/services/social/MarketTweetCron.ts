@@ -50,7 +50,7 @@ export class MarketTweetCron {
       try {
         console.log('Fetching market data...');
         // Get latest market data from multiple sources
-        const baseMarketData = await this.tradingService.getMarketData();
+        const baseMarketData = await this.tradingService.getMarketData(CONFIG.SOLANA.PUBLIC_KEY);
         let marketData = { ...baseMarketData };
         
         try {
@@ -62,7 +62,7 @@ export class MarketTweetCron {
           for (let i = 0; i < 3; i++) {
             try {
               jupiterPrices = await this.jupiterPriceService.getPrices([
-                CONFIG.SOLANA.PUBKEY,
+                CONFIG.SOLANA.PUBLIC_KEY,
                 SOL_MINT
               ]);
               break;
@@ -77,8 +77,8 @@ export class MarketTweetCron {
           
           // Get on-chain transaction data with parallel fetching
           const [recentSwaps, recentTransfers] = await Promise.all([
-            getJupiterSwaps(CONFIG.SOLANA.PUBKEY, 20),  // Increased sample size
-            getTokenTransfers(CONFIG.SOLANA.PUBKEY, 20)
+            getJupiterSwaps(CONFIG.SOLANA.PUBLIC_KEY, 20),  // Increased sample size
+            getTokenTransfers(CONFIG.SOLANA.PUBLIC_KEY, 20)
           ]);
           
           // Calculate 24h volume from token transfers in swaps
@@ -91,7 +91,7 @@ export class MarketTweetCron {
           // Update market data with enhanced data
           marketData = {
             ...marketData,
-            price: jupiterPrices?.data?.[CONFIG.SOLANA.PUBKEY]?.price ?? marketData.price,
+            price: jupiterPrices?.data?.[CONFIG.SOLANA.PUBLIC_KEY]?.price ?? marketData.price,
             volume24h: volume24h || marketData.volume24h,
             onChainData: {
               recentSwaps: recentSwaps.length,
