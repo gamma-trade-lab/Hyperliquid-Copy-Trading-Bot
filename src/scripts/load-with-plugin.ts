@@ -10,7 +10,7 @@ import {
   type IDatabaseAdapter,
 } from "@ai16z/eliza";
 
-import { loadCharacters } from "./loader.ts";
+import { loadCharacters } from "./loader.js";
 import { DirectClient } from "@ai16z/client-direct";
 import { pathToFileURL, fileURLToPath } from "url";
 

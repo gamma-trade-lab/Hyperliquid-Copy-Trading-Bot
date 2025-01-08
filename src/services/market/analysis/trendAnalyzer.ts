@@ -1,8 +1,8 @@
 // src/services/market/analysis/trendAnalyzer.ts
 
 import { EventEmitter } from 'events';
-import { AIService } from '../../ai/ai';
-import { PricePoint } from './priceMonitor';
+import { AIService } from '../../ai/ai.js';
+import { PricePoint } from './priceMonitor.js';
 
 interface TrendPattern {
   id: string;

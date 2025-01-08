@@ -1,5 +1,5 @@
 import { Evaluator, IAgentRuntime, Memory, State } from "@ai16z/eliza";
-import { TranslationEvalContent, TranslationEvalResponse } from "./types.ts";
+import { TranslationEvalContent, TranslationEvalResponse } from "./types.js";
 
 export const translationEvaluator: Evaluator = {
   name: "TRANSLATION_EVALUATOR",

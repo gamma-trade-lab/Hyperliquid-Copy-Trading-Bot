@@ -1,5 +1,9 @@
-import { clusterApiUrl, Connection, Keypair, PublicKey } from '@solana/web3.js';
-import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { clusterApiUrl, Connection, PublicKey } from '@solana/web3.js';
+import { 
+  TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddress,
+  createTransferInstruction
+} from './spl-token/index.js';
 
 export class SolanaAPI {
   private connection: Connection;
@@ -12,9 +16,7 @@ export class SolanaAPI {
     mint: PublicKey,
     owner: PublicKey
   ): Promise<PublicKey> {
-    return Token.getAssociatedTokenAddress(
-      TOKEN_PROGRAM_ID,
-      TOKEN_PROGRAM_ID,
+    return getAssociatedTokenAddress(
       mint,
       owner
     );
@@ -26,13 +28,13 @@ export class SolanaAPI {
     owner: PublicKey,
     amount: number
   ) {
-    return Token.createTransferInstruction(
-      TOKEN_PROGRAM_ID,
+    return createTransferInstruction(
       source,
       destination,
       owner,
+      amount,
       [],
-      amount
+      TOKEN_PROGRAM_ID
     );
   }
 

@@ -8,8 +8,15 @@ import {
   LAMPORTS_PER_SOL
 } from '@solana/web3.js';
 import { CONFIG } from '../../config/settings';
-import { createMint, createTransferInstruction, mintTo, TOKEN_PROGRAM_ID } from '@/utils/spl-token';
-import { getOrCreateAssociatedTokenAccount } from '@solana/spl-token/lib/types/actions/getOrCreateAssociatedTokenAccount';
+import { 
+  createMint, 
+  createTransferInstruction, 
+  mintTo, 
+  TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccount,
+  getAssociatedTokenAddress,
+  getOrCreateAssociatedTokenAccount
+} from '../../utils/spl-token';
 
 
 
@@ -52,8 +59,7 @@ export class SolanaService {
         this.payer,
         this.payer.publicKey,
         this.payer.publicKey,
-        decimals,
-        mintKeypair
+        decimals
       );
 
       // Get the token account of the creator
@@ -243,36 +249,3 @@ export class SolanaService {
 }
 
 export default SolanaService;
-
-// Example usage of the imported functions
-async function createNewToken(connection: Connection, payer: Keypair, mintAuthority: Keypair, freezeAuthority: PublicKey) {
-  const mint = await createMint(
-    connection,
-    payer,
-    mintAuthority.publicKey,
-    freezeAuthority,
-    9, // Decimals
-    Keypair.generate() // mintKeypair
-  );
-
-  const tokenAccount = await getOrCreateAssociatedTokenAccount(
-    connection,
-    payer,
-    mint,
-    payer.publicKey
-  );
-
-  await mintTo(
-    connection,
-    payer,
-    mint,
-    tokenAccount.address,
-    mintAuthority,
-    1000000 // Amount
-  );
-
-  console.log(`Mint: ${mint.toBase58()}`);
-  console.log(`Token Account: ${tokenAccount.address.toBase58()}`);
-}
-
-// Add any additional code or exports as needed

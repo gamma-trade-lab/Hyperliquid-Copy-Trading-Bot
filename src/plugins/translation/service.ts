@@ -4,7 +4,7 @@ import {
   TranslationServiceConfig,
   TranslationServiceResponse,
   ServiceType,
-} from "./types.ts";
+} from "./types.js";
 
 export let serviceConfig: TranslationServiceConfig;
 

@@ -1,5 +1,5 @@
 import { Provider, IAgentRuntime, Memory, State } from '@ai16z/eliza';
-import { TranslationData, TranslationProviderResponse } from '../types';
+import { TranslationData, TranslationProviderResponse } from '../types.js';
 
 // Simple in-memory cache
 const translationCache = new Map<string, TranslationData>();

@@ -1,8 +1,8 @@
 import { Plugin } from "@ai16z/eliza";
-import { getWeatherAction } from "./action.ts";
-import { weatherEvaluator } from "./evaluator.ts";
-import { weatherProvider, initializeWeatherProvider } from "./provider.ts";
-import { WeatherConfig } from "./types.ts";
+import { getWeatherAction } from "./action.js";
+import { weatherEvaluator } from "./evaluator.js";
+import { weatherProvider, initializeWeatherProvider } from "./provider.js";
+import { WeatherConfig } from "./types.js";
 
 export const weatherPlugin: Plugin = {
   name: "weather",
@@ -16,4 +16,4 @@ export const initializeWeather = (config: WeatherConfig): void => {
   initializeWeatherProvider(config);
 };
 
-export * from "./types.ts";
+export * from "./types.js";

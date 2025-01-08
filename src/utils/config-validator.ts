@@ -1,6 +1,6 @@
 // src/utils/config-validator.ts
 import { PublicKey } from '@solana/web3.js';
-import { NetworkType } from '../config/constants';
+import { NetworkType } from '../config/constants.js';
 
 export function validatePrivateKey(privateKey: string): boolean {
   try {

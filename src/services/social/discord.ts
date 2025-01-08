@@ -9,13 +9,13 @@ import {
   ChatInputCommandInteraction
 } from 'discord.js';
 import { PublicKey } from '@solana/web3.js';
-import { AIService } from '../ai/types';
-import { WalletService, TokenService } from '../blockchain/types';
+import { IAIService } from '../ai/types.js';
+import { WalletService, TokenService } from '../blockchain/types.js';
 
 interface DiscordConfig {
   token: string;
   guildId: string;
-  aiService: AIService;
+  aiService: IAIService;
   walletService?: WalletService;
   tokenService?: TokenService;
 }
@@ -30,7 +30,7 @@ export class DiscordService {
   private discordClient: DiscordClient;
   private commands: Map<string, CommandHandler>;
   private guildId: string;
-  private aiService: AIService;
+  private aiService: IAIService;
   private walletService?: WalletService;
   private tokenService?: TokenService;
 

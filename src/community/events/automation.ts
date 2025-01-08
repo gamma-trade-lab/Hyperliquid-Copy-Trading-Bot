@@ -1,8 +1,8 @@
 // src/community/events/automation.ts
 
 import { EventEmitter } from 'events';
-import { EventScheduler, EventType, ScheduledEvent } from './scheduler';
-import { AIService } from '../../services/ai/ai';
+import { EventScheduler, EventType, ScheduledEvent } from './scheduler.js';
+import { AIService } from '../../services/ai/ai.js';
 
 interface AutomationRule {
   id: string;

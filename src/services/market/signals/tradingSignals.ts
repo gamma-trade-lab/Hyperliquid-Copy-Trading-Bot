@@ -1,7 +1,7 @@
 // src/services/market/signals/tradingSignals.ts
 
 import { EventEmitter } from 'events';
-import { AIService } from '../../ai/ai';
+import { AIService } from '../../ai/ai.js';
 
 interface TradingSignal {
   id: string;
@@ -363,6 +363,7 @@ export class TradingSignalGenerator extends EventEmitter {
       const prompt = this.buildSignalAnalysisPrompt(signals);
       const analysis = await this.aiService.generateResponse({
         content: prompt,
+        author: 'system',
         platform: ''
       });
 

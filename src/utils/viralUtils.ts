@@ -1,6 +1,6 @@
 // src/utils/viralUtils.ts
 
-import { AIService } from '../services/ai/ai';
+import { AIService } from '../services/ai/ai.js';
 
 interface ViralScore {
   total: number;
@@ -192,7 +192,8 @@ export class ViralUtils {
 
     const response = await this.aiService.generateResponse({
       content: prompt,
-      platform: 'default' // Add platform property
+      author: 'system',
+      platform: 'default'
     });
 
     try {
@@ -284,7 +285,8 @@ export class ViralUtils {
 
     const response = await this.aiService.generateResponse({
       content: prompt,
-      platform: 'default' // Add platform property
+      author: 'system',
+      platform: 'default'
     });
 
     try {

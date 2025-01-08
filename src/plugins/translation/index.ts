@@ -1,9 +1,9 @@
 import { Plugin } from "@ai16z/eliza";
-import { getTranslationAction } from "./action.ts";
-import { translationEvaluator } from "./evaluator.ts";
-import { translationProvider } from "./provider/index.ts";
-import { translationService, initializeTranslationConfig } from "./service.ts";
-import { TranslationConfig } from "./types.ts";
+import { getTranslationAction } from "./action.js";
+import { translationEvaluator } from "./evaluator.js";
+import { translationProvider } from "./provider/index.js";
+import { translationService, initializeTranslationConfig } from "./service.js";
+import { TranslationConfig } from "./types.js";
 
 export const translationPlugin: Plugin = {
   name: "translation",
@@ -22,4 +22,4 @@ export const initializeTranslationPlugin = (
   }
 };
 
-export * from "./types.ts";
+export * from "./types.js";

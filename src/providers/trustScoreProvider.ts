@@ -1,16 +1,16 @@
 import {
     ProcessedTokenData,
     TokenSecurityData,
-} from "../types/token.ts";
+} from "../types/token.js";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { TokenProvider } from "./token.ts";
-import { WalletProvider } from "./wallet.ts";
-import { SimulationSellingService } from "./simulationSellingService.ts";
+import { TokenProvider } from "./token.js";
+import { WalletProvider } from "./wallet.js";
+import { SimulationSellingService } from "./simulationSellingService.js";
 import { TrustScoreDatabase } from "@elizaos/plugin-trustdb";
 import { settings } from "@elizaos/core";
 import { IAgentRuntime, Memory, Provider, State } from "@elizaos/core";
 import { v4 as uuidv4 } from "uuid";
-import { getAssociatedTokenAddress } from "@/utils/spl-token/accounts.ts";
+import { getAssociatedTokenAddress } from "../../src/utils/spl-token/accounts";
 
 
 
@@ -147,7 +147,11 @@ export class TrustScoreManager {
     ) {
         this.tokenProvider = tokenProvider;
         this.trustScoreDb = trustScoreDb;
-        this.connection = new Connection(runtime.getSetting("RPC_URL"));
+        const rpcUrl = runtime.getSetting("RPC_URL");
+        if (!rpcUrl) {
+            throw new Error("RPC_URL setting is required");
+        }
+        this.connection = new Connection(rpcUrl);
         this.baseMint = new PublicKey(
             runtime.getSetting("BASE_MINT") ||
                 "So11111111111111111111111111111111111111112"
@@ -165,8 +169,7 @@ export class TrustScoreManager {
         try {
             const tokenAta = await getAssociatedTokenAddress(
                 new PublicKey(recommenderWallet),
-                this.baseMint,
-                false
+                this.baseMint
             );
             const tokenBalInfo =
                 await this.connection.getTokenAccountBalance(tokenAta);
@@ -392,7 +395,7 @@ export class TrustScoreManager {
             await this.tokenProvider.getProcessedTokenData();
         console.log(`Fetched processed token data for token: ${tokenAddress}`);
 
-        return processedData.tradeData.volume_24h_change_percent > 50;
+        return (processedData.tradeData.volume_24h_change_percent ?? 0) > 50;
     }
 
     async isRapidDump(tokenAddress: string): Promise<boolean> {
@@ -400,7 +403,7 @@ export class TrustScoreManager {
             await this.tokenProvider.getProcessedTokenData();
         console.log(`Fetched processed token data for token: ${tokenAddress}`);
 
-        return processedData.tradeData.trade_24h_change_percent < -50;
+        return (processedData.tradeData.trade_24h_change_percent ?? 0) < -50;
     }
 
     async checkTrustScore(tokenAddress: string): Promise<TokenSecurityData> {
@@ -499,12 +502,11 @@ export class TrustScoreManager {
             symbol: processedData.tokenCodex.symbol,
             priceChange24h: processedData.tradeData.price_change_24h_percent,
             volumeChange24h: processedData.tradeData.volume_24h,
-            trade_24h_change: processedData.tradeData.trade_24h_change_percent,
+            trade_24h_change: processedData.tradeData.trade_24h_change_percent ?? 0,
             liquidity:
                 processedData.dexScreenerData.pairs[0]?.liquidity.usd || 0,
             liquidityChange24h: 0,
-            holderChange24h:
-                processedData.tradeData.unique_wallet_24h_change_percent,
+            holderChange24h: processedData.tradeData.unique_wallet_24h_change_percent ?? 0,
             rugPull: false,
             isScam: tokenCodex.isScam,
             marketCapChange24h: 0,
@@ -689,7 +691,7 @@ export class TrustScoreManager {
         startDate: Date,
         endDate: Date
     ): Promise<Array<TokenRecommendationSummary>> {
-        const recommendations = this.trustScoreDb.getRecommendationsByDateRange(
+        const recommendations = await this.trustScoreDb.getRecommendationsByDateRange(
             startDate,
             endDate
         );
@@ -705,8 +707,16 @@ export class TrustScoreManager {
             {} as Record<string, Array<ITokenRecommendation>> // Updated type
         );
 
-        const result = Object.keys(groupedRecommendations).map(
-            (tokenAddress) => {
+        interface RecommenderData {
+            recommenderId: string;
+            trustScore: number;
+            riskScore: number;
+            consistencyScore: number;
+            recommenderMetrics: IRecommenderMetrics;
+        }
+
+        const processedResults = await Promise.all(Object.keys(groupedRecommendations).map(
+            async (tokenAddress) => {
                 const tokenRecommendations =
                     groupedRecommendations[tokenAddress];
 
@@ -714,17 +724,17 @@ export class TrustScoreManager {
                 let totalTrustScore = 0;
                 let totalRiskScore = 0;
                 let totalConsistencyScore = 0;
-                const recommenderData = [];
+                const recommenderData: RecommenderData[] = [];
 
-                tokenRecommendations.forEach((recommendation) => {
-                    const tokenPerformance =
+                const recommendationResults = await Promise.all(tokenRecommendations.map(async (recommendation) => {
+                    const [tokenPerformance, recommenderMetrics] = await Promise.all([
                         this.trustScoreDb.getTokenPerformance(
                             recommendation.tokenAddress
-                        );
-                    const recommenderMetrics =
+                        ),
                         this.trustScoreDb.getRecommenderMetrics(
                             recommendation.recommenderId
-                        );
+                        )
+                    ]);
 
                     const trustScore = this.calculateTrustScore(
                         tokenPerformance,
@@ -736,18 +746,21 @@ export class TrustScoreManager {
                     );
                     const riskScore = this.calculateRiskScore(tokenPerformance);
 
-                    // Accumulate scores for averaging
-                    totalTrustScore += trustScore;
-                    totalRiskScore += riskScore;
-                    totalConsistencyScore += consistencyScore;
-
-                    recommenderData.push({
+                    return {
                         recommenderId: recommendation.recommenderId,
                         trustScore,
                         riskScore,
                         consistencyScore,
                         recommenderMetrics,
-                    });
+                    };
+                }));
+
+                // Process results and accumulate scores
+                recommendationResults.forEach(result => {
+                    totalTrustScore += result.trustScore;
+                    totalRiskScore += result.riskScore;
+                    totalConsistencyScore += result.consistencyScore;
+                    recommenderData.push(result);
                 });
 
                 // Calculate averages for this token
@@ -766,12 +779,12 @@ export class TrustScoreManager {
                     recommenders: recommenderData,
                 };
             }
-        );
+        ));
 
         // Sort recommendations by the highest average trust score
-        result.sort((a, b) => b.averageTrustScore - a.averageTrustScore);
-
-        return result;
+        return processedResults.sort((a: TokenRecommendationSummary, b: TokenRecommendationSummary) => 
+            b.averageTrustScore - a.averageTrustScore
+        );
     }
 }
 
@@ -809,6 +822,9 @@ export const trustScoreProvider: Provider = {
             const user = await runtime.databaseAdapter.getAccountById(userId);
 
             // Format the trust score string
+            if (!user) {
+                throw new Error('User not found');
+            }
             const trustScoreString = `${user.name}'s trust score: ${trustScore.toFixed(2)}`;
 
             return trustScoreString;

@@ -18,7 +18,7 @@ import {
     type Action,
 } from "@elizaos/core";
 
-import { walletProvider } from "../providers/wallet";
+import { walletProvider } from "../providers/wallet.js";
 
 
 export interface CreateAndBuyContent extends Content {
@@ -32,7 +32,7 @@ export interface CreateAndBuyContent extends Content {
 }
 
 export function isCreateAndBuyContent(
-    runtime: IAgentRuntime,
+    _runtime: IAgentRuntime,
     content: any
 ): content is CreateAndBuyContent {
     console.log("Content for create & buy", content);
@@ -54,7 +54,6 @@ export const createAndBuyToken = async ({
     tokenMetadata,
     buyAmountSol,
     priorityFee,
-    allowOffCurve,
     commitment = "finalized",
     sdk,
     connection,
@@ -65,7 +64,6 @@ export const createAndBuyToken = async ({
     tokenMetadata: CreateTokenMetadata;
     buyAmountSol: bigint;
     priorityFee: PriorityFee;
-    allowOffCurve: boolean;
     commitment?:
         | "processed"
         | "confirmed"
@@ -98,8 +96,7 @@ export const createAndBuyToken = async ({
         );
         const ata = await getAssociatedTokenAddress(
             mint.publicKey,
-            deployer.publicKey,
-            allowOffCurve
+            deployer.publicKey
         );
         const balance = await connection.getTokenAccountBalance(
             ata,
@@ -136,7 +133,6 @@ export const buyToken = async ({
     mint,
     amount,
     priorityFee,
-    allowOffCurve,
     slippage,
     connection,
 }: {
@@ -145,7 +141,6 @@ export const buyToken = async ({
     mint: PublicKey;
     amount: bigint;
     priorityFee: PriorityFee;
-    allowOffCurve: boolean;
     slippage: string;
     connection: Connection;
 }) => {
@@ -160,8 +155,7 @@ export const buyToken = async ({
         console.log("Success:", `https://pump.fun/${mint.toBase58()}`);
         const ata = await getAssociatedTokenAddress(
             mint,
-            buyer.publicKey,
-            allowOffCurve
+            buyer.publicKey
         );
         const balance = await connection.getTokenAccountBalance(
             ata,
@@ -184,7 +178,6 @@ export const sellToken = async ({
     mint,
     amount,
     priorityFee,
-    allowOffCurve,
     slippage,
     connection,
 }: {
@@ -193,7 +186,6 @@ export const sellToken = async ({
     mint: PublicKey;
     amount: bigint;
     priorityFee: PriorityFee;
-    allowOffCurve: boolean;
     slippage: string;
     connection: Connection;
 }) => {
@@ -208,8 +200,7 @@ export const sellToken = async ({
         console.log("Success:", `https://pump.fun/${mint.toBase58()}`);
         const ata = await getAssociatedTokenAddress(
             mint,
-            seller.publicKey,
-            allowOffCurve
+            seller.publicKey
         );
         const balance = await connection.getTokenAccountBalance(
             ata,
@@ -240,7 +231,7 @@ const promptConfirmation = async (): Promise<boolean> => {
 // Save the base64 data to a file
 import * as fs from "fs";
 import * as path from "path";
-import { getWalletKey } from "../utils/keypairUtils";
+import { getWalletKey } from "../utils/keypairUtils.js";
 import { getAssociatedTokenAddress } from "@/utils/spl-token";
 
 const pumpfunTemplate = `Respond with a JSON markdown block containing only the extracted values. Use null for any values that cannot be determined.
@@ -436,7 +427,7 @@ export default {
                 tokenMetadata: fullTokenMetadata,
                 buyAmountSol: BigInt(lamports),
                 priorityFee,
-                allowOffCurve: false,
+
                 sdk,
                 connection,
                 slippage,

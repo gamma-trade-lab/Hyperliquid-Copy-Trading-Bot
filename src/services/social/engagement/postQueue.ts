@@ -1,7 +1,14 @@
 // src/services/social/engagement/postQueue.ts
 
 import { EventEmitter } from 'events';
-import { Platform } from '../../../personality/traits/responsePatterns';
+import { Platform } from '../../../personality/traits/responsePatterns.js';
+import { IAIService, ChatResponse } from '../../ai/types.js';
+import { TwitterService } from '../twitter.js';
+
+interface PostQueueConfig {
+  aiService: IAIService;
+  twitterService: TwitterService;
+}
 
 interface QueuedPost {
   id: string;
@@ -35,10 +42,15 @@ export class PostQueue extends EventEmitter {
   private readonly MAX_QUEUE_SIZE = 1000;
   private readonly PROCESSING_INTERVAL = 1000; // 1 second
 
-  constructor() {
+  private aiService: IAIService;
+  private twitterService: TwitterService;
+
+  constructor(config: PostQueueConfig) {
     super();
     this.queue = new Map();
     this.processingQueue = new Set();
+    this.aiService = config.aiService;
+    this.twitterService = config.twitterService;
     this.startProcessingLoop();
   }
 
@@ -178,8 +190,38 @@ export class PostQueue extends EventEmitter {
     this.emit('postProcessing', post);
 
     try {
-      // Simulate post processing
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      try {
+        // Generate content if needed
+        let content = post.content;
+        if (!content && post.platform === 'twitter') {
+          const prompt = `Generate a fun, tweet-ready message about ${post.metadata.category}` + 
+            (post.metadata.tags.length ? ` including tags: ${post.metadata.tags.join(', ')}` : '') +
+            (post.metadata.campaign ? ` for campaign: ${post.metadata.campaign}` : '');
+
+          content = await this.aiService.generateResponse({
+            content: prompt,
+            author: 'system',
+            platform: 'twitter',
+            channel: post.id
+          });
+        }
+
+        if (!content) {
+          throw new Error('No content available for post');
+        }
+
+        // Post to appropriate platform
+        switch (post.platform) {
+          case 'twitter':
+            await this.twitterService.tweet(content);
+            break;
+          default:
+            throw new Error(`Unsupported platform: ${post.platform}`);
+        }
+      } catch (error) {
+        console.error(`Error processing post ${post.id}:`, error);
+        throw error; // Re-throw to be handled by the outer try-catch
+      }
 
       post.status = PostStatus.COMPLETED;
       this.emit('postCompleted', post);

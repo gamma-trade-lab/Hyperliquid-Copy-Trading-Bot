@@ -1,8 +1,8 @@
 // src/services/blockchain/index.ts
 
 import { Connection, PublicKey, TransactionInstruction, Transaction } from '@solana/web3.js';
-import type { WalletService } from './types';
-import { createTransaction, signAndSendTransaction } from '../../utils/transactions';
+import type { WalletService } from './types.js';
+import { createTransaction, signAndSendTransaction } from '../../utils/transactions.js';
 
 export interface BlockchainConfig {
   rpcUrl: string;
@@ -59,6 +59,6 @@ export class BlockchainService {
 }
 
 // Export everything from the blockchain module
-export * from './solana';
-export * from './types';
+export * from './solana.js';
+export * from './types.js';
 export default BlockchainService;

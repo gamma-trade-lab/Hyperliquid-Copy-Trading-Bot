@@ -1,7 +1,7 @@
 // src/community/events/scheduler.ts
 
 import { EventEmitter } from 'events';
-import { AIService } from '../../services/ai/ai';
+import { AIService } from '../../services/ai/ai.js';
 
 export interface ScheduledEvent {
   id: string;

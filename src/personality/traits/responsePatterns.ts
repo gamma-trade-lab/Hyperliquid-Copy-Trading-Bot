@@ -1,6 +1,6 @@
 // src/personality/traits/responsePatterns.ts
 
-import { TraitManager, TraitCategory, PersonalityTrait } from './index';
+import { TraitManager, TraitCategory, PersonalityTrait } from './index.js';
 import { EventEmitter } from 'events';
 
 // Response types for different contexts
