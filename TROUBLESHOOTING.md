@@ -2,61 +2,6 @@
 
 ## Common Issues and Solutions
 
-### Environment Setup
-
-#### Missing Environment Variables
-```
-Error: Twitter credentials not properly configured
-```
-**Solution:**
-1. Check `.env` file exists
-2. Verify required variables are set:
-   - `TWITTER_USERNAME`
-   - `TWITTER_PASSWORD`
-   - `TWITTER_EMAIL`
-   - Database credentials (Redis/PostgreSQL)
-   - AI model API keys
-
-#### Database Connection Issues
-
-##### Redis Connection Failed
-```
-Error: NOAUTH Authentication required
-```
-**Solution:**
-1. Verify Redis is running:
-   ```bash
-   sudo systemctl status redis-server
-   ```
-2. Check Redis credentials in `.env`:
-   ```env
-   REDIS_HOST=127.0.0.1
-   REDIS_PORT=6379
-   REDIS_PASSWORD=your_password
-   ```
-3. Test connection:
-   ```bash
-   redis-cli -a your_password ping
-   ```
-
-##### PostgreSQL Connection Failed
-```
-Error: connect ECONNREFUSED 127.0.0.1:5432
-```
-**Solution:**
-1. Check PostgreSQL service:
-   ```bash
-   sudo systemctl status postgresql
-   ```
-2. Verify database exists:
-   ```bash
-   sudo -u postgres psql -c '\l' | grep meme_agent_db
-   ```
-3. Test connection:
-   ```bash
-   psql -h localhost -U meme_agent_user -d meme_agent_db -c '\conninfo'
-   ```
-
 ### Twitter Integration
 
 #### Authentication Issues
@@ -137,52 +82,7 @@ Error: Too many requests
    MARKET_MONITORING_INTERVAL=60000
    ```
 
-### Build and Runtime Issues
-
-#### ESM Module Errors
-```
-Error: require is not defined
-```
-**Solution:**
-1. Check `package.json` has:
-   ```json
-   {
-     "type": "module"
-   }
-   ```
-2. Use `.js` extensions in imports
-3. Replace require() with dynamic imports
-
-#### TypeScript Build Errors
-```
-Error: Cannot find module
-```
-**Solution:**
-1. Clean build:
-   ```bash
-   rm -rf dist/
-   pnpm build
-   ```
-2. Check `tsconfig.json` settings
-3. Verify all dependencies installed:
-   ```bash
-   pnpm install
-   ```
-
-### Debugging Tools
-
-#### Log Files
-- Application logs: `logs/app.log`
-- Social media: `logs/social.log`
-- Market data: `logs/market.log`
-- Database: `logs/db.log`
-
-#### Debug Mode
-Enable debug logging:
-```env
-LOG_LEVEL=debug
-ENABLE_DEBUG=true
-```
+### Development Issues
 
 #### Mock Mode
 Enable mock mode for development and testing:
@@ -219,46 +119,44 @@ MOCK_MARKET_DATA=true      # Enable market data mocking
 - Rate limits are not enforced
 - Perfect for development and testing
 
-### Character Configuration
+### Database Issues
 
-#### Character Loading Failed
+#### Redis Connection Failed
 ```
-Error: Failed to load character configuration
+Error: NOAUTH Authentication required
 ```
 **Solution:**
-1. Verify character file exists:
+1. Verify Redis is running:
    ```bash
-   ls characters/jenna.character.json
+   sudo systemctl status redis-server
    ```
-2. Validate JSON format
-3. Check required fields present:
-   - name
-   - modelConfigurations
-   - personality traits
+2. Check Redis credentials in `.env`:
+   ```env
+   REDIS_HOST=127.0.0.1
+   REDIS_PORT=6379
+   REDIS_PASSWORD=your_password
+   ```
+3. Test connection:
+   ```bash
+   redis-cli -a your_password ping
+   ```
 
-### Memory Service Issues
-
-#### MongoDB Optional Dependency
+#### PostgreSQL Connection Failed
 ```
-Error: MongooseServerSelectionError
+Error: connect ECONNREFUSED 127.0.0.1:5432
 ```
 **Solution:**
-- MongoDB is optional
-- System will continue without it
-- To enable MongoDB:
-  ```bash
-  sudo systemctl start mongod
-  ```
-
-## Getting Help
-
-### Support Resources
-1. Check logs in `logs/` directory
-2. Review documentation in `docs/`
-3. Search issues on GitHub
-4. Run tests for specific components:
+1. Check PostgreSQL service:
    ```bash
-   pnpm test src/services/social/auth/__tests__/twitterAuth.test.ts
+   sudo systemctl status postgresql
+   ```
+2. Verify database exists:
+   ```bash
+   sudo -u postgres psql -c '\l' | grep meme_agent_db
+   ```
+3. Test connection:
+   ```bash
+   psql -h localhost -U meme_agent_user -d meme_agent_db -c '\conninfo'
    ```
 
 ### Debug Commands

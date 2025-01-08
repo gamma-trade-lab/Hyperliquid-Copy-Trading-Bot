@@ -1,430 +1,353 @@
-/**
- * Twitter Service Integration
- * 
- * This module provides Twitter interaction capabilities using agent-twitter-client for web scraping.
- * It implements a robust authentication system with retry logic and session management.
- * 
- * Key Features:
- * - Cookie-based authentication with automatic session management
- * - Exponential backoff retry mechanism for login attempts
- * - Handles Twitter's anti-automation challenges
- * - Supports posting, replying, retweeting, and liking tweets
- * 
- * @module TwitterService
- */
+import { TwitterApi, ApiResponseError, TweetV2PostTweetResult, SendTweetV2Params } from 'twitter-api-v2';
+import { AIService } from '../ai';
+import { elizaLogger } from "@ai16z/eliza";
 
-import { IAIService } from '../ai/types.js';
-import { MarketAction } from '../../config/constants.js';
-import { MarketData } from '../../types/market.js';
-import { Logger } from '../../utils/logger.js';
-
-// Define Scraper interface to match our needs
-interface Scraper {
-  initialize(): Promise<void>;
-  login(credentials: { username: string; password: string }): Promise<void>;
-  isLoggedIn(): Promise<boolean>;
-  sendTweet(content: string, replyTo?: string): Promise<unknown>;
-  sendQuoteTweet(content: string, quoteTweetId: string): Promise<unknown>;
-  getTweet(tweetId: string): Promise<Tweet>;
-  retweet(tweetId: string): Promise<void>;
-  likeTweet(tweetId: string): Promise<void>;
-  deleteTweet(tweetId: string): Promise<void>;
-  logout(): Promise<void>;
-  getCookies(): Promise<any[]>;
-  setCookies(cookies: any[]): Promise<void>;
-  clearCookies(): Promise<void>;
-  withCookie(cookie: string): Promise<void>;
-}
-
-// Define types that would normally come from agent-twitter-client
-interface Tweet {
-  id: string;
-  text: string;
-  username?: string;
-}
-
-export interface TwitterConfig {
-  credentials: {
-    username: string;
-    password: string;
-    email: string;
+interface TwitterConfig {
+  username: string;
+  password: string;
+  email: string;
+  mockMode?: boolean;
+  maxRetries?: number;
+  retryDelay?: number;
+  contentRules?: {
+    maxEmojis: number;
+    maxHashtags: number;
+    minInterval: number;
   };
-  aiService?: IAIService;
 }
 
-interface TweetOptions {
-  replyToTweet?: string;
-  quoteTweetId?: string;
-  truncateIfNeeded?: boolean;
+interface TwitterServiceConfig {
+  maxRetries: number;
+  retryDelay: number;
+  mockMode: boolean;
+  contentRules: {
+    maxEmojis: number;
+    maxHashtags: number;
+    minInterval: number;
+  };
 }
 
 export class TwitterService {
-  private scraper?: Scraper;
-  private aiService: IAIService;
-  private isInitialized: boolean = false;
-  private credentials?: TwitterConfig['credentials'];
-  private logger: Logger;
+  private client: TwitterApi;
+  private appOnlyClient: TwitterApi;
+  private aiService: AIService;
+  private username: string;
+  private isStreaming: boolean = false;
+  private config: TwitterServiceConfig;
 
-  constructor(config: TwitterConfig) {
-    if (!config.aiService) {
-      throw new Error('AI service is required for Twitter service');
-    }
-    this.aiService = config.aiService;
-    this.credentials = config.credentials;
-    this.logger = new Logger('TwitterService');
-  }
-
-  private async initializeScraper(): Promise<boolean> {
-    try {
-      const { Scraper } = await import('agent-twitter-client');
-      const scraper = new Scraper() as unknown as Scraper;
-      // Initialize scraper with required methods
-      await scraper.initialize();
-      this.scraper = scraper;
-      return true;
-    } catch (error) {
-      this.logger.warn('Twitter client not available - running in mock mode');
-      return false;
-    }
-  }
-
-  /**
-   * Attempts to load existing session cookies
-   * Used to restore previous sessions and avoid frequent logins
-   * 
-   * @returns Promise resolving to true if valid cookies were loaded
-   */
-  private async loadCookies(): Promise<boolean> {
-    try {
-      if (!this.scraper) {
-        return false;
+  constructor(config: TwitterConfig, aiService: AIService) {
+    // Initialize with direct authentication
+    this.client = new TwitterApi();
+    this.appOnlyClient = this.client; // Same client for both in direct auth
+    
+    this.aiService = aiService;
+    this.username = config.username;
+    
+    // Set configuration defaults
+    this.config = {
+      maxRetries: config.maxRetries || 3,
+      retryDelay: config.retryDelay || 5000,
+      mockMode: config.mockMode || false,
+      contentRules: {
+        maxEmojis: config.contentRules?.maxEmojis || 0,
+        maxHashtags: config.contentRules?.maxHashtags || 0,
+        minInterval: config.contentRules?.minInterval || 300000
       }
-      const cookies = await this.scraper.getCookies();
-      if (cookies && cookies.length > 0) {
-        await this.scraper.setCookies(cookies);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      this.logger.warn('Failed to load cookies:', error);
-      return false;
-    }
+    };
   }
 
-  /**
-   * Attempts to log in to Twitter with retry mechanism
-   * Uses exponential backoff and handles various Twitter security challenges
-   * 
-   * @param retries - Maximum number of login attempts (default: 5)
-   * @throws Error if login fails after all retries
-   */
-  private async attemptLogin(retries = 5): Promise<void> {
-    if (!this.credentials) {
-      throw new Error('Twitter credentials not configured');
-    }
-
-    if (!this.scraper) {
-      throw new Error('Twitter client not initialized');
-    }
-
-    let lastError: unknown;
-    for (let i = 0; i < retries; i++) {
-      try {
-        // Add initial delay to avoid rate limiting
-        if (i > 0) {
-          const delay = Math.min(5000 * Math.pow(2, i) + Math.random() * 5000, 30000);
-          this.logger.info(`Waiting ${Math.round(delay)}ms before attempt ${i + 1}...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-
-        // Clear cookies and wait before attempting login
-        await this.scraper.clearCookies();
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        this.logger.info(`Attempting login with username: ${this.credentials.username}`);
-        
-        // Set proper User-Agent to mimic mobile browser
-        const userAgent = 'Mozilla/5.0 (Linux; Android 11; Nokia G20) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.88 Mobile Safari/537.36';
-        
-        // Configure scraper with proper headers
-        await this.scraper.withCookie('att=1;');
-        await this.scraper.withCookie('lang=en;');
-        
-        // Attempt login with proper configuration
-        await this.scraper.login({
-          username: this.credentials.username,
-          password: this.credentials.password
-        });
-
-        // Add delay after login attempt to allow session establishment
-        await new Promise(resolve => setTimeout(resolve, 5000));
-
-        // Verify login success with retries
-        let loginVerified = false;
-        for (let verifyAttempt = 0; verifyAttempt < 3; verifyAttempt++) {
-          const isLoggedIn = await this.scraper.isLoggedIn();
-          if (isLoggedIn) {
-            loginVerified = true;
-            break;
-          }
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-
-        if (!loginVerified) {
-          throw new Error('Login appeared successful but verification failed');
-        }
-
-        console.log('Login successful and verified');
-        return;
-      } catch (error) {
-        console.warn(`Login attempt ${i + 1} failed:`, error);
-        lastError = error;
-        
-        // Handle specific error codes
-        const errorObj = error as any;
-        if (errorObj?.errors?.[0]?.code === 399) {
-          console.error('Twitter anti-automation check triggered (ACID challenge). Waiting longer...');
-          // Add longer delay for anti-automation
-          await new Promise(resolve => setTimeout(resolve, 15000 + Math.random() * 15000));
-          // Clear cookies and reset session state
-          await this.scraper.clearCookies();
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        } else if (errorObj?.errors?.[0]?.code === 366) {
-          console.error('Missing data error. Retrying with clean session...');
-          await this.scraper.clearCookies();
-          await new Promise(resolve => setTimeout(resolve, 5000));
-        }
-      }
-    }
-    throw lastError;
-  }
-
-  /**
-   * Initializes the Twitter service
-   * Handles authentication and session setup
-   * 
-   * 1. Attempts to load existing cookies
-   * 2. If no valid cookies, performs fresh login
-   * 3. Verifies login status
-   * 
-   * @throws Error if initialization fails
-   */
   async initialize(): Promise<void> {
     try {
-      if (this.isInitialized) {
-        return;
-      }
+      elizaLogger.info('Initializing Twitter service...');
 
-      this.logger.info('Initializing Twitter service...');
+      // Verify credentials before proceeding
+      await this.verifyCredentials();
       
-      if (!this.credentials?.username || !this.credentials?.password) {
-        throw new Error('Twitter credentials not properly configured');
-      }
-      
-      const hasTwitterClient = await this.initializeScraper();
-      if (!hasTwitterClient) {
-        this.logger.info('Running in mock mode - Twitter functionality will be simulated');
-        this.isInitialized = true;
-        return;
-      }
-      
-      this.logger.info(`Attempting to initialize Twitter service for @${this.credentials.username}`);
+      elizaLogger.info(`Twitter bot initialized as @${this.username}`);
 
-      const hasCookies = await this.loadCookies();
-      if (!hasCookies) {
-        this.logger.info('No valid session found, performing fresh login...');
-        await this.attemptLogin();
-        // Cache cookies for future use
-        const cookies = await this.scraper?.getCookies();
-        if (cookies && cookies.length > 0) {
-          await this.scraper?.setCookies(cookies);
-          this.logger.info('Session cookies cached successfully');
-        }
-      }
-
-      const isLoggedIn = await this.scraper?.isLoggedIn();
-      if (!isLoggedIn) {
-        throw new Error('Failed to verify Twitter login status');
-      }
-
-      // Verify posting capability with a test tweet
-      this.logger.info('Verifying tweet posting capability...');
-      const testTweet = await this.tweet('Initializing system... [Test tweet - will be deleted]', { truncateIfNeeded: true });
-      if (testTweet.success && testTweet.tweetId) {
-        await this.scraper?.deleteTweet(testTweet.tweetId);
-        this.logger.info('Tweet posting capability verified successfully');
-      }
-
-      this.logger.info(`Twitter service initialized successfully as @${this.credentials.username}`);
-      this.isInitialized = true;
     } catch (error) {
-      console.error('Failed to initialize Twitter service:', error);
+      elizaLogger.error('Failed to initialize Twitter service:', error);
       throw error;
     }
   }
 
-  private getTweetId(response: unknown): string {
-    if (typeof response === 'object' && response !== null) {
-      // Try different possible response structures
-      const resp = response as Record<string, unknown>;
-      return String(
-        resp.tweet_id || 
-        resp.id || 
-        (resp.data && typeof resp.data === 'object' ? (resp.data as Record<string, unknown>).id : '') ||
-        ''
-      );
+  private async verifyCredentials(): Promise<void> {
+    if (this.config.mockMode) {
+      elizaLogger.info('Running in mock mode - skipping Twitter authentication');
+      return;
     }
-    return '';
+
+    try {
+      // Test direct authentication
+      const userClient = await this.client.v2.me();
+      elizaLogger.info('Direct authentication successful');
+
+      // Verify account access
+      const settings = await this.client.v2.userByUsername(this.username);
+      elizaLogger.info('Account access verified');
+
+    } catch (error: any) {
+      if (error.code === 399) {
+        elizaLogger.info(`
+          ACID challenge detected (Error 399) - this is normal for direct authentication.
+          The system will handle this automatically.
+        `);
+      } else if (error.code === 403) {
+        elizaLogger.error(`
+          Authentication error. Please ensure:
+          1. Your Twitter credentials are correct
+          2. Your account is not locked or restricted
+          3. You have completed any required verification steps
+          
+          Note: A "suspicious login" notification is normal and indicates successful authentication.
+        `);
+      } else if (error.code === 429) {
+        elizaLogger.error('Rate limit exceeded. Waiting before retry.');
+        await new Promise(resolve => setTimeout(resolve, this.config.retryDelay));
+      }
+      throw error;
+    }
   }
 
-  async tweet(content: string, options: TweetOptions = {}): Promise<{ success: boolean; error?: Error; tweetId?: string }> {
-    try {
-      if (!this.isInitialized) {
-        return { success: false, error: new Error('Twitter service not initialized') };
-      }
+  /**
+   * Upload media using Twitter API
+   * Note: Currently using v1 endpoint as v2 doesn't fully support direct media uploads yet
+   * TODO: Migrate to v2 media endpoints when they become available
+   * @param mediaUrls Array of media URLs to upload
+   * @returns Array of media IDs
+   */
+  private async uploadMedia(mediaUrls: string[]): Promise<string[]> {
+    let attempt = 0;
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 5000; // 5 seconds
 
-      if (!this.scraper) {
-        return { success: false, error: new Error('Twitter client not available') };
-      }
-
-      // Validate tweet content
-      const MAX_TWEET_LENGTH = 280;
-      if (!content) {
-        return { success: false, error: new Error('Tweet content cannot be empty') };
-      }
-
-      // Handle tweet length
-      if (content.length > MAX_TWEET_LENGTH) {
-        if (options.truncateIfNeeded) {
-          content = content.substring(0, MAX_TWEET_LENGTH - 3) + '...';
-          this.logger.warn('Tweet content truncated to fit length limit');
-        } else {
-          return { 
-            success: false, 
-            error: new Error(`Tweet content exceeds maximum length of ${MAX_TWEET_LENGTH} characters`) 
-          };
+    while (attempt < MAX_RETRIES) {
+      try {
+        // Still using v1 endpoint as v2 doesn't have a direct replacement yet
+        const mediaIds = await Promise.all(
+          mediaUrls.map(url => this.client.v1.uploadMedia(url))
+        );
+        elizaLogger.info('Successfully uploaded media using v1 endpoint');
+        return mediaIds;
+      } catch (error) {
+        attempt++;
+        if (error instanceof ApiResponseError && error.rateLimitError && attempt < MAX_RETRIES) {
+          elizaLogger.warn(`Rate limit hit, waiting ${RETRY_DELAY}ms before retry ${attempt}/${MAX_RETRIES}`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          continue;
         }
+        elizaLogger.error('Error uploading media:', error);
+        throw error;
       }
+    }
+    throw new Error('Failed to upload media after maximum retries');
+  }
 
-      let result: unknown;
-      if (options.replyToTweet) {
-        result = await this.scraper.sendTweet(content, options.replyToTweet);
-      } else if (options.quoteTweetId) {
-        result = await this.scraper.sendQuoteTweet(content, options.quoteTweetId);
-      } else {
-        result = await this.scraper.sendTweet(content);
-      }
+  /**
+   * Post a tweet using Twitter API v2
+   * @param content Tweet text content
+   * @param options Optional parameters including media URLs
+   */
+  async tweet(content: string, options: { mediaUrls?: string[] } = {}): Promise<TweetV2PostTweetResult> {
+    if (this.config.mockMode) {
+      elizaLogger.info('Mock mode - logging tweet instead of posting:', content);
+      return { data: { id: 'mock_tweet_id', text: content } } as TweetV2PostTweetResult;
+    }
 
-      const tweetId = this.getTweetId(result);
-      if (!tweetId) {
-        return { success: false, error: new Error('Failed to get tweet ID from response') };
+    // Validate content against rules
+    const emojiCount = (content.match(/[\p{Emoji}]/gu) || []).length;
+    const hashtagCount = (content.match(/#\w+/g) || []).length;
+
+    if (emojiCount > this.config.contentRules.maxEmojis) {
+      throw new Error(`Tweet contains ${emojiCount} emojis, exceeding limit of ${this.config.contentRules.maxEmojis}`);
+    }
+    if (hashtagCount > this.config.contentRules.maxHashtags) {
+      throw new Error(`Tweet contains ${hashtagCount} hashtags, exceeding limit of ${this.config.contentRules.maxHashtags}`);
+    }
+
+    let attempt = 0;
+    while (attempt < this.config.maxRetries) {
+      try {
+        let mediaIds: string[] = [];
+        
+        if (options.mediaUrls && options.mediaUrls.length > 0) {
+          mediaIds = await this.uploadMedia(options.mediaUrls);
+        }
+
+        // Create tweet payload using SendTweetV2Params interface
+        const tweetPayload: SendTweetV2Params = {
+          text: content,
+          ...(mediaIds.length > 0 && {
+            media_ids: mediaIds  // Media IDs at root level for v2 API
+          })
+        };
+        
+        const tweet = await this.client.v2.tweet(tweetPayload);
+        
+        elizaLogger.info('Successfully posted tweet:', tweet.data.id);
+        return tweet;
+      } catch (error) {
+        attempt++;
+        if (error instanceof ApiResponseError && error.rateLimitError && attempt < this.config.maxRetries) {
+          elizaLogger.warn(`Rate limit hit, waiting ${this.config.retryDelay}ms before retry ${attempt}/${this.config.maxRetries}`);
+          await new Promise(resolve => setTimeout(resolve, this.config.retryDelay));
+          continue;
+        }
+        elizaLogger.error('Failed to post tweet:', error);
+        throw error;
       }
-      return { success: true, tweetId };
+    }
+    throw new Error('Failed to post tweet after maximum retries');
+  }
+
+  async reply(messageId: string, content: string): Promise<void> {
+    try {
+      await this.client.v2.reply(content, messageId);
+      elizaLogger.info('Successfully replied to tweet');
     } catch (error) {
-      this.logger.error('Error sending tweet:', error);
-      return { success: false, error: error as Error };
+      elizaLogger.error('Failed to reply to tweet:', error);
+      throw error;
     }
   }
 
-  async reply(tweetId: string, _content: string): Promise<string> {
+  private async setupStreamRules(): Promise<void> {
     try {
-      if (!this.isInitialized) {
-        throw new Error('Twitter service not initialized');
+      // Always use appOnlyClient for stream rules
+      const rules = await this.appOnlyClient.v2.streamRules();
+      
+      // Clear existing rules
+      if (rules.data?.length) {
+        await this.appOnlyClient.v2.updateStreamRules({
+          delete: { ids: rules.data.map(rule => rule.id) }
+        });
       }
 
-      if (!this.scraper) {
-        throw new Error('Twitter client not available');
+      // Set new rules using app-only client
+      await this.appOnlyClient.v2.updateStreamRules({
+        add: [
+          { value: `@${this.username}`, tag: 'mentions' }
+        ]
+      });
+
+      elizaLogger.info('Twitter stream rules set successfully');
+    } catch (error: any) {
+      if (error.code === 403 && error.data?.title === 'Unsupported Authentication') {
+        elizaLogger.error('Authentication error: Using app-only client for stream rules');
       }
+      throw error;
+    }
+  }
 
-      const tweet = await this.scraper.getTweet(tweetId) as Tweet;
-      const tweetText = tweet?.text || '';
-      const tweetUsername = tweet?.username || 'unknown';
+  async startStream(): Promise<void> {
+    if (this.isStreaming) {
+      elizaLogger.warn('Twitter stream is already running');
+      return;
+    }
 
+    try {
+      elizaLogger.info('Starting Twitter stream...');
+
+      // Set up stream rules first
+      await this.setupStreamRules();
+
+      // Create stream with app-only client
+      const stream = await this.appOnlyClient.v2.searchStream({
+        'tweet.fields': ['referenced_tweets', 'author_id', 'created_at'],
+        'user.fields': ['username'],
+        expansions: ['referenced_tweets.id', 'author_id']
+      });
+
+      this.isStreaming = true;
+      elizaLogger.success('Twitter stream started successfully');
+
+      stream.on('data', async tweet => {
+        try {
+          // Process incoming tweets
+          await this.handleTweet(tweet);
+        } catch (error) {
+          elizaLogger.error('Error processing tweet:', error);
+        }
+      });
+
+      stream.on('error', error => {
+        elizaLogger.error('Stream error:', error);
+        this.isStreaming = false;
+        // Attempt to restart stream after delay
+        setTimeout(() => this.startStream(), 30000);
+      });
+
+    } catch (error: any) {
+      if (error.data?.reason === 'client-not-enrolled') {
+        elizaLogger.error(`
+          Twitter API access error. Your App must be attached to a Project in the Twitter Developer Portal.
+          Please ensure:
+          1. Your App is attached to a Project
+          2. You have the appropriate level of API access
+          
+          Visit: https://developer.twitter.com/en/docs/projects/overview
+        `);
+      } else if (error.code === 429) {
+        elizaLogger.error('Rate limit exceeded. Please try again later.');
+      } else if (error.code === 403 && error.data?.title === 'Unsupported Authentication') {
+        elizaLogger.error(`
+          Unsupported Authentication. Please ensure you are using OAuth 2.0 Application-Only authentication for this endpoint.
+          Visit: https://developer.twitter.com/en/docs/authentication/oauth-2-0
+        `);
+      }
+      elizaLogger.error('Error starting stream:', error);
+      this.isStreaming = false;
+      throw error;
+    }
+  }
+
+  private async handleTweet(tweet: any): Promise<void> {
+    // Don't respond to our own tweets
+    if (tweet.data.author_id === await this.getUserId()) {
+      return;
+    }
+
+    try {
       const response = await this.aiService.generateResponse({
-        content: tweetText,
-        author: tweetUsername,
+        content: tweet.data.text,
         platform: 'twitter',
-        channel: tweetId
+        author: tweet.data.author_id,
+        messageId: tweet.data.id // Ensure this property is included in the type definition
       });
 
-      const result = await this.scraper.sendTweet(response, tweetId);
-      const responseTweetId = this.getTweetId(result);
-      if (!responseTweetId) {
-        throw new Error('Failed to get tweet ID from response');
+      if (response) {
+        await this.client.v2.reply(response, tweet.data.id);
       }
-      return responseTweetId;
     } catch (error) {
-      this.logger.error('Error replying to tweet:', error);
+      elizaLogger.error('Error handling tweet:', error);
+    }
+  }
+
+  private async getUserId(): Promise<string> {
+    try {
+      const user = await this.client.v2.userByUsername(this.username);
+      return user.data.id;
+    } catch (error) {
+      elizaLogger.error('Error getting user ID:', error);
       throw error;
     }
   }
 
-  async retweet(tweetId: string): Promise<void> {
+  async stop(): Promise<void> {
     try {
-      if (!this.isInitialized) {
-        throw new Error('Twitter service not initialized');
+      if (this.isStreaming) {
+        // Clean up rules when stopping
+        const rules = await this.appOnlyClient.v2.streamRules();
+        if (rules.data?.length) {
+          await this.appOnlyClient.v2.updateStreamRules({
+            delete: { ids: rules.data.map(rule => rule.id) }
+          });
+        }
       }
-
-      if (!this.scraper) {
-        throw new Error('Twitter client not available');
-      }
-
-      await this.scraper.retweet(tweetId);
+      
+      this.isStreaming = false;
+      elizaLogger.info('Twitter stream stopped');
     } catch (error) {
-      this.logger.error('Error retweeting:', error);
-      throw error;
-    }
-  }
-
-  async like(tweetId: string): Promise<void> {
-    try {
-      if (!this.isInitialized) {
-        throw new Error('Twitter service not initialized');
-      }
-
-      if (!this.scraper) {
-        throw new Error('Twitter client not available');
-      }
-
-      await this.scraper.likeTweet(tweetId);
-    } catch (error) {
-      this.logger.error('Error liking tweet:', error);
-      throw error;
-    }
-  }
-
-  async publishMarketUpdate(action: MarketAction, data: MarketData): Promise<string> {
-    try {
-      if (!this.isInitialized) {
-        throw new Error('Twitter service not initialized');
-      }
-
-      const content = await this.aiService.generateMarketUpdate({
-        action,
-        data,
-        platform: 'twitter'
-      });
-
-      const result = await this.tweet(content);
-      if (!result.success || !result.tweetId) {
-        throw result.error || new Error('Failed to publish market update');
-      }
-      return result.tweetId;
-    } catch (error) {
-      this.logger.error('Error publishing market update:', error);
-      throw error;
-    }
-  }
-
-  async cleanup(): Promise<void> {
-    try {
-      if (this.isInitialized && this.scraper) {
-        await this.scraper.logout();
-        this.isInitialized = false;
-      }
-      this.logger.info('Twitter service cleaned up');
-    } catch (error) {
-      this.logger.error('Error during cleanup:', error);
+      elizaLogger.error('Error stopping Twitter service:', error);
       throw error;
     }
   }

@@ -1,10 +1,6 @@
-import { TwitterService, TwitterConfig } from './twitter.js';
-import { DiscordService } from './discord.js';
+import { TwitterService } from './twitter';
+import { DiscordService } from './discord';
 import { TwitterApiTokens } from 'twitter-api-v2';
-import { AgentTwitterClientService } from './agentTwitterClient.js';
-import { AIService as AIServiceImpl } from '../ai/ai.js';
-import { IAIService } from '../ai/types.js';
-import { MarketData } from '../../types/market.js';
 
 export interface SocialMetrics {
   followers: number;
@@ -14,71 +10,51 @@ export interface SocialMetrics {
 
 export interface SocialConfig {
   services: {
-    ai: AIServiceImpl;  // Using concrete implementation
+    ai: any; // Let the concrete implementations handle AI type checking
   };
-  discord?: {
-    token?: string;
-    guildId?: string;
+  discord: {
+    token: string;
+    guildId: string;
   };
-  twitter?: {
-    tokens?: TwitterApiTokens;
-    credentials?: {
-      username: string;
-      password: string;
-      email: string;
-    };
+  twitter: {
+    tokens: TwitterApiTokens & { bearerToken: string; username: string }; // Ensure bearerToken and username are included
   };
-  twitterClient?: AgentTwitterClientService;
 }
 
 export class SocialService {
   private twitterService?: TwitterService;
-  private agentTwitter?: AgentTwitterClientService;
   private discordService?: DiscordService;
 
   constructor(config: SocialConfig) {
-    // Initialize Twitter client if provided
-    if (config.twitterClient) {
-      this.agentTwitter = config.twitterClient;
-    } else if (config.twitter?.tokens && config.twitter.credentials) {
-      // Initialize agent-twitter-client service
-      this.agentTwitter = new AgentTwitterClientService(
-        config.twitter.credentials.username,
-        config.twitter.credentials.password,
-        config.twitter.credentials.email,
-        config.services.ai
-      );
-
-      // Keep legacy Twitter service for now during migration
-      const twitterConfig: TwitterConfig = {
-        credentials: config.twitter.credentials,
-        aiService: config.services.ai as AIServiceImpl // Cast to implementation type
+    if (config.twitter?.tokens) {
+      const twitterConfig = {
+        username: config.twitter.tokens.username ?? '',
+        password: process.env.TWITTER_PASSWORD ?? '',
+        email: process.env.TWITTER_EMAIL ?? '',
+        mockMode: process.env.TWITTER_MOCK_MODE === 'true',
+        maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
+        retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
+        contentRules: {
+          maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
+          maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
+          minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
+        }
       };
       
-      this.twitterService = new TwitterService(twitterConfig);
+      this.twitterService = new TwitterService(twitterConfig, config.services.ai);
     }
 
-    // Discord service initialization is optional
-    if (config.discord?.token && config.discord?.guildId) {
-      try {
-        this.discordService = new DiscordService({
-          token: config.discord.token,
-          guildId: config.discord.guildId,
-          aiService: config.services.ai as AIServiceImpl // Cast to implementation type
-        });
-      } catch (error) {
-        console.warn('Failed to initialize Discord service:', error);
-        // Continue without Discord
-      }
+    if (config.discord) {
+      this.discordService = new DiscordService({
+        token: config.discord.token,
+        guildId: config.discord.guildId,
+        aiService: config.services.ai
+      });
     }
   }
 
   async initialize(): Promise<void> {
     const initPromises: Promise<void>[] = [];
-    
-    if (this.agentTwitter) {
-      initPromises.push(this.agentTwitter.initialize());
-    }
     
     if (this.twitterService) {
       initPromises.push(this.twitterService.initialize());
@@ -92,10 +68,6 @@ export class SocialService {
     await Promise.all(initPromises);
   }
 
-  async getTwitterClient(): Promise<AgentTwitterClientService | undefined> {
-    return this.agentTwitter;
-  }
-
   async getCommunityMetrics(): Promise<SocialMetrics> {
     return {
       followers: 1000,
@@ -104,50 +76,15 @@ export class SocialService {
     };
   }
 
-  async postTweet(content: string): Promise<{ success: boolean; error?: Error }> {
-    if (!content) {
-      return { success: false, error: new Error('Tweet content cannot be empty') };
-    }
-
-    if (content.length > 280) {
-      return { success: false, error: new Error('Tweet content exceeds maximum length of 280 characters') };
-    }
-
-    try {
-      if (this.agentTwitter) {
-        const result = await this.agentTwitter.postTweet(content);
-        console.log('Successfully posted tweet using AgentTwitterClient');
-        return result;
-      } else if (this.twitterService) {
-        const result = await this.twitterService.tweet(content);
-        console.log('Successfully posted tweet using legacy TwitterClient');
-        return { success: result.success, error: result.error };
-      } else {
-        return { success: false, error: new Error('No Twitter client available') };
-      }
-    } catch (error) {
-      console.error('Error posting tweet:', error);
-      return { success: false, error: error as Error };
-    }
-  }
-
   async send(content: string): Promise<void> {
     const promises: Promise<void>[] = [];
 
-    if (this.agentTwitter) {
-      promises.push(this.agentTwitter.postTweet(content).then(() => {
-        console.log('Tweet sent successfully via AgentTwitterClient');
-      }));
-    } else if (this.twitterService) {
-      promises.push(this.twitterService.tweet(content).then(() => {
-        console.log('Tweet sent successfully via legacy Twitter service');
-      }));
+    if (this.twitterService) {
+      promises.push(this.twitterService.tweet(content).then(() => {}));
     }
     
     if (this.discordService) {
-      promises.push(this.discordService.sendMessage('System', content).then(() => {
-        console.log('Message sent successfully to Discord');
-      }));
+      promises.push(this.discordService.sendMessage('System', content).then(() => {}));
     }
     
     await Promise.all(promises);
@@ -156,11 +93,8 @@ export class SocialService {
   async sendMessage(platform: string, messageId: string, content: string): Promise<void> {
     switch (platform.toLowerCase()) {
       case 'twitter':
-        if (this.agentTwitter) {
-          const username = await this.getTweetAuthor(messageId);
-          await this.agentTwitter.replyToTweet(messageId, content);
-        } else if (this.twitterService) {
-          await this.twitterService.reply(messageId, content);
+        if (this.twitterService) {
+          await this.twitterService.reply(messageId, content); // Ensure TwitterService has a reply method
         }
         break;
       case 'discord':
@@ -172,17 +106,8 @@ export class SocialService {
         throw new Error(`Unsupported platform: ${platform}`);
     }
   }
-
-  private async getTweetAuthor(tweetId: string): Promise<string> {
-    // For now, return a default username since we don't have access to tweet data
-    // This should be implemented properly in a future update
-    return 'unknown_user';
-  }
 }
 
-export { TwitterService } from './twitter.js';
-export { DiscordService } from './discord.js';
-export { AgentTwitterClientService } from './agentTwitterClient.js';
-export * from './twitter.types.js';
-export * from './agentTwitterClient.types.js';
+export { TwitterService } from './twitter';
+export { DiscordService } from './discord';
 export default SocialService;

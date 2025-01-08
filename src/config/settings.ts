@@ -2,9 +2,9 @@
 
 import { PublicKey } from '@solana/web3.js';
 import * as dotenv from 'dotenv';
-import { NetworkType } from './constants.js';
-// Import removed: bs58 (unused)
-import { validateSolanaConfig } from '../utils/solana-validator.js';
+import { NetworkType } from './constants';
+import bs58 from 'bs58';
+import { validateSolanaConfig } from '../utils/solana-validator';
 
 // Load environment variables
 dotenv.config();
@@ -13,7 +13,9 @@ console.log('Loaded .env file from:', process.cwd() + '/.env');
 // Validate required environment variables
 const requiredEnvVars = [
     'SOLANA_PRIVATE_KEY',
-    'GROQ_API_KEY'
+    'GROQ_API_KEY',
+    'TWITTER_API_KEY',
+    'DISCORD_TOKEN'
 ];
 
 for (const envVar of requiredEnvVars) {
@@ -31,22 +33,12 @@ function getRequiredEnvVar(key: string, defaultValue?: string): string {
 }
 
 export const CONFIG = {
-  security: {
-    jwtSecret: process.env.JWT_SECRET || 'default-secret',
-    jwtExpiration: '24h'
-  },
-  helius: {
-    apiKey: process.env.HELIUS_API_KEY || ''
-  },
-  solana: {
-    traderAddress: process.env.SOLANA_TRADER_ADDRESS || ''
-  },
     // Blockchain Settings
     SOLANA: {
         NETWORK: getRequiredEnvVar('NETWORK_TYPE', 'devnet') as NetworkType,
-        RPC_URL: getRequiredEnvVar('SOLANA_RPC_URL', 'https://api.devnet.solana.com'),
+        RPC_URL: getRequiredEnvVar('RPC_ENDPOINT', 'https://api.devnet.solana.com'),
         PRIVATE_KEY: getRequiredEnvVar('SOLANA_PRIVATE_KEY'),
-        PUBLIC_KEY: getRequiredEnvVar('SOLANA_PUBLIC_KEY'),
+        PUBKEY: getRequiredEnvVar('SOLANA_PUBLIC_KEY'), // Changed from SOLANA_PUBKEY
         TOKEN_SETTINGS: {
             NAME: getRequiredEnvVar('TOKEN_NAME', 'Meme Token'),
             SYMBOL: getRequiredEnvVar('TOKEN_SYMBOL', 'MEME'),
@@ -76,28 +68,26 @@ export const CONFIG = {
     // Social Media Settings
     SOCIAL: {
         TWITTER: {
+            USERNAME: process.env.TWITTER_USERNAME || '',
             tokens: {
                 appKey: process.env.TWITTER_API_KEY || '',
                 appSecret: process.env.TWITTER_API_SECRET || '',
                 accessToken: process.env.TWITTER_ACCESS_TOKEN || '',
-                accessSecret: process.env.TWITTER_ACCESS_SECRET || ''
-            },
-            username: getRequiredEnvVar('TWITTER_USERNAME'),
-            password: getRequiredEnvVar('TWITTER_PASSWORD'),
-            email: getRequiredEnvVar('TWITTER_EMAIL')
+                accessSecret: process.env.TWITTER_ACCESS_SECRET || '',
+                bearerToken: process.env.TWITTER_BEARER_TOKEN || ''  // Ensure bearer token is included
+            }
         },
         DISCORD: {
-            TOKEN: process.env.DISCORD_TOKEN || '',
-            GUILD_ID: process.env.DISCORD_GUILD_ID || '',
-            COMMAND_PREFIX: process.env.DISCORD_COMMAND_PREFIX || '!'
+            TOKEN: getRequiredEnvVar('DISCORD_TOKEN'),
+            GUILD_ID: getRequiredEnvVar('DISCORD_GUILD_ID'),
+            COMMAND_PREFIX: getRequiredEnvVar('DISCORD_COMMAND_PREFIX')
         }
     },
 
     AUTOMATION: {
-        CONTENT_GENERATION_INTERVAL: parseInt(process.env.CONTENT_GENERATION_INTERVAL || '120000'), // 2 minutes default
-        MARKET_MONITORING_INTERVAL: parseInt(process.env.MARKET_MONITORING_INTERVAL || '30000'),    // 30 seconds default
-        COMMUNITY_ENGAGEMENT_INTERVAL: parseInt(process.env.COMMUNITY_ENGAGEMENT_INTERVAL || '180000'), // 3 minutes default
-        TWEET_INTERVAL: parseInt(process.env.TWEET_INTERVAL || '300000') // 5 minutes default
+        CONTENT_GENERATION_INTERVAL: parseInt(getRequiredEnvVar('CONTENT_GENERATION_INTERVAL')),
+        MARKET_MONITORING_INTERVAL: parseInt(getRequiredEnvVar('MARKET_MONITORING_INTERVAL')),
+        COMMUNITY_ENGAGEMENT_INTERVAL: parseInt(getRequiredEnvVar('COMMUNITY_ENGAGEMENT_INTERVAL'))
     },
 
     // Market Analysis Settings
@@ -174,10 +164,7 @@ function isValidPrivateKey(key: string): boolean {
 
 // Initialize configuration
 validateConfig();
-validateSolanaConfig({
-  ...CONFIG.SOLANA,
-  PUBLIC_KEY: CONFIG.SOLANA.PUBLIC_KEY,
-});
+validateSolanaConfig(CONFIG.SOLANA);
 
 export default CONFIG;
 
@@ -189,7 +176,7 @@ function validateConfig() {
 
     // Validate Solana public key
     try {
-        new PublicKey(CONFIG.SOLANA.PUBLIC_KEY);
+        new PublicKey(CONFIG.SOLANA.PUBKEY);
     } catch (error) {
         throw new Error('Invalid Solana public key format.');
     }
@@ -223,12 +210,13 @@ function validateConfig() {
         throw new Error('Invalid AI default temperature.');
     }
 
-    // Validate Twitter credentials
-    const { username, password, email } = CONFIG.SOCIAL.TWITTER;
-    if (!username || !password || !email) {
-        throw new Error('Missing required Twitter credentials');
+    // Validate social media settings
+    if (!CONFIG.SOCIAL.TWITTER.USERNAME) {
+        throw new Error('Invalid Twitter username.');
     }
-    // Discord is optional, no validation needed
+    if (!CONFIG.SOCIAL.DISCORD.GUILD_ID) {
+        throw new Error('Invalid Discord guild ID.');
+    }
 
     // Validate automation intervals
     if (isNaN(CONFIG.AUTOMATION.CONTENT_GENERATION_INTERVAL) || CONFIG.AUTOMATION.CONTENT_GENERATION_INTERVAL <= 0) {
