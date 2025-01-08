@@ -8,7 +8,7 @@ export const PostgresDataSource = new DataSource({
   host: process.env.POSTGRES_HOST || 'localhost',
   port: parseInt(process.env.POSTGRES_PORT || '5432'),
   username: process.env.POSTGRES_USER || 'postgres',
-  password: process.env.POSTGRES_PASSWORD || 'postgres',
+  password: process.env.POSTGRES_PASSWORD,
   database: process.env.POSTGRES_DB || 'swarm_db',
   entities: ['dist/infrastructure/database/entities/**/*.js'],
   migrations: ['dist/infrastructure/database/migrations/**/*.js'],
@@ -24,4 +24,4 @@ export const initializePostgres = async () => {
     console.error('Error initializing PostgreSQL:', error);
     throw error;
   }
-};   
+};      

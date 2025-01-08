@@ -99,7 +99,7 @@ const config: Config = {
   },
 
   security: {
-    jwtSecret: process.env.JWT_SECRET || 'your-jwt-secret-key',
+    jwtSecret: process.env.JWT_SECRET || (process.env.NODE_ENV === 'development' ? 'dev-secret-key' : ''),
     jwtExpiration: process.env.JWT_EXPIRATION || '24h'
   },
 
@@ -137,4 +137,4 @@ const config: Config = {
   }
 };
 
-export default config; 
+export default config;    
