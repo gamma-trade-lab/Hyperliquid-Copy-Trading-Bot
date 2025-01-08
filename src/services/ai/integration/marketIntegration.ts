@@ -1,7 +1,7 @@
 // src/services/ai/integration/marketIntegration.ts
 
 import { Connection, PublicKey } from '@solana/web3.js';
-import { AIService } from '../ai';
+import { AIService } from '../ai.js';
 import { EventEmitter } from 'events';
 
 interface MarketData {

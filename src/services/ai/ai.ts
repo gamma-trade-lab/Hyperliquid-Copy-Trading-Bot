@@ -1,17 +1,42 @@
-// src/services/ai.ts
+/**
+ * AI Service Implementation
+ * 
+ * This module provides AI capabilities through multiple LLM providers (Groq and DeepSeek).
+ * It handles various AI tasks including content generation, sentiment analysis, and market analysis.
+ * 
+ * Features:
+ * - Multiple LLM provider support (Groq, DeepSeek)
+ * - Context-aware response generation
+ * - Market analysis and trading signals
+ * - Meme content generation with sentiment analysis
+ * 
+ * @module AIService
+ */
 
 import { Groq } from 'groq-sdk';
 import { randomBytes } from 'crypto';
-import { TweetV2 } from 'twitter-api-v2';
-import { MarketAction } from '../../config/constants';
-import personalityConfig from '../../config/personality';
-import CONFIG from '../../config/settings';
+import { MarketAction } from '../../config/constants.js';
+import { DeepSeekProvider } from './providers/deepSeekProvider.js';
+import { LLMProvider, ChatRequest, ChatResponse, Tweet, MarketData, MarketAnalysis, IAIService } from './types.js';
+import CONFIG from '../../config/settings.js';
+import personalityConfig from '../../config/personality.js';
+import { Character } from '../../personality/types.js';
 
 interface AIServiceConfig {
-  groqApiKey: string;
+  groqApiKey?: string;
+  deepSeekApiKey?: string;
+  useDeepSeek?: boolean;
   defaultModel: string;
   maxTokens: number;
   temperature: number;
+}
+
+// Internal types
+type MessageRole = "system" | "user" | "assistant";
+
+interface Message {
+  role: MessageRole;
+  content: string;
 }
 
 interface ResponseContext {
@@ -23,46 +48,119 @@ interface ResponseContext {
   marketCondition?: string;
 }
 
-interface MarketAnalysis {
-  shouldTrade: boolean;
-  confidence: number;
-  action: 'BUY' | 'SELL' | 'HOLD';
-  metrics: {
-    price: number;
-    volume24h: number;
-    marketCap: number;
-  };
-}
-
 interface MemeResponse {
   text: string;
   hashtags: string[];
   sentiment: 'positive' | 'negative' | 'neutral';
 }
 
-export class AIService {
-  private groq: Groq;
+export class AIService implements IAIService {
+  private characterConfig?: Character;
+
+  async setCharacterConfig(config: Character): Promise<void> {
+    this.characterConfig = config;
+  }
+  private provider: LLMProvider;
   private personality: typeof personalityConfig;
   private config: AIServiceConfig;
   private contextMemory: Map<string, string[]> = new Map();
   private maxMemoryItems: number = 10;
 
+  /**
+   * Initializes the AI service with the specified configuration
+   * Supports multiple LLM providers (DeepSeek and Groq)
+   * 
+   * @param config - Configuration object containing API keys and model settings
+   * @throws Error if no valid AI provider configuration is found
+   */
   constructor(config: AIServiceConfig) {
-    this.groq = new Groq({
-      apiKey: config.groqApiKey
-    });
+    if (config.useDeepSeek && config.deepSeekApiKey) {
+      this.provider = new DeepSeekProvider(config.deepSeekApiKey);
+    } else if (config.groqApiKey) {
+      const groq = new Groq({ apiKey: config.groqApiKey });
+      this.provider = {
+        chatCompletion: async (request: ChatRequest): Promise<ChatResponse> => {
+          const messages = request.messages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          }));
+
+          const completion = await groq.chat.completions.create({
+            messages,
+            model: request.model,
+            temperature: request.temperature || 0.7,
+            max_tokens: request.max_tokens || 100
+          });
+          
+          return {
+            id: completion.id || randomBytes(16).toString('hex'),
+            object: 'chat.completion',
+            created: Date.now(),
+            choices: [{
+              message: {
+                role: completion.choices[0].message.role as 'system' | 'user' | 'assistant',
+                content: completion.choices[0].message.content || ''
+              },
+              finish_reason: completion.choices[0].finish_reason || 'stop'
+            }]
+          };
+        }
+      };
+    } else {
+      throw new Error('No valid AI provider configuration found');
+    }
     this.config = config;
     this.personality = personalityConfig;
   }
 
-  async generateResponse(context: ResponseContext): Promise<string> {
+  /**
+   * Generates an AI response based on the given context
+   * Uses the configured LLM provider (DeepSeek or Groq)
+   * 
+   * @param context - Context for response generation
+   * @param context.content - Input content to respond to
+   * @param context.platform - Platform where the response will be posted
+   * @param context.author - Original content author (optional)
+   * @param context.channel - Channel/thread identifier (optional)
+   * @returns Promise resolving to the generated response text
+   */
+  async generateResponse(params: {
+    content: string;
+    author: string;
+    channel?: string;
+    platform: string;
+    contentType?: 'community' | 'market' | 'meme' | 'general';
+    context?: {
+      traits?: string[];
+      metrics?: any;
+      marketCondition?: string;
+      [key: string]: any;
+    };
+  }): Promise<string> {
     try {
-      const prompt = this.buildResponsePrompt(context);
+      // Handle community content type specifically
+      if (params.contentType === 'community') {
+        return this.generateCommunityContent({
+          content: params.content,
+          platform: params.platform,
+          author: params.author,
+          channel: params.channel,
+          marketCondition: params.context?.marketCondition
+        });
+      }
+
+      const prompt = this.buildResponsePrompt({
+        content: params.content,
+        platform: params.platform,
+        author: params.author,
+        channel: params.channel,
+        marketCondition: params.context?.marketCondition
+      });
       
-      const response: { choices: { message: { content: string | null } }[] } = await this.groq.chat.completions.create({
+      const response = await this.provider.chatCompletion({
         messages: [
-          { role: "system", content: this.personality.core.voice.tone },
-          { role: "user", content: prompt }
+          { role: "system" as MessageRole, content: this.personality.core.voice.tone },
+          { role: "user" as MessageRole, content: prompt }
         ],
         model: this.config.defaultModel,
         temperature: this.config.temperature,
@@ -85,54 +183,136 @@ export class AIService {
     return 0.7;
   }
 
-  async analyzeMarket(metrics: any): Promise<MarketAnalysis> {
-    return {
-      shouldTrade: true,
-      confidence: 0.8,
-      action: 'BUY',
-      metrics: {
-        price: metrics.price || 0,
-        volume24h: metrics.volume24h || 0,
-        marketCap: metrics.marketCap || 0
+  async analyzeMarket(metrics: MarketData): Promise<MarketAnalysis> {
+    let jsonString = '';
+    
+    try {
+      const systemPrompt = `You are a market analysis AI. IMPORTANT:
+1. Respond with ONLY valid JSON
+2. No explanatory text or comments
+3. Match the exact format provided
+4. All fields are required`,
+            formatExample: MarketAnalysis = {
+              shouldTrade: false,
+              confidence: 0.5,
+              action: "HOLD",
+              metrics: metrics,
+            },
+            prompt = `Analyze this market data and respond with ONLY valid JSON matching this exact format: ${JSON.stringify(formatExample, null, 2)}
+
+Market metrics:
+- Price: ${metrics.price}
+- 24h Volume: ${metrics.volume24h}
+- Market Cap: ${metrics.marketCap}
+- 24h Price Change: ${metrics.priceChange24h}`,
+            messages: Message[] = [
+              { 
+                role: "system" as MessageRole, 
+                content: systemPrompt,
+              },
+              { 
+                role: "user" as MessageRole, 
+                content: prompt,
+              },
+            ],
+            response = await this.provider.chatCompletion({
+              messages,
+              model: this.config.defaultModel,
+              temperature: 0.1, // Lower temperature for strict JSON
+              max_tokens: 150,
+            }),
+            content = response.choices[0]?.message?.content;
+
+      if (!content) {
+        throw new Error('Response content is null');
       }
-    };
+
+      // Extract JSON object using a more robust method
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON object found in response');
+      }
+
+      // Clean up the JSON string
+      jsonString = jsonMatch[0]
+        .replace(/\\n/g, ' ')
+        .replace(/\s+/g, ' ');
+
+      // Parse and validate JSON
+      const analysis: MarketAnalysis = JSON.parse(jsonString);
+
+      // Validate required fields and types
+      if (typeof analysis.shouldTrade !== 'boolean') {
+        throw new Error('Invalid shouldTrade type: must be boolean');
+      }
+      if (typeof analysis.confidence !== 'number' || analysis.confidence < 0 || analysis.confidence > 1) {
+        throw new Error('Invalid confidence: must be number between 0 and 1');
+      }
+      if (!['BUY', 'SELL', 'HOLD'].includes(analysis.action)) {
+        throw new Error('Invalid action: must be BUY, SELL, or HOLD');
+      }
+
+      return {
+        shouldTrade: analysis.shouldTrade,
+        confidence: analysis.confidence,
+        action: analysis.action,
+        metrics: metrics,
+      };
+    } catch (error) {
+      console.error('Error analyzing market:', error);
+      console.error('Original response:', jsonString);
+      
+      if (error instanceof SyntaxError) {
+        console.error('Invalid JSON format received from AI');
+      } else if (error instanceof Error) {
+        console.error('Validation error:', error.message);
+      }
+
+      // Return safe default values
+      return {
+        shouldTrade: false,
+        confidence: 0,
+        action: 'HOLD',
+        metrics: metrics,
+      };
+    }
   }
 
   async generateMemeContent(prompt?: string): Promise<MemeResponse> {
     try {
-      const sessionId = this.getSessionId();
-      const context = this.getContext(sessionId);
+      const sessionId = this.getSessionId(),
+            context = this.getContext(sessionId),
+            messages: Message[] = [
+              {
+                role: "system" as MessageRole,
+                content: CONFIG.AI.GROQ.SYSTEM_PROMPTS.MEME_GENERATION,
+              },
+              ...context.map((msg) => ({ 
+                role: "assistant" as MessageRole, 
+                content: msg,
+              })),
+              {
+                role: "user" as MessageRole,
+                content: prompt || "Create a viral meme tweet about $MEME token",
+              },
+            ];
 
-      const completion: { choices: { message: { content: string | null } }[] } = await this.groq.chat.completions.create({
-        messages: [
-          {
-            role: "system",
-            content: CONFIG.AI.GROQ.SYSTEM_PROMPTS.MEME_GENERATION
-          },
-          ...context.map(msg => ({ role: "assistant" as const, content: msg })),
-          {
-            role: "user",
-            content: prompt || "Create a viral meme tweet about $MEME token"
-          }
-        ],
-        model: this.config.defaultModel,
-        temperature: this.config.temperature,
-        max_tokens: this.config.maxTokens
-      });
+      const aiResponse = await this.provider.chatCompletion({
+              messages,
+              model: this.config.defaultModel,
+              temperature: this.config.temperature,
+              max_tokens: this.config.maxTokens,
+            }),
+            memeText = aiResponse.choices[0]?.message?.content || "",
+            extractedHashtags = memeText.match(/#[a-zA-Z0-9_]+/g) || [],
+            sentimentScore = await this.analyzeSentiment(memeText);
 
-      const response = completion.choices[0]?.message?.content || "";
-      this.updateContext(sessionId, response);
-
-      // Extract hashtags
-      const hashtags = response.match(/#[a-zA-Z0-9_]+/g) || [];
-
-      // Analyze sentiment
-      const sentiment = await this.analyzeSentiment(response);
+      this.updateContext(sessionId, memeText);
 
       return {
-        text: response,
-        hashtags,
-        sentiment: sentiment > 0.6 ? 'positive' : sentiment < 0.4 ? 'negative' : 'neutral'
+        text: memeText,
+        hashtags: extractedHashtags,
+        sentiment: sentimentScore > 0.6 ? 'positive' : sentimentScore < 0.4 ? 'negative' : 'neutral',
       };
     } catch (error) {
       console.error('Error generating meme content:', error);
@@ -159,7 +339,7 @@ export class AIService {
         Use this style: ${template || 'informative and engaging'}
         Maintain personality traits: ${this.personality.core.baseTraits.map(t => t.name).join(', ')}`;
 
-      const response: { choices: { message: { content: string | null } }[] } = await this.groq.chat.completions.create({
+      const response = await this.provider.chatCompletion({
         messages: [
           { role: "system", content: this.personality.core.voice.tone },
           { role: "user", content: prompt }
@@ -201,7 +381,7 @@ export class AIService {
         
         Response format: { "shouldEngage": boolean, "reason": string }`;
 
-      const response: { choices: { message: { content: string | null } }[] } = await this.groq.chat.completions.create({
+      const response = await this.provider.chatCompletion({
         messages: [
           { role: "system", content: this.personality.core.voice.tone },
           { role: "user", content: prompt }
@@ -232,7 +412,7 @@ export class AIService {
       const prompt = `Based on this market analysis, determine the optimal trading action:
         ${JSON.stringify(analysis)}
         
-        Consider:
+        Consider: 
         1. Risk tolerance: ${this.personality.behavior.riskTolerance}
         2. Market conditions
         3. Confidence level
@@ -244,7 +424,7 @@ export class AIService {
           "confidence": number
         }`;
 
-      const response: { choices: { message: { content: string | null } }[] } = await this.groq.chat.completions.create({
+      const response = await this.provider.chatCompletion({
         messages: [
           { role: "system", content: this.personality.core.voice.tone },
           { role: "user", content: prompt }
@@ -265,19 +445,19 @@ export class AIService {
     }
   }
 
-  async generateMarketUpdate(context: {
-    action: 'BUY' | 'SELL' | 'HOLD';
-    data: any;
+  async generateMarketUpdate(params: {
+    action: MarketAction;
+    data: MarketData;
     platform: string;
   }): Promise<string> {
     try {
-      const prompt = `Generate a market update for ${context.platform}:
-        Action: ${context.action}
-        Data: ${JSON.stringify(context.data)}
+      const prompt = `Generate a market update for ${params.platform}:
+        Action: ${params.action}
+        Data: ${JSON.stringify(params.data)}
         
         Ensure the update is informative and engaging.`;
 
-      const response: { choices: { message: { content: string | null } }[] } = await this.groq.chat.completions.create({
+      const response = await this.provider.chatCompletion({
         messages: [
           { role: "system", content: this.personality.core.voice.tone },
           { role: "user", content: prompt }
@@ -298,7 +478,11 @@ export class AIService {
     }
   }
 
-  async determineEngagementAction(tweet: TweetV2): Promise<{ type: string; content?: string }> {
+  async determineEngagementAction(tweet: any): Promise<{
+    type: 'reply' | 'retweet' | 'like' | 'ignore';
+    content?: string;
+    confidence?: number;
+  }> {
     try {
       const prompt = `Determine the optimal engagement action for the following tweet:
         ${JSON.stringify(tweet)}
@@ -311,7 +495,7 @@ export class AIService {
         
         Response format: { "type": "reply" | "retweet" | "like", "content"?: string }`;
 
-      const response: { choices: { message: { content: string | null } }[] } = await this.groq.chat.completions.create({
+      const response = await this.provider.chatCompletion({
         messages: [
           { role: "system", content: this.personality.core.voice.tone },
           { role: "user", content: prompt }
@@ -334,7 +518,7 @@ export class AIService {
 
   async generateTokenMetricsUpdate(metrics: any): Promise<string> {
     try {
-      const response: { choices: { message: { content: string | null } }[] } = await this.groq.chat.completions.create({
+      const response = await this.provider.chatCompletion({
         messages: [
           { role: "system", content: this.personality.core.voice.tone },
           { role: "user", content: JSON.stringify(metrics) }
@@ -359,7 +543,7 @@ export class AIService {
     try {
       const prompt = `Generate a market analysis based on the current market conditions.`;
 
-      const response: { choices: { message: { content: string | null } }[] } = await this.groq.chat.completions.create({
+      const response = await this.provider.chatCompletion({
         messages: [
           { role: "system", content: this.personality.core.voice.tone },
           { role: "user", content: prompt }
@@ -377,6 +561,55 @@ export class AIService {
     } catch (error) {
       console.error('Error generating market analysis:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Builds a prompt for response generation
+   * Incorporates personality traits and context
+   * 
+   * @param context - Response context including platform and content
+   * @returns Formatted prompt string for the LLM
+   */
+  private async generateCommunityContent(context: ResponseContext): Promise<string> {
+    try {
+      const template = this.personality.responses?.communityEngagement?.find(
+        t => t.conditions?.marketCondition === context.marketCondition
+      )?.templates[0] || 'Engage with our amazing community! 🚀';
+
+      const prompt = `Generate a community engagement post that:
+1. Addresses the community directly
+2. Maintains our personality and voice
+3. References current market conditions
+4. Encourages positive engagement
+
+Context:
+Content: ${context.content || 'General community update'}
+Market Condition: ${context.marketCondition || 'neutral'}
+Platform: ${context.platform}
+Channel: ${context.channel || 'general'}
+
+Use this template style: ${template}`;
+
+      const response = await this.provider.chatCompletion({
+        messages: [
+          { role: "system" as MessageRole, content: this.personality.core.voice.tone },
+          { role: "user" as MessageRole, content: prompt }
+        ],
+        model: this.config.defaultModel,
+        temperature: 0.7,
+        max_tokens: 280
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('Community content generation failed: null response');
+      }
+
+      return content;
+    } catch (error) {
+      console.error('Error generating community content:', error);
+      throw new Error(`Failed to generate community content: ${error instanceof Error ? error.message : 'unknown error'}`);
     }
   }
 
@@ -417,11 +650,26 @@ export class AIService {
   }
 }
 
-// Export singleton instance
-export const aiService = new AIService({
-  groqApiKey: CONFIG.AI.GROQ.API_KEY,
-  defaultModel: CONFIG.AI.GROQ.MODEL,
-  maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
-  temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
-});
-export default aiService;
+// Export class and create default instance if config is available
+export const createDefaultAIService = () => {
+  if (!CONFIG.AI?.GROQ) {
+    throw new Error('GROQ configuration is required but not found');
+  }
+  return new AIService({
+    groqApiKey: CONFIG.AI.GROQ.API_KEY,
+    defaultModel: CONFIG.AI.GROQ.MODEL,
+    maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
+    temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
+  });
+};
+
+// Only create singleton if config exists
+let defaultInstance: AIService | undefined;
+try {
+  defaultInstance = createDefaultAIService();
+} catch (error) {
+  console.warn('Failed to create default AI service instance:', error);
+}
+
+export const aiService = defaultInstance;
+export default AIService;

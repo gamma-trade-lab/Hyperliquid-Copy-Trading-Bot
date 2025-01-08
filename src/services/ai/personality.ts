@@ -1,8 +1,7 @@
 // src/services/ai/personality.ts
 
-import { AIService } from './ai';
-import { GroqAIService } from './groq';
 import { EventEmitter } from 'events';
+import { IAIService } from './types.js';
 
 interface PersonalityTrait {
   name: string;
@@ -27,38 +26,48 @@ interface PersonalityConfig {
 
 export interface ResponseContext {
   content: string;
+  author: string;  // Required for response generation
   context?: Record<string, any>;
-  platform: string; // Add the platform property
+  platform: string;
+  marketCondition?: string;
 }
 
-// Example usage of ResponseContext
+// Example response context shape for documentation
+/*
 const exampleResponse: ResponseContext = {
   content: "This is an example response",
+  author: "jenna",
   context: {
-    key: "value"
+    key: "value",
+    traits: ["friendly", "knowledgeable"],
+    metrics: {
+      sentiment: 0.8,
+      viralPotential: 0.6,
+      communityResponse: 0.7,
+      timestamp: Date.now()
+    }
   },
-  platform: "examplePlatform"
+  platform: "twitter",
+  marketCondition: "bullish"
 };
+*/
 
 // Add any additional code or exports as needed
 
 export class PersonalityService extends EventEmitter {
   private config: PersonalityConfig;
   private metrics: EngagementMetrics[];
-  private aiService: AIService;
-  private groqService: GroqAIService;
+  private aiService: IAIService;
   private updateInterval: NodeJS.Timeout | null;
 
   constructor(
     config: PersonalityConfig,
-    aiService: AIService,
-    groqService: GroqAIService
+    aiService: IAIService
   ) {
     super();
     this.config = config;
     this.metrics = [];
     this.aiService = aiService;
-    this.groqService = groqService;
     this.updateInterval = null;
   }
 
@@ -101,15 +110,18 @@ export class PersonalityService extends EventEmitter {
       const activeTraits = this.getActiveTraits();
       const prompt = this.buildPromptWithTraits(input, activeTraits);
       
+      // Format prompt with context and traits
+      const contextualPrompt = `${prompt}\n\nContext:\n${JSON.stringify({
+        traits: activeTraits.map(t => t.name),
+        metrics: this.getLatestMetrics(),
+        ...context
+      }, null, 2)}`;
+
       const response = await this.aiService.generateResponse({
-        content: prompt,
-        context: {
-          ...context,
-          traits: activeTraits,
-          metrics: this.getLatestMetrics()
-        },
-        platform: "yourPlatform" // Add the platform property
-      } as ResponseContext);
+        content: contextualPrompt,
+        author: "jenna",
+        platform: "twitter"
+      });
 
       this.updateMetricsFromResponse(response);
       return response;
@@ -185,18 +197,48 @@ export class PersonalityService extends EventEmitter {
   }
 
   private async calculateSentiment(): Promise<number> {
-    // Implement sentiment calculation using groqService
-    return Math.random(); // Placeholder
+    try {
+      const response = await this.aiService.generateResponse({
+        content: "Analyze the current market sentiment and return a single number between 0 and 1, where 0 is extremely bearish and 1 is extremely bullish. Return only the number.",
+        author: "jenna",
+        platform: "market"
+      });
+      const sentiment = parseFloat(response);
+      return isNaN(sentiment) ? 0.5 : Math.max(0, Math.min(1, sentiment));
+    } catch (error) {
+      console.error('Failed to calculate sentiment:', error);
+      return 0.5; // Default neutral sentiment
+    }
   }
 
   private async calculateViralPotential(): Promise<number> {
-    // Implement viral potential calculation
-    return Math.random(); // Placeholder
+    try {
+      const response = await this.aiService.generateResponse({
+        content: "Analyze the viral potential of recent market activity and return a single number between 0 and 1, where 0 is no viral potential and 1 is extremely viral. Return only the number.",
+        author: "jenna",
+        platform: "market"
+      });
+      const potential = parseFloat(response);
+      return isNaN(potential) ? 0.5 : Math.max(0, Math.min(1, potential));
+    } catch (error) {
+      console.error('Failed to calculate viral potential:', error);
+      return 0.5;
+    }
   }
 
   private async calculateCommunityResponse(): Promise<number> {
-    // Implement community response calculation
-    return Math.random(); // Placeholder
+    try {
+      const response = await this.aiService.generateResponse({
+        content: "Analyze the community engagement level and return a single number between 0 and 1, where 0 is no engagement and 1 is extremely high engagement. Return only the number.",
+        author: "jenna",
+        platform: "social"
+      });
+      const engagement = parseFloat(response);
+      return isNaN(engagement) ? 0.5 : Math.max(0, Math.min(1, engagement));
+    } catch (error) {
+      console.error('Failed to calculate community response:', error);
+      return 0.5;
+    }
   }
 
   private getLatestMetrics(): EngagementMetrics {

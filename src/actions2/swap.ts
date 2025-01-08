@@ -11,10 +11,11 @@ import {
     type Action,
 } from "@elizaos/core";
 import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
-import { getWalletKey } from "../utils/keypairUtils";
-import { walletProvider, WalletProvider } from "../providers/wallet";
-import { getTokenDecimals } from "./swapUtils";
+import { BN } from "../utils/bignumber.js";
+import { getWalletKey } from "../utils/keypairUtils.js";
+import { walletProvider, WalletProvider } from "../providers/wallet.js";
+import { getTokenDecimals } from "./swapUtils.js";
+import { toBN, TEN } from "../utils/bignumber.js";
 
 async function swapToken(
     connection: Connection,
@@ -27,17 +28,15 @@ async function swapToken(
         // Get the decimals for the input token
         const decimals =
             inputTokenCA === settings.SOL_ADDRESS
-                ? new BigNumber(9)
-                : new BigNumber(
-                      await getTokenDecimals(connection, inputTokenCA)
-                  );
+                ? toBN(9)
+                : toBN(await getTokenDecimals(connection, inputTokenCA));
 
         console.log("Decimals:", decimals.toString());
 
         // Use BigNumber for adjustedAmount: amount * (10 ** decimals)
-        const amountBN = new BigNumber(amount);
+        const amountBN = toBN(amount);
         const adjustedAmount = amountBN.multipliedBy(
-            new BigNumber(10).pow(decimals)
+            TEN.pow(decimals)
         );
 
         console.log("Fetching quote with params:", {
@@ -49,18 +48,44 @@ async function swapToken(
         const quoteResponse = await fetch(
             `https://quote-api.jup.ag/v6/quote?inputMint=${inputTokenCA}&outputMint=${outputTokenCA}&amount=${adjustedAmount}&slippageBps=50`
         );
-        const quoteData = await quoteResponse.json();
+        interface QuoteResponse {
+            error?: string;
+            inputMint: string;
+            outputMint: string;
+            amount: string;
+            otherAmountThreshold: string;
+            swapMode: string;
+            slippageBps: number;
+            platformFee: number;
+            priceImpactPct: number;
+            routePlan: Array<{
+                swapInfo: any;
+                percent: number;
+            }>;
+        }
 
-        if (!quoteData || quoteData.error) {
+        interface SwapRequestBody {
+            quoteResponse: QuoteResponse;
+            userPublicKey: string;
+            wrapAndUnwrapSol: boolean;
+            computeUnitPriceMicroLamports: number;
+            dynamicComputeUnitLimit: boolean;
+        }
+
+        const quoteData = await quoteResponse.json() as QuoteResponse;
+
+        if (!quoteData) {
+            throw new Error("Failed to get quote: No response data");
+        }
+
+        if (quoteData.error) {
             console.error("Quote error:", quoteData);
-            throw new Error(
-                `Failed to get quote: ${quoteData?.error || "Unknown error"}`
-            );
+            throw new Error(`Failed to get quote: ${quoteData.error}`);
         }
 
         console.log("Quote received:", quoteData);
 
-        const swapRequestBody = {
+        const swapRequestBody: SwapRequestBody = {
             quoteResponse: quoteData,
             userPublicKey: walletPublicKey.toString(),
             wrapAndUnwrapSol: true,
@@ -78,12 +103,19 @@ async function swapToken(
             body: JSON.stringify(swapRequestBody),
         });
 
-        const swapData = await swapResponse.json();
+        const swapData = await swapResponse.json() as { 
+            swapTransaction?: string;
+            error?: string;
+        };
 
-        if (!swapData || !swapData.swapTransaction) {
+        if (!swapData) {
+            throw new Error("Failed to get swap transaction: No response data");
+        }
+
+        if (!swapData.swapTransaction) {
             console.error("Swap error:", swapData);
             throw new Error(
-                `Failed to get swap transaction: ${swapData?.error || "No swap transaction returned"}`
+                `Failed to get swap transaction: ${swapData.error || "No swap transaction returned"}`
             );
         }
 
@@ -172,7 +204,7 @@ async function getTokenFromWallet(runtime: IAgentRuntime, tokenSymbol: string) {
 export const executeSwap: Action = {
     name: "EXECUTE_SWAP",
     similes: ["SWAP_TOKENS", "TOKEN_SWAP", "TRADE_TOKENS", "EXCHANGE_TOKENS"],
-    validate: async (runtime: IAgentRuntime, message: Memory) => {
+    validate: async (_runtime: IAgentRuntime, message: Memory) => {
         // Check if the necessary parameters are provided in the message
         console.log("Message:", message);
         return true;

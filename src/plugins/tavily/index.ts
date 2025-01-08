@@ -10,14 +10,14 @@ import {
   SearchPluginConfig,
   SearchResult,
   SearchAction,
-} from "../../common/types.ts";
+} from "../../common/types.js";
 import {
   validateApiKey,
   validateSearchQuery,
   handleApiError,
   formatSearchResults,
   createRateLimiter,
-} from "../../common/utils.ts";
+} from "../../common/utils.js";
 
 interface TavilySearchResponse {
   results: Array<{

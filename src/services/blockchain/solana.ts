@@ -10,9 +10,16 @@ import {
     LAMPORTS_PER_SOL
   } from '@solana/web3.js';
  
-  import { CONFIG } from '../../config/settings';
-import { createMint, createTransferInstruction, mintTo, TOKEN_PROGRAM_ID } from '@/utils/spl-token';
-import { getOrCreateAssociatedTokenAccount } from '@solana/spl-token/lib/types/actions/getOrCreateAssociatedTokenAccount';
+  import { CONFIG } from '../../config/settings.js';
+import { 
+  createMint, 
+  createTransferInstruction, 
+  mintTo, 
+  TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccount,
+  getAssociatedTokenAddress,
+  TokenAccount
+} from '../../utils/spl-token/index.js';
   
   interface TokenConfig {
     name: string;
@@ -43,8 +50,6 @@ import { getOrCreateAssociatedTokenAccount } from '@solana/spl-token/lib/types/a
      */
     async createToken(config: TokenConfig): Promise<TransactionResult> {
       try {
-        // Create mint account
-        const mintKeypair = Keypair.generate();
         const decimals = config.decimals || 9;
   
         // Create token mint
@@ -53,12 +58,15 @@ import { getOrCreateAssociatedTokenAccount } from '@solana/spl-token/lib/types/a
           this.payer,
           this.payer.publicKey,
           this.payer.publicKey,
-          decimals,
-          mintKeypair
+          decimals
         );
   
         // Get the token account of the creator
-        const tokenAccount = await getOrCreateAssociatedTokenAccount(
+        const tokenAccountAddress = await getAssociatedTokenAddress(
+          mint,
+          this.payer.publicKey
+        );
+        await createAssociatedTokenAccount(
           this.connection,
           this.payer,
           mint,
@@ -70,7 +78,7 @@ import { getOrCreateAssociatedTokenAccount } from '@solana/spl-token/lib/types/a
           this.connection,
           this.payer,
           mint,
-          tokenAccount.address,
+          tokenAccountAddress,
           this.payer,
           config.totalSupply * Math.pow(10, decimals)
         );
@@ -157,7 +165,11 @@ import { getOrCreateAssociatedTokenAccount } from '@solana/spl-token/lib/types/a
         const toPublicKey = new PublicKey(to);
   
         // Get source token account
-        const sourceAccount = await getOrCreateAssociatedTokenAccount(
+        const sourceAccountAddress = await getAssociatedTokenAddress(
+          mint,
+          this.payer.publicKey
+        );
+        await createAssociatedTokenAccount(
           this.connection,
           this.payer,
           mint,
@@ -165,7 +177,11 @@ import { getOrCreateAssociatedTokenAccount } from '@solana/spl-token/lib/types/a
         );
   
         // Get or create destination token account
-        const destinationAccount = await getOrCreateAssociatedTokenAccount(
+        const destinationAccountAddress = await getAssociatedTokenAddress(
+          mint,
+          toPublicKey
+        );
+        await createAssociatedTokenAccount(
           this.connection,
           this.payer,
           mint,
@@ -175,8 +191,8 @@ import { getOrCreateAssociatedTokenAccount } from '@solana/spl-token/lib/types/a
         // Create transfer instruction
         const transaction = new Transaction().add(
           createTransferInstruction(
-            sourceAccount.address,
-            destinationAccount.address,
+            sourceAccountAddress,
+            destinationAccountAddress,
             this.payer.publicKey,
             amount,
             [],

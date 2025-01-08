@@ -1,5 +1,5 @@
 import { Evaluator, IAgentRuntime, Memory, State } from "@ai16z/eliza";
-import { WeatherEvalContent, WeatherEvalResponse } from "./types.ts";
+import { WeatherEvalContent, WeatherEvalResponse } from "./types.js";
 
 export const weatherEvaluator: Evaluator = {
   name: "WEATHER_EVALUATOR",

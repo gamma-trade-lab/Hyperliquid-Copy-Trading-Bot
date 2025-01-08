@@ -50,27 +50,50 @@ export async function getTokenDecimals(
     throw new Error("Unable to fetch token decimals");
 }
 
+export interface QuoteData {
+    inputMint: string;
+    outputMint: string;
+    amount: string;
+    otherAmountThreshold: string;
+    swapMode: string;
+    slippageBps: number;
+    platformFee: number;
+    priceImpactPct: number;
+    routePlan: Array<{
+        swapInfo: any;
+        percent: number;
+    }>;
+}
+
 export async function getQuote(
     connection: Connection,
     baseToken: string,
     outputToken: string,
     amount: number
-): Promise<any> {
-    const decimals = await getTokenDecimals(connection, baseToken);
-    const adjustedAmount = amount * 10 ** decimals;
+): Promise<QuoteData | null> {
+    try {
+        const decimals = await getTokenDecimals(connection, baseToken);
+        const adjustedAmount = amount * 10 ** decimals;
 
-    const quoteResponse = await fetch(
-        `https://quote-api.jup.ag/v6/quote?inputMint=${baseToken}&outputMint=${outputToken}&amount=${adjustedAmount}&slippageBps=50`
-    );
-    const swapTransaction = await quoteResponse.json();
-    const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
-    return new Uint8Array(swapTransactionBuf);
+        const quoteResponse = await fetch(
+            `https://quote-api.jup.ag/v6/quote?inputMint=${baseToken}&outputMint=${outputToken}&amount=${adjustedAmount}&slippageBps=50`
+        );
+        const response = await quoteResponse.json() as QuoteData;
+        if (!response) {
+            console.log("Failed to get quote data");
+            return null;
+        }
+        return response;
+    } catch (error) {
+        console.error("Get quote error:", error);
+        return null;
+    }
 }
 
 export const executeSwap = async (
     transaction: VersionedTransaction,
     type: "buy" | "sell"
-) => {
+): Promise<string | null> => {
     try {
         const latestBlockhash: BlockhashWithExpiryBlockHeight =
             await delayedCall(connection.getLatestBlockhash.bind(connection));
@@ -87,27 +110,27 @@ export const executeSwap = async (
         );
         if (confirmation.value.err) {
             console.log("Confirmation error", confirmation.value.err);
-
-            throw new Error("Confirmation error");
+            return null;
+        }
+        
+        if (type === "buy") {
+            console.log(
+                `Buy successful: https://solscan.io/tx/${signature}`
+            );
         } else {
-            if (type === "buy") {
-                console.log(
-                    "Buy successful: https://solscan.io/tx/${signature}"
-                );
-            } else {
-                console.log(
-                    "Sell successful: https://solscan.io/tx/${signature}"
-                );
-            }
+            console.log(
+                `Sell successful: https://solscan.io/tx/${signature}`
+            );
         }
 
         return signature;
     } catch (error) {
-        console.log(error);
+        console.error("Execute swap error:", error);
+        return null;
     }
 };
 
-export const Sell = async (baseMint: PublicKey, wallet: Keypair) => {
+export const Sell = async (baseMint: PublicKey, wallet: Keypair): Promise<string | null> => {
     try {
         const tokenAta = await delayedCall(
             getAssociatedTokenAddress,
@@ -130,6 +153,7 @@ export const Sell = async (baseMint: PublicKey, wallet: Keypair) => {
             console.warn(
                 `No token balance to sell with wallet ${wallet.publicKey}`
             );
+            return null;
         }
 
         const sellTransaction = await getSwapTxWithWithJupiter(
@@ -157,11 +181,12 @@ export const Sell = async (baseMint: PublicKey, wallet: Keypair) => {
         // execute the transaction
         return executeSwap(sellTransaction, "sell");
     } catch (error) {
-        console.log(error);
+        console.error("Sell error:", error);
+        return null;
     }
 };
 
-export const Buy = async (baseMint: PublicKey, wallet: Keypair) => {
+export const Buy = async (baseMint: PublicKey, wallet: Keypair): Promise<string | null> => {
     try {
         const tokenAta = await delayedCall(
             getAssociatedTokenAddress,
@@ -182,8 +207,9 @@ export const Buy = async (baseMint: PublicKey, wallet: Keypair) => {
         const tokenBalance = tokenBalInfo.value.amount;
         if (tokenBalance === "0") {
             console.warn(
-                `No token balance to sell with wallet ${wallet.publicKey}`
+                `No token balance to buy with wallet ${wallet.publicKey}`
             );
+            return null;
         }
 
         const buyTransaction = await getSwapTxWithWithJupiter(
@@ -211,7 +237,8 @@ export const Buy = async (baseMint: PublicKey, wallet: Keypair) => {
         // execute the transaction
         return executeSwap(buyTransaction, "buy");
     } catch (error) {
-        console.log(error);
+        console.error("Buy error:", error);
+        return null;
     }
 };
 
@@ -220,7 +247,7 @@ export const getSwapTxWithWithJupiter = async (
     baseMint: PublicKey,
     amount: string,
     type: "buy" | "sell"
-) => {
+): Promise<VersionedTransaction | null> => {
     try {
         switch (type) {
             case "buy":
@@ -231,7 +258,8 @@ export const getSwapTxWithWithJupiter = async (
                 return fetchSellTransaction(wallet, baseMint, amount);
         }
     } catch (error) {
-        console.log(error);
+        console.error("getSwapTxWithWithJupiter error:", error);
+        return null;
     }
 };
 
@@ -246,7 +274,7 @@ export const fetchBuyTransaction = async (
                 `https://quote-api.jup.ag/v6/quote?inputMint=${solAddress}&outputMint=${baseMint.toBase58()}&amount=${amount}&slippageBps=${SLIPPAGE}`
             )
         ).json();
-        const { swapTransaction } = await (
+        const response = await (
             await fetch("https://quote-api.jup.ag/v6/swap", {
                 method: "POST",
                 headers: {
@@ -260,14 +288,14 @@ export const fetchBuyTransaction = async (
                     prioritizationFeeLamports: 100000,
                 }),
             })
-        ).json();
-        if (!swapTransaction) {
+        ).json() as { swapTransaction?: string };
+        if (!response.swapTransaction) {
             console.log("Failed to get buy transaction");
             return null;
         }
 
         // deserialize the transaction
-        const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
+        const swapTransactionBuf = Buffer.from(response.swapTransaction, "base64");
         const transaction =
             VersionedTransaction.deserialize(swapTransactionBuf);
 
@@ -293,7 +321,7 @@ export const fetchSellTransaction = async (
         ).json();
 
         // get serialized transactions for the swap
-        const { swapTransaction } = await (
+        const response = await (
             await fetch("https://quote-api.jup.ag/v6/swap", {
                 method: "POST",
                 headers: {
@@ -307,14 +335,14 @@ export const fetchSellTransaction = async (
                     prioritizationFeeLamports: 52000,
                 }),
             })
-        ).json();
-        if (!swapTransaction) {
+        ).json() as { swapTransaction?: string };
+        if (!response.swapTransaction) {
             console.log("Failed to get sell transaction");
             return null;
         }
 
         // deserialize the transaction
-        const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
+        const swapTransactionBuf = Buffer.from(response.swapTransaction, "base64");
         const transaction =
             VersionedTransaction.deserialize(swapTransactionBuf);
 

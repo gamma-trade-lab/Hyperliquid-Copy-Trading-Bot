@@ -1,7 +1,7 @@
 // src/services/market/signals/marketSentiment.ts
 
 import { EventEmitter } from 'events';
-import { AIService } from '../../ai/ai';
+import { AIService } from '../../ai/ai.js';
 
 interface SentimentData {
   id: string;
@@ -34,7 +34,7 @@ interface SentimentAnalysis {
   };
 }
 
-enum SentimentSource {
+export enum SentimentSource {
   SOCIAL = 'social',
   NEWS = 'news',
   TRADING = 'trading',

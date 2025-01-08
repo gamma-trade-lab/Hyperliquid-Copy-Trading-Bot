@@ -1,6 +1,7 @@
 // src/services/blockchain/trading.ts
 
 import { Connection } from '@solana/web3.js';
+import { MarketData } from '../ai/types.js';
 
 interface TradeResult {
   signature: string;
@@ -38,13 +39,18 @@ export class TradingService {
     }
   }
 
-  async getMarketData(tokenAddress: string): Promise<any> {
+  async getMarketData(): Promise<MarketData> {
     try {
-      // Implement market data fetching logic
+      // TODO: Implement real market data fetching
       return {
-        price: 0,
-        volume: 0,
-        marketCap: 0
+        price: 100.00,
+        volume24h: 1000000,
+        marketCap: 10000000,
+        priceChange24h: 5.5,
+        topHolders: [
+          { address: 'dummy1', balance: 1000 },
+          { address: 'dummy2', balance: 500 }
+        ]
       };
     } catch (error) {
       console.error('Failed to get market data:', error);

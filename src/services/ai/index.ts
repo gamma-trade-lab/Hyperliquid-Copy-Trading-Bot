@@ -1,4 +1,6 @@
-import { TokenService, WalletService } from "../blockchain";
+import { TokenService, WalletService } from "../blockchain/index.js";
+import { TweetGenerator } from './tweetGenerator.js';
+export { TweetGenerator } from './tweetGenerator.js';
 
 interface MarketAnalysis {
   shouldTrade: boolean;

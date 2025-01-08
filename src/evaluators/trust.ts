@@ -11,12 +11,12 @@ import {
     ModelClass,
     Evaluator,
 } from "@elizaos/core";
-import { TrustScoreManager } from "../providers/trustScoreProvider";
-import { TokenProvider } from "../providers/token";
+import { TrustScoreManager } from "../providers/trustScoreProvider.js";
+import { TokenProvider } from "../providers/token.js";
 import { TrustScoreDatabase } from "@elizaos/plugin-trustdb";
 import { Connection } from "@solana/web3.js";
-import { getWalletKey } from "../utils/keypairUtils";
-import { WalletProvider } from "@/providers/wallet";
+import { getWalletKey } from "../utils/keypairUtils.js";
+import { WalletProvider } from "../../src/providers/wallet";
 
 const shouldProcessTemplate =
     `# Task: Decide if the recent messages should be processed for token recommendations.

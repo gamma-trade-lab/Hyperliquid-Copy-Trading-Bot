@@ -3,7 +3,7 @@ import {
   WeatherConfig,
   WeatherProviderResponse,
   WeatherData,
-} from "./types.ts";
+} from "./types.js";
 
 let providerConfig: WeatherConfig;
 

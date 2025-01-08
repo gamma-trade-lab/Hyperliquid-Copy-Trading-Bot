@@ -1,7 +1,7 @@
 import { Action, IAgentRuntime, Memory, State } from "@ai16z/eliza";
-import { TranslationActionContent, TranslationData } from "./types.ts";
-import { translationProvider, cacheTranslation } from "./provider/index.ts";
-import { translationService } from "./service.ts";
+import { TranslationActionContent, TranslationData } from "./types.js";
+import { translationProvider, cacheTranslation } from "./provider/index.js";
+import { translationService } from "./service.js";
 
 export const getTranslationAction: Action = {
   name: "TRANSLATE_TEXT",

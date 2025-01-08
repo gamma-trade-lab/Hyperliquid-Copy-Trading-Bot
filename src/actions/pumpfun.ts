@@ -9,7 +9,7 @@ import {
 } from "@solana/web3.js";
 import { Program, Provider } from "@coral-xyz/anchor";
 import { setGlobalDispatcher, Agent } from "undici";
-import { GlobalAccount } from "./globalAccount";
+import { GlobalAccount } from "./globalAccount.js";
 import {
   CompleteEvent,
   CreateEvent,
@@ -20,15 +20,15 @@ import {
   SetParamsEvent,
   TradeEvent,
   TransactionResult,
-} from "./types";
+} from "./types.js";
 import {
   toCompleteEvent,
   toCreateEvent,
   toSetParamsEvent,
   toTradeEvent,
-} from "./events";
+} from "./events.js";
 
-import { BondingCurveAccount } from "./bondingCurveAccount";
+import { BondingCurveAccount } from "./bondingCurveAccount.js";
 import { BN } from "bn.js";
 import {
   DEFAULT_COMMITMENT,
@@ -36,10 +36,9 @@ import {
   buildTx,
   calculateWithSlippageBuy,
   calculateWithSlippageSell,
-  getRandomInt,
   sendTx,
-} from "./util";
-import { PumpFun, IDL } from "../IDL";
+} from "./util.js";
+import { PumpFun, IDL } from "../IDL/index.js";
 import { fetch } from "undici";
 import { createAssociatedTokenAccountInstruction, getAccount, getAssociatedTokenAddress } from "@/utils/spl-token";
 
@@ -69,7 +68,6 @@ export class PumpFunSDK {
     buyers: Keypair[],
     createTokenMetadata: CreateTokenMetadata,
     buyAmountSol: bigint,
-    slippageBasisPoints: bigint = 300n,
     priorityFees?: PriorityFee,
     commitment: Commitment = DEFAULT_COMMITMENT,
     finality: Finality = DEFAULT_FINALITY
@@ -87,7 +85,7 @@ export class PumpFunSDK {
     let newTx = new Transaction().add(createTx);
     let buyTxs: VersionedTransaction[] = [];
 
-    let createVersionedTx = await buildTx(
+    await buildTx(
       this.connection,
       newTx,
       creator.publicKey,
@@ -98,13 +96,6 @@ export class PumpFunSDK {
     );
     if (buyAmountSol > 0) {
       for (let i = 0; i < buyers.length; i++) {
-        const randomPercent = getRandomInt(10, 25);
-        const buyAmountSolWithRandom =
-          (buyAmountSol / BigInt(100)) *
-          BigInt(randomPercent % 2 ? 100 + randomPercent : 100 - randomPercent);
-
-        const globalAccount = await this.getGlobalAccount(commitment);
- 
         // This is building buy transaction code
         // If you need it, contact me.
         const buyVersionedTx = await buildTx(
@@ -207,8 +198,7 @@ export class PumpFunSDK {
 
     const associatedBondingCurve = await getAssociatedTokenAddress(
       mint.publicKey,
-      this.getBondingCurvePDA(mint.publicKey),
-      true
+      this.getBondingCurvePDA(mint.publicKey)
     );
 
     return this.program.methods
@@ -260,21 +250,19 @@ export class PumpFunSDK {
     mint: PublicKey,
     feeRecipient: PublicKey,
     amount: bigint,
-    solAmount: bigint,
-    commitment: Commitment = DEFAULT_COMMITMENT
+    solAmount: bigint
   ) {
     const associatedBondingCurve = await getAssociatedTokenAddress(
       mint,
-      this.getBondingCurvePDA(mint),
-      true
+      this.getBondingCurvePDA(mint)
     );
 
-    const associatedUser = await getAssociatedTokenAddress(mint, buyer, false);
+    const associatedUser = await getAssociatedTokenAddress(mint, buyer);
 
     let transaction = new Transaction();
 
     try {
-      await getAccount(this.connection, associatedUser, commitment);
+      await getAccount(this.connection, associatedUser);
     } catch (e) {
       transaction.add(
         createAssociatedTokenAccountInstruction(
@@ -348,11 +336,10 @@ export class PumpFunSDK {
   ) {
     const associatedBondingCurve = await getAssociatedTokenAddress(
       mint,
-      this.getBondingCurvePDA(mint),
-      true
+      this.getBondingCurvePDA(mint)
     );
 
-    const associatedUser = await getAssociatedTokenAddress(mint, seller, false);
+    const associatedUser = await getAssociatedTokenAddress(mint, seller);
 
     let transaction = new Transaction();
 
@@ -409,14 +396,14 @@ export class PumpFunSDK {
 
   async createTokenMetadata(create: CreateTokenMetadata) {
     let formData = new FormData();
-    formData.append("file", create.file),
-      formData.append("name", create.name),
-      formData.append("symbol", create.symbol),
-      formData.append("description", create.description),
-      formData.append("twitter", create.twitter || ""),
-      formData.append("telegram", create.telegram || ""),
-      formData.append("website", create.website || ""),
-      formData.append("showName", "true");
+    formData.append("file", create.file);
+    formData.append("name", create.name);
+    formData.append("symbol", create.symbol);
+    formData.append("description", create.description);
+    formData.append("twitter", create.twitter || "");
+    formData.append("telegram", create.telegram || "");
+    formData.append("website", create.website || "");
+    formData.append("showName", "true");
 
     setGlobalDispatcher(new Agent({ connect: { timeout: 60_000 } }));
     

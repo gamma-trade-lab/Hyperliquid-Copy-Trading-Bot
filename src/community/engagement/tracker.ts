@@ -1,6 +1,6 @@
 // src/community/engagement/tracker.ts
 
-import { Platform } from '@/personality/traits/responsePatterns';
+import { Platform } from '../../personality/traits/responsePatterns.js';
 import { EventEmitter } from 'events';
 
 

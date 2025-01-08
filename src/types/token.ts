@@ -23,8 +23,14 @@ export interface TokenCodex {
 
 export interface TokenTradeData {
     address: string;
-    holder: number;
-    market: number;
+    holder: {
+        total: number;
+        changes: any[];
+    };
+    market: {
+        price: number;
+        volume: number;
+    };
     last_trade_unix_time: number;
     last_trade_human_time: string;
     price: number;

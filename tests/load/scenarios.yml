@@ -1,0 +1,60 @@
+config:
+  target: "http://localhost:3000"
+  phases:
+    - duration: 60
+      arrivalRate: 5
+      rampTo: 50
+      name: "Warm up phase"
+    - duration: 120
+      arrivalRate: 50
+      name: "Sustained load phase"
+    - duration: 60
+      arrivalRate: 50
+      rampTo: 100
+      name: "Stress test phase"
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+
+scenarios:
+  - name: "View swap transactions"
+    flow:
+      - get:
+          url: "/api/transactions/swaps/{{ $randomString() }}"
+          capture:
+            - json: "$.transactions[0].signature"
+              as: "txSignature"
+      - think: 1
+      - get:
+          url: "/api/transactions/{{ txSignature }}"
+
+  - name: "Token information lookup"
+    flow:
+      - get:
+          url: "/api/tokens/{{ $randomString() }}"
+      - think: 2
+      - get:
+          url: "/api/tokens/social/{{ $randomString() }}"
+
+  - name: "Social sentiment analysis"
+    flow:
+      - post:
+          url: "/api/analysis/sentiment"
+          json:
+            token: "{{ $randomString() }}"
+            timeframe: "24h"
+      - think: 1
+      - get:
+          url: "/api/social/trending"
+
+  - name: "Market data analysis"
+    flow:
+      - get:
+          url: "/api/market/overview"
+      - think: 2
+      - get:
+          url: "/api/market/tokens/trending"
+      - think: 1
+      - get:
+          url: "/api/market/volume/24h" 

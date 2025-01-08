@@ -1,7 +1,7 @@
 // src/services/social/analytics/metrics.ts
 
 import { EventEmitter } from 'events';
-import { Platform } from '../../../personality/traits/responsePatterns';
+import { Platform } from '../../../personality/traits/responsePatterns.js';
 
 interface MetricPoint {
   value: number;
