@@ -123,7 +123,7 @@ export class MarketTweetCron {
         console.log('Tweet content generated:', tweet.content);
 
         // Post the tweet
-        await this.twitterClient.postTweet(tweet.content);
+        await this.twitterClient.postTweet(tweet.content, { replyToTweetId: null });
         console.log('Market update tweet posted successfully:', tweet.content);
         
         // If successful, exit retry loop

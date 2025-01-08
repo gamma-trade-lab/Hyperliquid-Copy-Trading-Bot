@@ -2,7 +2,9 @@ import {
   TwitterApi, 
   ApiResponseError, 
   TweetV2PostTweetResult, 
-  SendTweetV2Params
+  SendTweetV2Params,
+  ApiRequestError, 
+  ApiPartialResponseError 
 } from 'twitter-api-v2';
 import { AIService } from '../ai';
 import { elizaLogger } from "@ai16z/eliza";
@@ -63,8 +65,10 @@ export class TwitterService {
 
     // Initialize clients with OAuth 2.0 authentication
     this.userClient = new TwitterApi({
-      clientId: config.oauthClientId,
-      clientSecret: config.oauthClientSecret
+      appKey: config.apiKey,
+      appSecret: config.apiSecret,
+      accessToken: config.accessToken,
+      accessSecret: config.accessSecret
     });
 
     // Initialize app-only client
@@ -164,6 +168,10 @@ export class TwitterService {
         default:
           elizaLogger.error(`${context} failed with code ${error.code}:`, error.data);
       }
+    } else if (error instanceof ApiRequestError) {
+      elizaLogger.error(`${context} failed: Request error.`, error.requestError);
+    } else if (error instanceof ApiPartialResponseError) {
+      elizaLogger.error(`${context} failed: Partial response error.`, error.responseError);
     } else {
       elizaLogger.error(`${context} failed with unexpected error:`, error);
     }
@@ -266,7 +274,7 @@ export class TwitterService {
         content: tweet.data.text,
         platform: 'twitter',
         author: tweet.data.author_id,
-        messageId: tweet.data.id
+        messageId: tweet.data.id 
       });
 
       if (response) {
@@ -374,9 +382,22 @@ export class TwitterService {
   
     throw new Error(`Failed to post tweet after ${this.config.maxRetries} attempts`);
   }
-  validateTweetContent(content: string) {
-    throw new Error('Method not implemented.');
+
+  validateTweetContent(content: string): void {
+    const { maxEmojis, maxHashtags } = this.config.contentRules;
+
+    const emojiCount = (content.match(/[\u{1F600}-\u{1F64F}]/gu) || []).length;
+    const hashtagCount = (content.match(/#/g) || []).length;
+
+    if (emojiCount > maxEmojis) {
+      throw new Error(`Tweet contains too many emojis. Maximum allowed is ${maxEmojis}.`);
+    }
+
+    if (hashtagCount > maxHashtags) {
+      throw new Error(`Tweet contains too many hashtags. Maximum allowed is ${maxHashtags}.`);
+    }
   }
+
   private async uploadMedia(urls: string[]): Promise<string[]> {
     const uploadPromises = urls.map(async url => {
       let attempt = 0;

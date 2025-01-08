@@ -94,7 +94,7 @@ export class SocialService {
 
   async send(content: string): Promise<void> {
     const promises: Promise<void>[] = [];
-
+ 
     if (this.twitterService) {
       this.twitterService.tweet(content, { replyToTweetId: undefined })
         .then(() => promises.push(Promise.resolve()))

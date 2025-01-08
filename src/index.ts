@@ -2,16 +2,14 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { TwitterApi } from 'twitter-api-v2';
 import { Client as DiscordClient, Message } from 'discord.js';
 import Groq from "groq-sdk";
-// import { CONFIG } from './config/settings';
-import { config } from 'dotenv';
+
+import { config } from 'dotenv'; 
 import { MemorySaver } from "@langchain/langgraph";
 // Import services
 import { SocialService } from './services/social';
 import { ContentUtils } from './utils/content';
 import { Parser } from './utils/parser';
 import { TradingService } from './services/blockchain/trading';
-// import { AIService } from './services/ai';
-// import { TwitterService } from './services/social/twitter';
 
 // Types
 import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext } from './services/blockchain/types';
@@ -879,6 +877,8 @@ import { TwitterService } from './services/social/twitter';
 import { AIService } from './services/ai';
 import { CONFIG } from './config/settings';
 
+loadConfig();
+
 async function main() {
   try {
     console.log('Meme Agent Starting...');
@@ -932,9 +932,9 @@ async function main() {
     await twitterService.publishMarketUpdate({
       price: 123.45,
       volume24h: 67890,
-      priceChange24h: 1.23,
       marketCap: 987654321,
-      topHolders: ['Holder1', 'Holder2']
+      priceChange24h: 0,
+      topHolders: []
     });
 
     console.log('MemeAgent fully initialized and running!');

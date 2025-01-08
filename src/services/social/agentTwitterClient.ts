@@ -194,7 +194,7 @@ export class AgentTwitterClientService {
     }
   }
 
-  public async postTweet(content: string): Promise<{ success: boolean; error?: Error }> {
+  public async postTweet(content: string, p0: { replyToTweetId: any; }): Promise<{ success: boolean; error?: Error }> {
     try {
       this.ensureInitialized();
       if (!this.scraper) {
