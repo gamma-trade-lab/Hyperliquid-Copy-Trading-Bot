@@ -1,61 +1,109 @@
-import { PriceData, TokenMetrics, VolatilityMetrics } from '../../../types/market.js';
+// services/market/data/DataProcessor.ts
+import { HeliusService } from '../../blockchain/heliusIntegration';
+import { JupiterPriceV2Service } from '../../blockchain/defi/JupiterPriceV2Service';
+import { JupiterPriceV2 } from '../../blockchain/defi/jupiterPriceV2';
 import Redis from 'ioredis';
+import { elizaLogger } from "@ai16z/eliza";
 import * as zlib from 'zlib';
 import { promisify } from 'util';
+import { PriceData } from '../../../types/market';
 
 const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
 
-export class DataProcessor {
+export interface MarketData {
+  onChainActivity: { transactions: number; swaps: number; uniqueTraders: number; };
+  topHolders: never[];
+  price: number;
+  volume24h: number;
+  priceChange24h: number;
+  volatility: number;
+  marketCap?: number;
+  holders?: {
+    total: number;
+    top: Array<{
+      address: string;
+      balance: number;
+      percentage: number;
+    }>;
+  };
+  lastUpdate: number;
+}
+
+export interface TokenMetrics {
+  price: number;
+  volume24h: number;
+  priceChange24h: number;
+  volatility: number;
+}
+
+export class MarketDataProcessor {
   private readonly redis: Redis;
-  private readonly PRICE_HISTORY_KEY = 'price_history:';
-  private readonly VOLATILITY_KEY = 'volatility:';
-  private readonly DEFAULT_WINDOW = 24; // 24 hours
-  private readonly ERROR_THRESHOLD = 5; // Number of errors before circuit opens
-  private readonly CIRCUIT_RESET_TIMEOUT = 60000; // 1 minute timeout before circuit resets
-  private readonly MAX_RETRIES = 3;
+  private readonly heliusService: HeliusService;
+  private readonly jupiterService: JupiterPriceV2Service;
+  private readonly jupiterV2: JupiterPriceV2;
+  
+  private readonly CACHE_PREFIX = 'market:';
+  private readonly DEFAULT_CACHE_TTL = 60; // 1 minute
+  private readonly ERROR_THRESHOLD = 5;
+  private readonly CIRCUIT_TIMEOUT = 60000; // 1 minute
 
-  private isConnected: boolean = false;
   private errorCount: number = 0;
-  private isCircuitOpen: boolean = false;
-  private lastErrorTime: number = 0;
+  private circuitOpen: boolean = false;
+  private lastError: number = 0;
 
-  constructor() {
-    // Use Redis configuration from environment
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-    this.redis = new Redis(redisUrl, {
+  constructor(
+    heliusApiKey: string,
+    jupiterPriceUrl: string
+  ) {
+    // Configure Redis to use TCP connection
+    this.redis = new Redis({
+      host: '127.0.0.1',  // Using IP instead of localhost
+      port: 6379,
+      maxRetriesPerRequest: 3,
       retryStrategy: (times: number) => {
         const delay = Math.min(times * 50, 2000);
+        elizaLogger.info(`Retrying Redis connection in ${delay}ms... (attempt ${times})`);
         return delay;
       },
-      maxRetriesPerRequest: 3,
-      enableOfflineQueue: false,
+      enableOfflineQueue: true,
+      showFriendlyErrorStack: true
     });
 
-    // Handle Redis connection errors
+    this.heliusService = new HeliusService(heliusApiKey);
+    this.jupiterService = new JupiterPriceV2Service({
+      redis: {
+        host: '127.0.0.1',
+        port: 6379
+      }
+    });
+    this.jupiterV2 = new JupiterPriceV2();
+
+    this.setupRedisHandlers();
+  }
+
+  private setupRedisHandlers(): void {
     this.redis.on('error', (error: Error) => {
-      console.error('Redis connection error:', error);
-      this.handleRedisError(error);
+      elizaLogger.error('Redis error:', {
+        message: error.message,
+        stack: error.stack
+      });
+      this.handleError(error);
     });
 
-    // Handle Redis connection ready
     this.redis.on('ready', () => {
-      console.log('Redis connection established');
-      this.isConnected = true;
+      elizaLogger.info('Redis connection established');
+    });
+
+    this.redis.on('connect', () => {
+      elizaLogger.info('Redis client connected');
+    });
+
+    this.redis.on('reconnecting', () => {
+      elizaLogger.info('Redis client reconnecting');
     });
   }
 
-  public async disconnect(): Promise<void> {
-    if (this.redis) {
-      await this.redis.quit();
-      this.isConnected = false;
-      console.log('Redis connection closed');
-    }
-  }
-
-  /**
-   * Store historical price data in Redis
-   */
   private async compressData<T>(data: T): Promise<string> {
     const jsonString = JSON.stringify(data);
     const compressed = await gzip(jsonString);
@@ -68,231 +116,242 @@ export class DataProcessor {
     return JSON.parse(decompressed.toString()) as T;
   }
 
-  private checkCircuitBreaker(): boolean {
-    const now = Date.now();
-    if (now - this.lastErrorTime > this.CIRCUIT_RESET_TIMEOUT) {
-      this.errorCount = 0;
-      this.isCircuitOpen = false;
-    }
-    return this.isCircuitOpen;
-  }
-
-  private handleRedisError(error: Error): void {
-    this.isConnected = false;
-    console.error('Redis error occurred:', error);
-    
+  private handleError(error: Error): void {
     this.errorCount++;
+    this.lastError = Date.now();
+
     if (this.errorCount >= this.ERROR_THRESHOLD) {
-      this.isCircuitOpen = true;
-      console.warn('Circuit breaker opened due to Redis errors');
-      
+      this.circuitOpen = true;
+      elizaLogger.warn('Circuit breaker opened', { 
+        errors: this.errorCount,
+        lastError: error.message 
+      });
+
       setTimeout(() => {
-        this.isCircuitOpen = false;
+        this.circuitOpen = false;
         this.errorCount = 0;
-        console.log('Circuit breaker reset');
-      }, this.CIRCUIT_RESET_TIMEOUT);
+        elizaLogger.info('Circuit breaker reset');
+      }, this.CIRCUIT_TIMEOUT);
     }
   }
 
-  public async storePriceData(token: string, data: PriceData): Promise<void> {
+  public async getMarketData(tokenAddress: string): Promise<MarketData> {
+    const cacheKey = `${this.CACHE_PREFIX}${tokenAddress}`;
+    
     try {
-      const key = `${this.PRICE_HISTORY_KEY}${token}`;
-      const compressed = await this.compressData(data);
-      await this.redis.lpush(key, compressed);
-      await this.redis.ltrim(key, 0, this.DEFAULT_WINDOW * 60); // Keep last 24 hours of minute data
-      
-      // Reset error count on successful operation
-      this.errorCount = 0;
-      this.isCircuitOpen = false;
-    } catch (error) {
-      console.error(`Failed to store price data for ${token}:`, error);
-      this.errorCount++;
-      this.lastErrorTime = Date.now();
-      this.handleRedisError(error instanceof Error ? error : new Error(String(error)));
-      throw error;
-    }
-  }
-
-  /**
-   * Get historical price data from Redis
-   */
-  public async getHistoricalPrices(token: string, hours: number = this.DEFAULT_WINDOW): Promise<PriceData[]> {
-    try {
-      if (this.checkCircuitBreaker()) {
-        console.warn('Circuit breaker open, using cached data only');
-        return [];
+      // Try cache first
+      const cached = await this.redis.get(cacheKey);
+      if (cached && !this.circuitOpen) {
+        return await this.decompressData<MarketData>(cached);
       }
 
-      const key = `${this.PRICE_HISTORY_KEY}${token}`;
-      const data = await this.redis.lrange(key, 0, hours * 60 - 1);
-      const decompressedData = await Promise.all(
-        data.map(async item => this.decompressData<PriceData>(item))
-      );
-      
-      // Reset error count on successful operation
-      this.errorCount = 0;
-      this.isCircuitOpen = false;
-      return decompressedData;
-    } catch (error) {
-      console.error(`Failed to get historical prices for ${token}:`, error);
-      this.errorCount++;
-      this.lastErrorTime = Date.now();
-      this.handleRedisError(error instanceof Error ? error : new Error(String(error)));
-      throw error;
-    }
-  }
+      // Get data from Jupiter
+      const [priceData, extraInfo] = await Promise.all([
+        this.jupiterService.getTokenPrice(tokenAddress),
+        this.jupiterV2.getPrices([tokenAddress])
+      ]);
 
-  /**
-   * Calculate and store average volatility
-   */
-  public async updateAverageVolatility(token: string, currentVolatility: number): Promise<void> {
-    try {
-      const key = `${this.VOLATILITY_KEY}${token}`;
-      const stored = await this.redis.get(key);
-      const current = stored ? await this.decompressData<{ sum: number; count: number }>(stored) : { sum: 0, count: 0 };
-      
-      current.sum += currentVolatility;
-      current.count += 1;
-
-      const compressed = await this.compressData(current);
-      await this.redis.set(key, compressed);
-      
-      this.errorCount = 0;
-      this.isCircuitOpen = false;
-    } catch (error) {
-      console.error(`Failed to update volatility for ${token}:`, error);
-      this.errorCount++;
-      this.lastErrorTime = Date.now();
-      this.handleRedisError(error instanceof Error ? error : new Error(String(error)));
-      throw error;
-    }
-  }
-
-  /**
-   * Get average volatility for a token
-   */
-  public async getAverageVolatility(token: string): Promise<number> {
-    try {
-      if (this.checkCircuitBreaker()) {
-        console.warn('Circuit breaker open, using default volatility');
-        return 0;
+      // Get holder data from Helius
+      const mintInfo = await this.heliusService.getMintAccountInfo(tokenAddress);
+      if (mintInfo) {
+        mintInfo.supply = BigInt(mintInfo.supply);
+      }
+      if (!mintInfo || !mintInfo.supply || !mintInfo.decimals) {
+        throw new Error('Failed to fetch mint info');
+      }
+      const holders = await this.heliusService.getHoldersClassification(tokenAddress) as { totalHolders: number; topHolders: Array<{ owner: string; balance: number }>; totalSupply: number };
+      if (!holders || !holders.topHolders) {
+        throw new Error('Failed to fetch holders classification');
       }
 
-      const key = `${this.VOLATILITY_KEY}${token}`;
-      const stored = await this.redis.get(key);
-      if (!stored) return 0;
-
-      const { sum, count } = await this.decompressData<{ sum: number; count: number }>(stored);
-      this.errorCount = 0;
-      this.isCircuitOpen = false;
-      return count > 0 ? sum / count : 0;
-    } catch (error) {
-      console.error(`Failed to get volatility for ${token}:`, error);
-      this.errorCount++;
-      this.lastErrorTime = Date.now();
-      this.handleRedisError(error instanceof Error ? error : new Error(String(error)));
-      return 0; // Return safe default on error
-    }
-  }
-
-  /**
-   * Calculate token metrics from historical data
-   */
-  public async calculateTokenMetrics(token: string): Promise<TokenMetrics> {
-    try {
-      if (this.isCircuitOpen) {
-        console.warn('Circuit breaker open, using cached or default metrics');
-        const cachedMetrics = await this.redis.get(`metrics:${token}`);
-        if (cachedMetrics) {
-          return this.decompressData<TokenMetrics>(cachedMetrics);
-        }
-        return {
-          price: 0,
-          volume24h: 0,
-          priceChange24h: 0,
-          volatility: 0
-        };
+      // Calculate market metrics
+      if (!priceData) {
+        throw new Error('Failed to fetch price data');
       }
-
-
-      const prices = await this.getHistoricalPrices(token);
-      if (!prices.length) {
-        return {
-          price: 0,
-          volume24h: 0,
-          priceChange24h: 0,
-          volatility: 0
-        };
-      }
-
-      const currentPrice = prices[0].close;
-      const volume24h = prices.reduce((sum, data) => sum + data.volume, 0);
-      const priceChange24h = prices.length > 1 
-        ? ((currentPrice - prices[prices.length - 1].close) / prices[prices.length - 1].close) * 100
-        : 0;
-      const volatility = await this.getAverageVolatility(token);
-
-      const metrics = {
-        price: currentPrice,
-        volume24h,
-        priceChange24h,
-        volatility
+      const price = Number(priceData.price);
+      const marketData: MarketData = {
+        price,
+        volume24h: extraInfo?.data[tokenAddress]?.volume24h || 0,
+        priceChange24h: this.calculatePriceChange(priceData),
+        volatility: await this.calculateVolatility(tokenAddress),
+        marketCap: price * Number(mintInfo.supply) / (10 ** mintInfo.decimals),
+        holders: {
+          total: holders.totalHolders,
+          top: holders.topHolders.map(holder => ({
+            address: holder.owner,
+            balance: holder.balance,
+            percentage: (holder.balance / holders.totalSupply) * 100
+          }))
+        },
+        lastUpdate: Date.now(),
+        onChainActivity: {
+          transactions: 0,
+          swaps: 0,
+          uniqueTraders: 0
+        },
+        topHolders: []
       };
 
-      // Cache the metrics
-      const compressed = await this.compressData(metrics);
-      await this.redis.set(`metrics:${token}`, compressed, 'EX', 300); // Cache for 5 minutes
-      
+      // Cache the result
+      await this.redis.set(
+        cacheKey,
+        await this.compressData(marketData),
+        'EX',
+        this.DEFAULT_CACHE_TTL
+      );
+
       this.errorCount = 0;
-      this.isCircuitOpen = false;
-      return metrics;
+      return marketData;
+
     } catch (error) {
-      console.error(`Failed to calculate metrics for ${token}:`, error);
-      this.errorCount++;
-      this.lastErrorTime = Date.now();
-      this.handleRedisError(error instanceof Error ? error : new Error(String(error)));
+      elizaLogger.error('Error fetching market data:', error);
+      this.handleError(error instanceof Error ? error : new Error(String(error)));
+
+      // Return cached data if available
+      const cached = await this.redis.get(cacheKey);
+      if (cached) {
+        return await this.decompressData<MarketData>(cached);
+      }
+
       throw error;
     }
   }
 
-  /**
-   * Get current token price
-   */
-  public async getTokenPrice(token: string): Promise<number> {
+  public async getTokenPrice(tokenAddress: string): Promise<number> {
+    const marketData = await this.getMarketData(tokenAddress);
+    return marketData.price;
+  }
+
+  public async getHistoricalPrices(token: string, window: number): Promise<PriceData[]> {
+    // Implement the logic to fetch historical prices for the given token and window
+    // This is a placeholder implementation
+    return [];
+  }
+
+  public async getAverageVolatility(token: string): Promise<number> {
+    const window = 30; // Example window size of 30 days
+    return await this.calculateAverageVolatility(token, window);
+  }
+  public async calculateAverageVolatility(tokenAddress: string, window: number): Promise<number> {
+    const historicalPrices = await this.getHistoricalPrices(tokenAddress, window);
+    if (historicalPrices.length < 2) return 0;
+
+    let sumVolatility = 0;
+    for (let i = 1; i < historicalPrices.length; i++) {
+      const priceChange = Math.abs(historicalPrices[i].price - historicalPrices[i - 1].price);
+      const volatility = priceChange / historicalPrices[i - 1].price;
+      sumVolatility += volatility;
+    }
+
+    return sumVolatility / (historicalPrices.length - 1);
+  }
+
+  private calculatePriceChange(priceData: any): number {
+    if (!priceData.extraInfo?.lastSwappedPrice) return 0;
+    
+    const currentPrice = Number(priceData.price);
+    const lastPrice = Number(priceData.extraInfo.lastSwappedPrice.lastJupiterSellPrice);
+    
+    return ((currentPrice - lastPrice) / lastPrice) * 100;
+  }
+
+  private async calculateVolatility(tokenAddress: string): Promise<number> {
+    const cacheKey = `${this.CACHE_PREFIX}volatility:${tokenAddress}`;
+    
     try {
-      if (this.isCircuitOpen) {
-        console.warn('Circuit breaker open, using cached price');
-        const cachedPrice = await this.redis.get(`price:${token}`);
-        if (cachedPrice) {
-          return (await this.decompressData<{ price: number }>(cachedPrice)).price;
-        }
-        throw new Error('No cached price available');
-      }
+      const prices = await this.jupiterService.getTokenPrice(tokenAddress);
+      if (!prices || !prices.extraInfo?.depth) return 0;
 
-      const prices = await this.getHistoricalPrices(token, 1); // Get last hour of data
-      if (!prices.length) {
-        throw new Error(`No price data available for token ${token}`);
-      }
-
-      const price = prices[0].close;
+      const { buyPriceImpactRatio, sellPriceImpactRatio } = prices.extraInfo.depth;
       
-      // Cache the current price
-      await this.redis.set(
-        `price:${token}`, 
-        await this.compressData({ price }), 
-        'EX', 
-        60 // Cache for 1 minute
+      // Calculate volatility using price impact ratios
+      const avgImpact = (
+        Object.values(buyPriceImpactRatio.depth).reduce((a, b) => a + b, 0) +
+        Object.values(sellPriceImpactRatio.depth).reduce((a, b) => a + b, 0)
+      ) / (
+        Object.keys(buyPriceImpactRatio.depth).length +
+        Object.keys(sellPriceImpactRatio.depth).length
       );
-      
-      this.errorCount = 0;
-      this.isCircuitOpen = false;
-      return price;
+
+      await this.redis.set(
+        cacheKey,
+        await this.compressData({ volatility: avgImpact }),
+        'EX',
+        this.DEFAULT_CACHE_TTL * 5 // Cache volatility longer
+      );
+
+      return avgImpact;
+
     } catch (error) {
-      console.error(`Failed to get price for ${token}:`, error);
-      this.errorCount++;
-      this.lastErrorTime = Date.now();
-      this.handleRedisError(error instanceof Error ? error : new Error(String(error)));
+      elizaLogger.error('Error calculating volatility:', error);
+      const cached = await this.redis.get(cacheKey);
+      if (cached) {
+        const { volatility } = await this.decompressData<{ volatility: number }>(cached);
+        return volatility;
+      }
+      return 0;
+    }
+  }
+
+  public async formatForAI(tokenAddress: string): Promise<string> {
+    try {
+      const marketData = await this.getMarketData(tokenAddress);
+      
+      return JSON.stringify({
+        price: marketData.price.toFixed(6),
+        volume24h: this.formatNumber(marketData.volume24h),
+        priceChange24h: `${marketData.priceChange24h.toFixed(2)}%`,
+        marketCap: this.formatNumber(marketData.marketCap || 0),
+        holders: marketData.holders?.total || 0,
+        topHolders: marketData.holders?.top.length || 0,
+        volatility: marketData.volatility.toFixed(4),
+        lastUpdate: new Date(marketData.lastUpdate).toISOString()
+      });
+
+    } catch (error) {
+      elizaLogger.error('Error formatting data for AI:', error);
       throw error;
     }
+  }
+
+  private formatNumber(num: number): string {
+    if (num >= 1e9) return `${(num / 1e9).toFixed(2)}B`;
+    if (num >= 1e6) return `${(num / 1e6).toFixed(2)}M`;
+    if (num >= 1e3) return `${(num / 1e3).toFixed(2)}K`;
+    return num.toFixed(2);
+  }
+
+  public async disconnect(): Promise<void> {
+    await this.redis.quit();
+    elizaLogger.info('Market data processor disconnected');
+  }
+}
+
+export class RedisCache {
+  private redis: Redis;
+  private prefix: string;
+
+  constructor(prefix: string = '') {
+    const redisUrl = 'redis://127.0.0.1:6379';
+
+    this.redis = new Redis(redisUrl, {
+      retryStrategy: (times: number) => {
+        const delay = Math.min(times * 50, 2000);
+        return delay;
+      },
+      maxRetriesPerRequest: 3,
+    });
+
+    this.prefix = prefix ? `${prefix}:` : '';
+
+    // Handle connection errors
+    this.redis.on('error', (error: Error) => {
+      console.error('Redis connection error:', error);
+    });
+
+    // Log successful connection
+    this.redis.on('connect', () => {
+      console.log('Connected to Redis');
+    });
   }
 }

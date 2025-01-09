@@ -1,21 +1,49 @@
+// jupiterPriceV2.ts
 import axios from 'axios';
 import { sleep } from '../../../utils/common.js';
+import { elizaLogger } from "@ai16z/eliza";
 
-export interface JupiterPriceResponse {
-  data: {
-    [key: string]: {
-      id: string;
-      mintSymbol: string;
-      vsToken: string;
-      vsTokenSymbol: string;
-      price: number;
-      confidence: number;
-    }
+export interface TokenPrice {
+  volume24h: number;
+  id: string;
+  type: string;
+  price: string;
+  extraInfo?: {
+    lastSwappedPrice?: {
+      lastJupiterSellAt: number;
+      lastJupiterSellPrice: string;
+      lastJupiterBuyAt: number;
+      lastJupiterBuyPrice: string;
+    };
+    quotedPrice?: {
+      buyPrice: string;
+      buyAt: number;
+      sellPrice: string;
+      sellAt: number;
+    };
+    confidenceLevel: 'high' | 'medium' | 'low';
+    depth?: {
+      buyPriceImpactRatio: {
+        depth: Record<string, number>;
+        timestamp: number;
+      };
+      sellPriceImpactRatio: {
+        depth: Record<string, number>;
+        timestamp: number;
+      };
+    };
   };
 }
 
+export interface JupiterPriceResponse {
+  data: {
+    [key: string]: TokenPrice;
+  };
+  timeTaken: number;
+}
+
 export class JupiterPriceV2 {
-  private readonly endpoint = 'https://price.jup.ag/v4';
+  private readonly endpoint = 'https://api.jup.ag/price/v2';
   private rateLimitCounter = 0;
   private lastRateLimitReset = Date.now();
   private readonly RATE_LIMIT = 600;
@@ -55,8 +83,11 @@ export class JupiterPriceV2 {
         const responses = await Promise.all(
           batches.map(async (batch) => {
             const tokens = batch.join(',');
-            const response = await axios.get(`${this.endpoint}/price`, {
-              params: { ids: tokens }
+            const response = await axios.get(`${this.endpoint}`, {
+              params: { 
+                ids: tokens,
+                showExtraInfo: true
+              }
             });
             this.rateLimitCounter++;
             return response.data;
@@ -69,10 +100,11 @@ export class JupiterPriceV2 {
           data: { ...acc.data, ...curr.data }
         }), { data: {} });
 
-        // Filter out low confidence prices
-        Object.keys(mergedData.data).forEach(key => {
-          if (mergedData.data[key].confidence < this.MIN_CONFIDENCE) {
-            console.warn(`Low confidence price for token ${key}: ${mergedData.data[key].confidence}`);
+        // Filter and validate prices
+        Object.entries(mergedData.data).forEach(([key, value]) => {
+          const data = value as TokenPrice;
+          if (!data.extraInfo || data.extraInfo.confidenceLevel === 'low') {
+            elizaLogger.warn(`Low confidence or missing data for token ${key}`);
             delete mergedData.data[key];
           }
         });
@@ -80,21 +112,84 @@ export class JupiterPriceV2 {
         return mergedData;
       } catch (error) {
         attempts++;
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        elizaLogger.error(`Attempt ${attempts} failed:`, errorMessage);
+        
         if (attempts === this.MAX_RETRIES) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           throw new Error(`Failed to fetch prices after ${this.MAX_RETRIES} attempts: ${errorMessage}`);
         }
-        await sleep(1000 * attempts); // Exponential backoff
+        await sleep(1000 * Math.pow(2, attempts)); // Exponential backoff
       }
     }
     throw new Error('Failed to fetch prices');
   }
 
-  public async getPrice(tokenMint: string): Promise<number> {
+  public async getPrice(tokenMint: string): Promise<TokenPrice> {
     const response = await this.getPrices([tokenMint]);
     if (!response.data[tokenMint]) {
       throw new Error(`No price data available for token ${tokenMint}`);
     }
-    return response.data[tokenMint].price;
+
+    const priceData = response.data[tokenMint];
+    
+    // Log successful price fetch with confidence level
+    elizaLogger.info('Price fetched successfully', {
+      token: tokenMint,
+      price: priceData.price,
+      confidence: priceData.extraInfo?.confidenceLevel
+    });
+
+    return priceData;
+  }
+
+  public async getMarketDepth(tokenMint: string): Promise<{
+    buyDepth: Record<string, number>;
+    sellDepth: Record<string, number>;
+  }> {
+    const priceData = await this.getPrice(tokenMint);
+    
+    if (!priceData.extraInfo?.depth) {
+      throw new Error('No depth data available');
+    }
+
+    return {
+      buyDepth: priceData.extraInfo.depth.buyPriceImpactRatio.depth,
+      sellDepth: priceData.extraInfo.depth.sellPriceImpactRatio.depth
+    };
+  }
+
+  public async calculateVolume(tokenMint: string): Promise<number> {
+    try {
+      const priceData = await this.getPrice(tokenMint);
+      const depth = await this.getMarketDepth(tokenMint);
+      
+      if (!depth) {
+        throw new Error('No depth data available for volume calculation');
+      }
+
+      const price = parseFloat(priceData.price);
+      
+      // Calculate weighted average volume from depth data
+      const volumes = Object.keys(depth.buyDepth).map(depthLevel => {
+        const amount = parseFloat(depthLevel);
+        const buyImpact = depth.buyDepth[depthLevel];
+        const sellImpact = depth.sellDepth[depthLevel] || 0;
+        const avgImpact = (buyImpact + sellImpact) / 2;
+        return amount * price * (1 - avgImpact);
+      });
+
+      const totalVolume = volumes.reduce((sum, vol) => sum + vol, 0);
+      
+      elizaLogger.info('Volume calculated successfully', {
+        token: tokenMint,
+        volume: totalVolume
+      });
+
+      return totalVolume;
+
+    } catch (error) {
+      elizaLogger.error('Error calculating volume:', error);
+      throw error;
+    }
   }
 }

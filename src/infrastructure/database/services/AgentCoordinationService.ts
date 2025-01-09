@@ -118,7 +118,10 @@ export class AgentCoordinationService {
             volume24h: 0,
             priceChange24h: 0,
             marketCap: 0,
-            topHolders: []
+            topHolders: [],
+            tokenAddress: function (tokenAddress: any): unknown {
+              throw new Error('Function not implemented.');
+            }
           });
         } catch (error) {
           this.logger.error('Error in autonomous posting:', error);

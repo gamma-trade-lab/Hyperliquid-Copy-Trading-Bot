@@ -132,6 +132,16 @@ export const CONFIG = {
     }
 } as const;
 
+export const REDIS_CONFIG = {
+  host: process.env.REDIS_HOST || 'localhost',
+  port: parseInt(process.env.REDIS_PORT || '6379'),
+  keyPrefix: 'meme-agent:',
+  tls: {
+    enabled: process.env.REDIS_TLS_ENABLED === 'true',
+    rejectUnauthorized: process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== 'false'
+  }
+};
+
 // Utility functions for configuration
 export const getConfig = () => CONFIG;
 

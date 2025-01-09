@@ -1,4 +1,4 @@
-import { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
+import { PublicKey, Transaction, VersionedTransaction, TransactionError } from '@solana/web3.js';
 
 export interface JupiterPrice {
   id: string;
@@ -79,4 +79,13 @@ export interface JupiterExchangeParams {
 
 export interface JupiterExchangeResponse {
   swapTransaction: Transaction | VersionedTransaction;
+}
+
+export interface SwapResult {
+  inputAddress: PublicKey;
+  outputAddress: PublicKey;
+  inputAmount: number;
+  outputAmount: number;
+  error?: TransactionError;
+  txid: string;
 }

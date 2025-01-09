@@ -17,10 +17,11 @@ import { Groq } from 'groq-sdk';
 import { randomBytes } from 'crypto';
 import { MarketAction } from '../../config/constants.js';
 import { DeepSeekProvider } from './providers/deepSeekProvider.js';
-import { LLMProvider, ChatRequest, ChatResponse, Tweet, MarketData, MarketAnalysis, IAIService } from './types.js';
+import { LLMProvider, ChatRequest, ChatResponse, Tweet,  MarketAnalysis, IAIService } from './types.js';
 import CONFIG from '../../config/settings.js';
 import personalityConfig from '../../config/personality.js';
 import { Character } from '../../personality/types.js';
+import { MarketData } from '@/types/market';
 
 interface AIServiceConfig {
   groqApiKey?: string;
@@ -54,7 +55,23 @@ interface MemeResponse {
   sentiment: 'positive' | 'negative' | 'neutral';
 }
 
+interface GenerateResponseInput {
+  content: string;
+  author: string;
+  platform: string;
+  messageId?: string;  // Add this
+  channel?: string;
+  contentType?: 'community' | 'market' | 'meme' | 'general';
+  context?: {
+    [key: string]: any;
+    traits?: string[];
+    metrics?: any;
+    marketCondition?: string;
+  };
+}
+
 export class AIService implements IAIService {
+  
   private characterConfig?: Character;
 
   async setCharacterConfig(config: Character): Promise<void> {
@@ -647,6 +664,37 @@ Use this template style: ${template}`;
       context.shift();
     }
     this.contextMemory.set(sessionId, context);
+  }
+
+  async getMarketMetrics(): Promise<MarketData> {
+    // Implement the logic to fetch market metrics
+    // This is a placeholder implementation
+    return {
+      price: 100,
+      volume24h: 1000,
+      priceChange24h: 5,
+      marketCap: 1000000,
+      lastUpdate: Date.now(),
+      tokenAddress: "0x0000000000000000000000000000000000000000",
+      topHolders: [],
+      volatility: {
+        currentVolatility: 0.1,
+        averageVolatility: 0.2,
+        adjustmentFactor: 0.05
+      },
+      holders: {
+        total: 100,
+        top: [
+          { address: "0x0000000000000000000000000000000000000001", balance: 1000, percentage: 10 },
+          { address: "0x0000000000000000000000000000000000000002", balance: 500, percentage: 5 }
+        ]
+      },
+      onChainActivity: {
+        transactions: 0,
+        swaps: 0,
+        uniqueTraders: 0
+      }
+    };
   }
 }
 

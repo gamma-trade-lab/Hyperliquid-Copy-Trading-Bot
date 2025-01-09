@@ -1,113 +1,175 @@
 import Redis from 'ioredis';
+import { elizaLogger } from "@ai16z/eliza";
+import { EventEmitter } from 'events';
 
-export class RedisCache {
-  private redis: Redis;
-  private prefix: string;
+interface RedisConfig {
+  host: string;
+  port: number;
+  password?: string;
+  keyPrefix?: string;
+  enableCircuitBreaker?: boolean;
+  maxRetries?: number;
+  retryStrategy?: (times: number) => number | void;
+  tls?: {
+    enabled?: boolean;
+    rejectUnauthorized?: boolean;
+  };
+}
 
-  constructor(prefix: string = '') {
-    const redisUrl = process.env.REDIS_URL || 'redis://redis-17909.c74.us-east-1-4.ec2.redns.redis-cloud.com:17909';
-    const redisPassword = process.env.REDIS_PASSWORD || 'pWFdJwcx9YpojFdQxoCXzGOjMbAvtRwc';
+export class RedisService extends EventEmitter {
+  private client: Redis;
+  private isConnected: boolean = false;
+  private reconnectAttempts: number = 0;
+  private readonly maxReconnectAttempts: number = 5;
+  private readonly defaultRetryDelay: number = 1000;
 
-    this.redis = new Redis(redisUrl, {
-      password: redisPassword,
+  constructor(config: RedisConfig) {
+    super();
+
+    const defaultConfig: RedisConfig = {
+      host: 'localhost',
+      port: 6379,
+      maxRetries: 3,
+      keyPrefix: '',
+      enableCircuitBreaker: true,
       retryStrategy: (times: number) => {
-        const delay = Math.min(times * 50, 2000);
+        if (times > this.maxReconnectAttempts) {
+          elizaLogger.error('Max Redis reconnection attempts reached');
+          return; // Stop retrying by returning void
+        }
+        const delay = Math.min(times * this.defaultRetryDelay, 5000);
+        elizaLogger.info(`Retrying Redis connection in ${delay}ms... (attempt ${times})`);
         return delay;
-      },
-      maxRetriesPerRequest: 3,
+      }
+    };
+
+    const finalConfig = {
+      ...defaultConfig,
+      ...config,
+      // Ensure we're not using Unix socket paths
+      path: undefined
+    };
+
+    // Create Redis client with explicit host/port configuration
+    this.client = new Redis({
+      host: finalConfig.host,
+      port: finalConfig.port,
+      password: finalConfig.password,
+      keyPrefix: finalConfig.keyPrefix,
+      retryStrategy: finalConfig.retryStrategy,
+      maxRetriesPerRequest: finalConfig.maxRetries,
+      enableReadyCheck: true,
+      lazyConnect: true,
+      showFriendlyErrorStack: true,
+      // TLS configuration if needed
+      tls: finalConfig.tls?.enabled ? {
+        rejectUnauthorized: finalConfig.tls.rejectUnauthorized ?? false
+      } : undefined,
+      // Disable auto-reconnect initially
+      reconnectOnError: (err) => {
+        elizaLogger.error('Redis connection error:', err);
+        return false;
+      }
     });
 
-    this.prefix = prefix ? `${prefix}:` : '';
+    this.setupEventListeners();
+  }
 
-    // Handle connection errors
-    this.redis.on('error', (error: Error) => {
-      console.error('Redis connection error:', error);
+  private setupEventListeners(): void {
+    this.client.on('connect', () => {
+      this.isConnected = true;
+      this.reconnectAttempts = 0;
+      elizaLogger.success('Connected to Redis');
+      this.emit('connect');
     });
 
-    // Log successful connection
-    this.redis.on('connect', () => {
-      console.log('Connected to Redis');
+    this.client.on('error', (error: Error) => {
+      elizaLogger.error('Redis error:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      
+      if (error.message.includes('ENOENT') && error.message.includes('/tokens')) {
+        elizaLogger.error('Invalid Redis connection configuration. Please check host and port settings.');
+        this.cleanup();
+      }
+      
+      this.emit('error', error);
+    });
+
+    this.client.on('close', () => {
+      this.isConnected = false;
+      elizaLogger.warn('Redis connection closed');
+      this.emit('close');
+    });
+
+    this.client.on('reconnecting', () => {
+      this.reconnectAttempts++;
+      elizaLogger.info(`Reconnecting to Redis (attempt ${this.reconnectAttempts})`);
+      this.emit('reconnecting', this.reconnectAttempts);
+    });
+
+    this.client.on('ready', () => {
+      elizaLogger.info('Redis client ready');
+      this.emit('ready');
     });
   }
 
-  private getKey(key: string): string {
-    return `${this.prefix}${key}`;
+  public async connect(): Promise<void> {
+    try {
+      await this.client.connect();
+    } catch (error) {
+      elizaLogger.error('Failed to connect to Redis:', error);
+      throw error;
+    }
   }
 
   public async get(key: string): Promise<string | null> {
     try {
-      return await this.redis.get(this.getKey(key));
+      if (!this.isConnected) {
+        await this.connect();
+      }
+      return await this.client.get(key);
     } catch (error) {
-      console.error('Redis get error:', error);
-      return null;
+      elizaLogger.error(`Error getting key ${key}:`, error);
+      throw error;
     }
   }
 
-  public async set(key: string, value: string, ttl?: number): Promise<void> {
-    const fullKey = this.getKey(key);
+  public async set(key: string, value: string, ttl?: number): Promise<'OK'> {
     try {
+      if (!this.isConnected) {
+        await this.connect();
+      }
       if (ttl) {
-        await this.redis.setex(fullKey, ttl, value);
-      } else {
-        await this.redis.set(fullKey, value);
+        return await this.client.set(key, value, 'EX', ttl);
+      }
+      return await this.client.set(key, value);
+    } catch (error) {
+      elizaLogger.error(`Error setting key ${key}:`, error);
+      throw error;
+    }
+  }
+
+  public async cleanup(): Promise<void> {
+    try {
+      if (this.isConnected) {
+        await this.client.quit();
+        this.isConnected = false;
+        elizaLogger.info('Redis connection closed gracefully');
       }
     } catch (error) {
-      console.error('Redis set error:', error);
+      elizaLogger.error('Error during Redis cleanup:', error);
+      throw error;
     }
   }
 
-  public async del(key: string): Promise<void> {
-    try {
-      await this.redis.del(this.getKey(key));
-    } catch (error) {
-      console.error('Redis del error:', error);
-    }
+  public isReady(): boolean {
+    return this.isConnected && this.client.status === 'ready';
   }
 
-  public async exists(key: string): Promise<boolean> {
-    try {
-      const result = await this.redis.exists(this.getKey(key));
-      return result === 1;
-    } catch (error) {
-      console.error('Redis exists error:', error);
-      return false;
-    }
-  }
-
-  public async ttl(key: string): Promise<number> {
-    try {
-      return await this.redis.ttl(this.getKey(key));
-    } catch (error) {
-      console.error('Redis ttl error:', error);
-      return -1;
-    }
-  }
-
-  public async keys(pattern: string): Promise<string[]> {
-    try {
-      return await this.redis.keys(this.getKey(pattern));
-    } catch (error) {
-      console.error('Redis keys error:', error);
-      return [];
-    }
-  }
-
-  public async flushPrefix(): Promise<void> {
-    try {
-      const keys = await this.keys('*');
-      if (keys.length > 0) {
-        await this.redis.del(...keys);
-      }
-    } catch (error) {
-      console.error('Redis flush error:', error);
-    }
-  }
-
-  public async disconnect(): Promise<void> {
-    try {
-      await this.redis.quit();
-    } catch (error) {
-      console.error('Redis disconnect error:', error);
-    }
+  public getClient(): Redis {
+    return this.client;
   }
 }

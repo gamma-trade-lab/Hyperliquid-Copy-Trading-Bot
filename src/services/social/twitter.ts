@@ -6,23 +6,24 @@ import {
   ApiRequestError, 
   ApiPartialResponseError 
 } from 'twitter-api-v2';
-import { AIService } from '../ai';
+import { AIService } from '../ai/ai';
 import { elizaLogger } from "@ai16z/eliza";
 import { MarketUpdateData } from '@/types/market';
 
-interface TwitterConfig {
-  apiKey: string;
-  apiSecret: string;
-  accessToken: string;
-  accessSecret: string;
-  bearerToken: string;
-  oauthClientId: string;
-  oauthClientSecret: string;
-  mockMode?: boolean;
-  maxRetries?: number;
-  retryDelay?: number;
-  contentRules?: ContentRules;
-  streamingEnabled?: boolean; // Make streaming optional
+// Add new imports for market data integration
+import { MarketDataProcessor } from '../market/data/DataProcessor';
+import { PriceMonitor } from '../market/analysis/priceMonitor';
+import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service';
+import { JupiterPriceV2 } from '../blockchain/defi/jupiterPriceV2';
+import { HeliusService } from '../blockchain/heliusIntegration';
+
+// Add interfaces for market data types
+export interface MarketMetrics {
+  price: number;
+  volume24h: number;
+  priceChange24h: number;
+  marketCap: number;
+  volatility: number;
 }
 
 interface ContentRules {
@@ -36,6 +37,30 @@ interface TweetOptions {
   replyToTweetId?: string; // Allow string or undefined
 }
 
+interface TwitterConfig {
+  apiKey: string;
+  apiSecret: string;
+  accessToken: string;
+  accessSecret: string;
+  bearerToken: string;
+  oauthClientId: string;
+  oauthClientSecret: string;
+  mockMode?: boolean;
+  maxRetries?: number;
+  retryDelay?: number;
+  streamingEnabled?: boolean; // Make streaming optional
+  marketDataConfig?: {
+    updateInterval?: number;
+    volatilityThreshold?: number;
+    heliusApiKey: string;
+  };
+  contentRules?: {
+    maxEmojis?: number;
+    maxHashtags?: number;
+    minInterval?: number;
+  };
+}
+
 export class TwitterService {
   private userClient: TwitterApi;
   private appClient: TwitterApi;
@@ -44,8 +69,16 @@ export class TwitterService {
   private readonly config: Required<TwitterConfig>;
   private userId?: string;
   private readonly MONTHLY_TWEET_LIMIT: number = 3000; // Define the monthly tweet limit
-  
-  constructor(config: TwitterConfig, aiService: AIService) {
+
+  private dataProcessor: MarketDataProcessor;
+  private priceMonitor: PriceMonitor;
+  private marketUpdateInterval: NodeJS.Timeout | null = null;
+
+  constructor(
+    config: TwitterConfig, 
+    aiService: AIService,
+    dataProcessor: MarketDataProcessor // Add this
+  ) {
     this.validateConfig(config);
     
     this.config = {
@@ -58,10 +91,18 @@ export class TwitterService {
         maxEmojis: config.contentRules?.maxEmojis ?? 0,
         maxHashtags: config.contentRules?.maxHashtags ?? 0,
         minInterval: config.contentRules?.minInterval ?? 300000
+      },
+      marketDataConfig: {
+        updateInterval: config.marketDataConfig?.updateInterval ?? 60000,
+        volatilityThreshold: config.marketDataConfig?.volatilityThreshold ?? 0.05,
+        heliusApiKey: config.marketDataConfig?.heliusApiKey ?? ''
       }
     };
 
     this.aiService = aiService;
+    this.dataProcessor = dataProcessor;
+    this.priceMonitor = new PriceMonitor(dataProcessor, aiService);
+    this.setupMarketMonitoring();
 
     // Initialize clients with OAuth 2.0 authentication
     this.userClient = new TwitterApi({
@@ -86,6 +127,102 @@ export class TwitterService {
     const missing = requiredFields.filter(field => !config[field]);
     if (missing.length > 0) {
       throw new Error(`Missing required Twitter configuration fields: ${missing.join(', ')}`);
+    }
+  }
+
+  private setupMarketMonitoring(): void {
+    // Handle significant price movements
+    this.priceMonitor.on('significantMovement', async ({ tokenAddress, analysis }) => {
+      try {
+        const marketData = await this.dataProcessor.formatForAI(tokenAddress);
+        
+        const content = await this.aiService.generateResponse({
+          content: `Generate market movement tweet:\n${marketData}\nAnalysis: ${analysis}`,
+          platform: 'twitter',
+          author: 'system',
+        });
+
+        await this.tweet(content);
+      } catch (error) {
+        elizaLogger.error('Failed to tweet market movement:', error);
+      }
+    });
+
+    // Handle price alerts
+    this.priceMonitor.on('alertTriggered', async ({ alert, pricePoint }) => {
+      try {
+        const marketData = await this.dataProcessor.formatForAI(alert.token);
+        
+        const content = await this.aiService.generateResponse({
+          content: `Generate price alert tweet:\n${marketData}\nAlert: ${alert.condition} at ${pricePoint.price}`,
+          platform: 'twitter',
+          author: 'system',
+        });
+
+        await this.tweet(content);
+      } catch (error) {
+        elizaLogger.error('Failed to tweet price alert:', error);
+      }
+    });
+  }
+
+  async startMarketUpdates(
+    tokenAddress: string, 
+    interval: number = 1800000 // 30 minutes
+  ): Promise<void> {
+    try {
+      // Start price monitoring
+      await this.priceMonitor.startMonitoring(tokenAddress);
+
+      // Schedule regular market updates
+      this.marketUpdateInterval = setInterval(async () => {
+        try {
+          const formattedData = await this.dataProcessor.formatForAI(tokenAddress);
+          
+          const content = await this.aiService.generateResponse({
+            content: `Generate market update tweet with this data:\n${formattedData}`,
+            platform: 'twitter',
+            author: 'system',
+          });
+
+          await this.tweet(content);
+        } catch (error) {
+          elizaLogger.error('Failed to post market update:', error);
+        }
+      }, interval);
+
+      elizaLogger.info(`Started market updates for ${tokenAddress}`);
+    } catch (error) {
+      elizaLogger.error('Failed to start market updates:', error);
+      throw error;
+    }
+  }
+
+  async stopMarketUpdates(): Promise<void> {
+    if (this.marketUpdateInterval) {
+      clearInterval(this.marketUpdateInterval);
+      this.marketUpdateInterval = null;
+    }
+    
+    // Cleanup price monitor
+    this.priceMonitor.cleanup();
+    elizaLogger.info('Market updates stopped');
+  }
+
+  async publishMarketUpdate(data: MarketUpdateData): Promise<void> {
+      try {
+        const formattedData = await this.dataProcessor.formatForAI(data.tokenAddress as unknown as string);
+      
+      const content = await this.aiService.generateResponse({
+        content: `Generate market update tweet with this data:\n${formattedData}`,
+        platform: 'twitter',
+        author: 'system',
+      });
+
+      await this.tweet(content);
+    } catch (error) {
+      elizaLogger.error('Failed to publish market update:', error);
+      throw error;
     }
   }
 
@@ -177,15 +314,75 @@ export class TwitterService {
     }
   }
 
-  private async verifyAppAuth(): Promise<void> {
-    try {
-      // Use a simple search query to verify app-only auth
-      await this.appClient.v2.search('test');
-      elizaLogger.success('App-only authentication verified');
-    } catch (error) {
-      this.handleAuthError(error, 'App-only authentication');
-      throw error;
+  async tweet(content: string, options: TweetOptions = {}): Promise<TweetV2PostTweetResult> {
+    if (this.config.mockMode) {
+      elizaLogger.info('Mock mode - logging tweet:', content);
+      return { data: { id: 'mock_tweet_id', text: content } } as TweetV2PostTweetResult;
     }
+  
+    await this.validateTweetContent(content);
+    let attempt = 0;
+  
+    while (attempt < this.config.maxRetries) {
+      try {
+        const mediaIds = options.mediaUrls ? await this.uploadMedia(options.mediaUrls) : [];
+  
+        const tweetPayload: SendTweetV2Params = {
+          text: content,
+          ...(mediaIds.length && { media: { media_ids: mediaIds as [string] | [string, string] | [string, string, string] | [string, string, string, string] } }),
+          ...(options.replyToTweetId && { reply: { in_reply_to_tweet_id: options.replyToTweetId } })
+        };
+        
+        const tweet = await this.userClient.v2.tweet(tweetPayload);
+        
+        elizaLogger.success('Tweet posted successfully:', tweet.data.id);
+        return tweet;
+      } catch (error) {
+        attempt++;
+        
+        if (this.shouldRetry(error, attempt)) {
+          await this.delay(this.config.retryDelay * attempt);
+          continue;
+        }
+        
+        elizaLogger.error('Failed to post tweet:', error);
+        throw error;
+      }
+    }
+  
+    throw new Error(`Failed to post tweet after ${this.config.maxRetries} attempts`);
+  }
+
+  private validateTweetContent(content: string): void {
+    const { maxEmojis = 0, maxHashtags = 0 } = this.config.contentRules;
+
+    const emojiCount = (content.match(/[\u{1F600}-\u{1F64F}]/gu) || []).length;
+    const hashtagCount = (content.match(/#/g) || []).length;
+
+    if (emojiCount > maxEmojis) {
+      throw new Error(`Tweet contains too many emojis. Maximum allowed is ${maxEmojis}.`);
+    }
+
+    if (hashtagCount > maxHashtags) {
+      throw new Error(`Tweet contains too many hashtags. Maximum allowed is ${maxHashtags}.`);
+    }
+  }
+
+  private shouldRetry(error: unknown, attempt: number): boolean {
+    return (
+      attempt < this.config.maxRetries &&
+      error instanceof ApiResponseError &&
+      (error.rateLimitError || error.code === 429)
+    );
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private async uploadMedia(urls: string[]): Promise<string[]> {
+    // Implement media upload logic
+    return [];
   }
 
   async startStream(): Promise<void> {
@@ -274,7 +471,6 @@ export class TwitterService {
         content: tweet.data.text,
         platform: 'twitter',
         author: tweet.data.author_id,
-        messageId: tweet.data.id 
       });
 
       if (response) {
@@ -320,18 +516,6 @@ export class TwitterService {
     }
   }
 
-  private shouldRetry(error: unknown, attempt: number): boolean {
-    return (
-      attempt < this.config.maxRetries &&
-      error instanceof ApiResponseError &&
-      (error.rateLimitError || error.code === 429)
-    );
-  }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
   async stop(): Promise<void> {
     elizaLogger.info('Twitter service stopped');
   }
@@ -342,91 +526,5 @@ export class TwitterService {
 
   getRemainingTweets(): number {
     return this.MONTHLY_TWEET_LIMIT - this.getTweetCount();
-  }
-
-  async tweet(content: string, options: TweetOptions = {}): Promise<TweetV2PostTweetResult> {
-    if (this.config.mockMode) {
-      elizaLogger.info('Mock mode - logging tweet:', content);
-      return { data: { id: 'mock_tweet_id', text: content } } as TweetV2PostTweetResult;
-    }
-  
-    await this.validateTweetContent(content);
-    let attempt = 0;
-  
-    while (attempt < this.config.maxRetries) {
-      try {
-        const mediaIds = options.mediaUrls ? await this.uploadMedia(options.mediaUrls) : [];
-  
-        const tweetPayload: SendTweetV2Params = {
-          text: content,
-          ...(mediaIds.length && { media: { media_ids: mediaIds as [string] | [string, string] | [string, string, string] | [string, string, string, string] } }),
-          ...(options.replyToTweetId && { reply: { in_reply_to_tweet_id: options.replyToTweetId } })
-        };
-  
-        const tweet = await this.userClient.v2.tweet(tweetPayload);
-        
-        elizaLogger.success('Tweet posted successfully:', tweet.data.id);
-        return tweet;
-      } catch (error) {
-        attempt++;
-        
-        if (this.shouldRetry(error, attempt)) {
-          await this.delay(this.config.retryDelay * attempt);
-          continue;
-        }
-        
-        elizaLogger.error('Failed to post tweet:', error);
-        throw error;
-      }
-    }
-  
-    throw new Error(`Failed to post tweet after ${this.config.maxRetries} attempts`);
-  }
-
-  validateTweetContent(content: string): void {
-    const { maxEmojis, maxHashtags } = this.config.contentRules;
-
-    const emojiCount = (content.match(/[\u{1F600}-\u{1F64F}]/gu) || []).length;
-    const hashtagCount = (content.match(/#/g) || []).length;
-
-    if (emojiCount > maxEmojis) {
-      throw new Error(`Tweet contains too many emojis. Maximum allowed is ${maxEmojis}.`);
-    }
-
-    if (hashtagCount > maxHashtags) {
-      throw new Error(`Tweet contains too many hashtags. Maximum allowed is ${maxHashtags}.`);
-    }
-  }
-
-  private async uploadMedia(urls: string[]): Promise<string[]> {
-    const uploadPromises = urls.map(async url => {
-      let attempt = 0;
-      while (attempt < this.config.maxRetries) {
-        try {
-          return await this.userClient.v1.uploadMedia(url);
-        } catch (error) {
-          attempt++;
-          if (this.shouldRetry(error, attempt)) {
-            await this.delay(this.config.retryDelay * attempt);
-            continue;
-          }
-          throw error;
-        }
-      }
-      throw new Error(`Failed to upload media ${url} after ${this.config.maxRetries} attempts`);
-    });
-  
-    return Promise.all(uploadPromises);
-  }
-
-  async publishMarketUpdate(data: MarketUpdateData): Promise<void> {
-    const content = `Market Update:
-    - Price: ${data.price}
-    - 24h Volume: ${data.volume24h}
-    - 24h Price Change: ${data.priceChange24h}
-    - Market Cap: ${data.marketCap}
-    - Top Holders: ${data.topHolders.join(', ')}`;
-
-    await this.tweet(content);
   }
 }

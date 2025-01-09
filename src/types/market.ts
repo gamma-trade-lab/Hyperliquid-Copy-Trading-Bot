@@ -1,11 +1,48 @@
 export interface PriceData {
+  price: any;
   high: number;
   low: number;
   close: number;
   volume: number;
   timestamp: number;
 }
+export interface MarketData {
+  price: number;
+  volume24h: number;
+  priceChange24h: number;
+  marketCap: number;
+  lastUpdate: number;
+  tokenAddress: string;
+  topHolders: Array<{ address: string; balance: number }>;
+  volatility: {
+    currentVolatility: number;
+    averageVolatility: number;
+    adjustmentFactor: number;
+  };
+  holders: {
+    total: number;
+    top: Array<{ address: string; balance: number; percentage: number }>;
+  };
+  onChainActivity: { // Ensure onChainActivity is always defined
+    transactions: number;
+    swaps: number;
+    uniqueTraders: number;
+  };
+  onChainData?: { // Add onChainData property
+    recentSwaps: number;
+    recentTransfers: number;
+    totalTransactions: number;
+  };
+  confidence?: 'high' | 'medium' | 'low';
+}
 
+export interface JupiterSwap {
+  data: {
+    author_id: string;
+    transaction_id: string;
+    timestamp: number;
+  };
+}
 export interface VolatilityMetrics {
   currentVolatility: number;
   averageVolatility: number;
@@ -25,19 +62,6 @@ export interface OnChainData {
   totalTransactions: number;
 }
 
-export interface MarketData {
-  price: number;
-  volume24h: number;
-  marketCap: number;
-  priceChange24h: number;  // Required for tweet generation
-  topHolders: Array<{      // Required for tweet generation
-    address: string;
-    balance: number;
-  }>;
-  volatility?: VolatilityMetrics;
-  onChainData?: OnChainData;  // Optional field for Helius transaction data
-}
-
 export interface MarketAnalysis {
   shouldTrade: boolean;
   confidence: number;
@@ -46,9 +70,21 @@ export interface MarketAnalysis {
 }
 
 export interface MarketUpdateData {
+  tokenAddress(tokenAddress: any): unknown;
   price: number;
   volume24h: number;
   priceChange24h: number;
   marketCap: number;
   topHolders: string[];
+}
+
+export interface MarketAnalysis {
+  action: 'BUY' | 'SELL' | 'HOLD';
+  confidence: number;
+  metrics: MarketData;
+  recommendations?: string[];
+  risk?: {
+    level: 'low' | 'medium' | 'high';
+    factors: string[];
+  };
 }

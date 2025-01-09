@@ -1,6 +1,13 @@
 import { TwitterService } from './twitter';
 import { DiscordService } from './discord';
 import { TweetV2PostTweetResult } from 'twitter-api-v2';
+import { MarketDataProcessor } from '../market/data/DataProcessor';
+import { HeliusService } from '../blockchain/heliusIntegration';
+import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service';
+import { JupiterPriceV2 } from '../blockchain/defi/jupiterPriceV2';
+import Redis from 'ioredis';
+import { elizaLogger } from "@ai16z/eliza";
+import { TokenPrice } from '../blockchain/defi/JupiterPriceV2Service';
 
 export interface SocialMetrics {
   followers: number;
@@ -33,13 +40,58 @@ export interface SocialConfig {
       minInterval: number;
     };
   };
+  helius?: {
+    apiKey: string;
+  };
+  redis?: {
+    host?: string;
+    port?: number;
+    password?: string;
+  };
 }
 
 export class SocialService {
   private twitterService?: TwitterService;
   private discordService?: DiscordService;
+  private readonly dataProcessor: MarketDataProcessor;
+  private readonly jupiterService: JupiterPriceV2Service;
 
   constructor(config: SocialConfig) {
+    if (!config.helius?.apiKey) {
+      throw new Error('Helius API key is required');
+    }
+
+    // Initialize services with proper configuration
+    const heliusService = new HeliusService(config.helius.apiKey);
+    this.jupiterService = new JupiterPriceV2Service({
+      redis: {
+        host: config.redis?.host || process.env.REDIS_HOST,
+        port: config.redis?.port || parseInt(process.env.REDIS_PORT || '6379'),
+        password: config.redis?.password || process.env.REDIS_PASSWORD,
+        keyPrefix: 'jupiter-price:',
+        enableCircuitBreaker: true
+      }
+    });
+    
+    const jupiterV2 = new JupiterPriceV2();
+
+    // Create price fetcher function with proper type
+    const priceFetcher = async (tokenMint: string): Promise<string | null> => {
+      try {
+        const priceData = await this.jupiterService.getTokenPrice(tokenMint);
+        return priceData?.price || null;
+      } catch (error) {
+        elizaLogger.error('Error fetching token price:', error);
+        return null;
+      }
+    };
+
+    // Initialize data processor with price fetcher
+    this.dataProcessor = new MarketDataProcessor(
+      config.helius.apiKey,
+      'https://tokens.jup.ag/tokens?tags=verified'
+    );
+
     if (config.twitter) {
       this.twitterService = new TwitterService(
         {
@@ -54,9 +106,9 @@ export class SocialService {
           contentRules: config.twitter.contentRules,
           oauthClientId: config.twitter.oauthClientId,
           oauthClientSecret: config.twitter.oauthClientSecret,
-          
         },
-        config.services.ai
+        config.services.ai,
+        this.dataProcessor
       );
     }
 
@@ -70,18 +122,24 @@ export class SocialService {
   }
 
   async initialize(): Promise<void> {
-    const initPromises: Promise<void>[] = [];
+    try {
+      const initPromises: Promise<void>[] = [];
 
-    if (this.twitterService) {
-      initPromises.push(this.twitterService.initialize());
+      if (this.twitterService) {
+        initPromises.push(this.twitterService.initialize());
+      }
+
+      if (this.discordService) {
+        // DiscordService auto-initializes in constructor
+        initPromises.push(Promise.resolve());
+      }
+
+      await Promise.all(initPromises);
+      elizaLogger.success('Social services initialized successfully');
+    } catch (error) {
+      elizaLogger.error('Failed to initialize social services:', error);
+      throw error;
     }
-
-    if (this.discordService) {
-      // DiscordService auto-initializes in constructor
-      initPromises.push(Promise.resolve());
-    }
-
-    await Promise.all(initPromises);
   }
 
   async getCommunityMetrics(): Promise<SocialMetrics> {
@@ -96,9 +154,13 @@ export class SocialService {
     const promises: Promise<void>[] = [];
  
     if (this.twitterService) {
-      this.twitterService.tweet(content, { replyToTweetId: undefined })
-        .then(() => promises.push(Promise.resolve()))
-        .catch(error => promises.push(Promise.reject(error)));
+      try {
+        await this.twitterService.tweet(content, { replyToTweetId: undefined });
+        promises.push(Promise.resolve());
+      } catch (error) {
+        elizaLogger.error('Failed to send tweet:', error);
+        promises.push(Promise.reject(error));
+      }
     }
 
     if (this.discordService) {
@@ -111,19 +173,24 @@ export class SocialService {
   }
 
   async sendMessage(platform: string, messageId: string, content: string): Promise<void> {
-    switch (platform.toLowerCase()) {
-      case 'twitter':
-        if (this.twitterService) {
-          await this.twitterService.tweet(content, { replyToTweetId: messageId as string | undefined });
-        }
-        break;
-      case 'discord':
-        if (this.discordService) {
-          await this.discordService.sendMessage(messageId, content);
-        }
-        break;
-      default:
-        throw new Error(`Unsupported platform: ${platform}`);
+    try {
+      switch (platform.toLowerCase()) {
+        case 'twitter':
+          if (this.twitterService) {
+            await this.twitterService.tweet(content, { replyToTweetId: messageId });
+          }
+          break;
+        case 'discord':
+          if (this.discordService) {
+            await this.discordService.sendMessage(messageId, content);
+          }
+          break;
+        default:
+          throw new Error(`Unsupported platform: ${platform}`);
+      }
+    } catch (error) {
+      elizaLogger.error(`Failed to send message to ${platform}:`, error);
+      throw error;
     }
   }
 }

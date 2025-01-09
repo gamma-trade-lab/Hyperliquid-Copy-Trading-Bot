@@ -1,13 +1,13 @@
-import { DataProcessor } from '../data/index.js';
+import { MarketDataProcessor } from '../data/DataProcessor';
 import { PriceData } from '../../../types/market.js';
 
 export class VolatilityManager {
-  private dataProcessor: DataProcessor;
-  private readonly VOLATILITY_WINDOW = 24; // 24 hours
+  private dataProcessor: MarketDataProcessor;
+  private readonly VOLATILITY_WINDOW = 14; // Example window size for ATR calculation
   private readonly MAX_POSITION_ADJUSTMENT = 0.8; // Maximum 80% reduction
   private readonly MIN_POSITION_ADJUSTMENT = 0.2; // Minimum 20% reduction
 
-  constructor(dataProcessor: DataProcessor) {
+  constructor(dataProcessor: MarketDataProcessor) {
     this.dataProcessor = dataProcessor;
   }
 
@@ -15,8 +15,8 @@ export class VolatilityManager {
    * Calculate Average True Range (ATR) for volatility measurement
    */
   private async calculateATR(token: string): Promise<number> {
-    const prices = await this.dataProcessor.getHistoricalPrices(token, this.VOLATILITY_WINDOW);
-    if (!prices || prices.length < 2) {
+    const prices: PriceData[] = (await this.dataProcessor.getHistoricalPrices(token, this.VOLATILITY_WINDOW)) || [];
+    if (prices.length < 2) {
       return 0;
     }
 
@@ -83,5 +83,12 @@ export class VolatilityManager {
       averageVolatility,
       adjustmentFactor
     };
+  }
+
+  /**
+   * Get the average volatility for a token
+   */
+  public async getAverageVolatility(token: string): Promise<number> {
+    return await this.calculateATR(token);
   }
 }

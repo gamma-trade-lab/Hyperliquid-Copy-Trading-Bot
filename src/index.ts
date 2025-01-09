@@ -2,7 +2,10 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { TwitterApi } from 'twitter-api-v2';
 import { Client as DiscordClient, Message } from 'discord.js';
 import Groq from "groq-sdk";
-
+import { ChatService } from './services/chat/ChatService';
+import { ModeManager } from './services/chat/ModeManager';
+import { CommandHandler } from './services/chat/CommandHandler';
+import { Mode } from './services/chat/types';
 import { config } from 'dotenv'; 
 import { MemorySaver } from "@langchain/langgraph";
 // Import services
@@ -21,6 +24,189 @@ import {
 
 // Import mainCharacter from local file
 import { mainCharacter } from './mainCharacter';
+loadConfig();
+async function initializeServices() {
+  try {
+    // Initialize data processor
+    const dataProcessor = new MarketDataProcessor(
+      process.env.HELIUS_API_KEY!,
+      'https://tokens.jup.ag/tokens?tags=verified'
+    );
+
+    // Initialize AI service
+    const aiService = new AIService({
+      groqApiKey: process.env.GROQ_API_KEY!,
+      defaultModel: CONFIG.AI.GROQ.MODEL,
+      maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
+      temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
+    });
+
+    // Initialize Twitter service
+    const twitterService = new TwitterService(
+      {
+        apiKey: process.env.TWITTER_API_KEY!,
+        apiSecret: process.env.TWITTER_API_SECRET!,
+        accessToken: process.env.TWITTER_ACCESS_TOKEN!,
+        accessSecret: process.env.TWITTER_ACCESS_SECRET!,
+        bearerToken: process.env.TWITTER_BEARER_TOKEN!,
+        oauthClientId: process.env.OAUTH_CLIENT_ID!,
+        oauthClientSecret: process.env.OAUTH_CLIENT_SECRET!,
+        mockMode: process.env.TWITTER_MOCK_MODE === 'true',
+        maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
+        retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
+        contentRules: {
+          maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
+          maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
+          minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
+        },
+        marketDataConfig: {
+          heliusApiKey: process.env.HELIUS_API_KEY!,
+          updateInterval: 1800000,
+          volatilityThreshold: 0.05
+        }
+      },
+      aiService,
+      dataProcessor
+    );
+
+    // Initialize chat service and related components
+    const chatService = new ChatService(aiService);
+
+    return {
+      dataProcessor,
+      aiService,
+      twitterService,
+      chatService
+    };
+  } catch (error) {
+    elizaLogger.error('Failed to initialize services:', error);
+    throw error;
+  }
+}
+async function startChat(chatService: ChatService): Promise<void> {
+  elizaLogger.info('Starting chat interface...');
+  await chatService.start();
+}
+
+async function main() {
+  try {
+    elizaLogger.info('JENNA starting up...');
+
+    // Load and validate configuration
+    validateEnvironment();
+    logConfiguration();
+
+    // Initialize services
+    const services = await initializeServices();
+    await services.twitterService.initialize();
+
+    // Start mode selection interface
+    elizaLogger.info('\nAvailable modes:');
+    elizaLogger.info('1. chat    - Interactive chat mode');
+    elizaLogger.info('2. auto    - Autonomous mode');
+
+    const mode = await selectMode();
+
+    if (mode === 'chat') {
+      await startChat(services.chatService);
+    } else if (mode === 'auto') {
+      await startAutonomousMode(services);
+    }
+
+    // Handle cleanup on shutdown
+    process.on('SIGINT', async () => {
+      elizaLogger.info('Shutting down JENNA...');
+      await cleanup(services);
+      process.exit(0);
+    });
+
+    process.on('SIGTERM', async () => {
+      elizaLogger.info('Shutting down JENNA...');
+      await cleanup(services);
+      process.exit(0);
+    });
+
+  } catch (error) {
+    elizaLogger.error('Fatal error during startup:', error);
+    process.exit(1);
+  }
+}
+
+async function selectMode(): Promise<Mode> {
+  return new Promise((resolve) => {
+    process.stdout.write('\nChoose a mode (enter number or name): ');
+    process.stdin.once('data', (data) => {
+      const choice = data.toString().trim().toLowerCase();
+      if (choice === '1' || choice === 'chat') {
+        resolve('chat');
+      } else if (choice === '2' || choice === 'auto') {
+        resolve('auto');
+      } else {
+        elizaLogger.error('Invalid choice. Defaulting to chat mode.');
+        resolve('chat');
+      }
+    });
+  });
+}
+
+async function startAutonomousMode(services: any): Promise<void> {
+  elizaLogger.info('Starting autonomous mode...');
+  // Implement autonomous mode functionality
+  // This will use the TwitterService, AIService, etc.
+}
+
+async function cleanup(services: any): Promise<void> {
+  try {
+    await services.chatService?.stop();
+    await services.twitterService?.stop();
+    elizaLogger.success('Cleanup completed');
+  } catch (error) {
+    elizaLogger.error('Error during cleanup:', error);
+  }
+}
+
+function validateEnvironment() {
+  const requiredEnvVars = [
+    'GROQ_API_KEY',
+    'HELIUS_API_KEY',
+    'TWITTER_API_KEY',
+    'TWITTER_API_SECRET',
+    'TWITTER_ACCESS_TOKEN',
+    'TWITTER_ACCESS_SECRET',
+    'TWITTER_BEARER_TOKEN',
+    'OAUTH_CLIENT_ID',
+    'OAUTH_CLIENT_SECRET'
+  ];
+
+  const missing = requiredEnvVars.filter(key => !process.env[key]);
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+}
+
+function logConfiguration() {
+  elizaLogger.info('Configuration loaded:', {
+    network: CONFIG.SOLANA.NETWORK,
+    rpcUrl: CONFIG.SOLANA.RPC_URL,
+    pubkey: CONFIG.SOLANA.PUBLIC_KEY
+  });
+
+  // Log environment variables (redacted)
+  const envVars = [
+    'TWITTER_API_KEY',
+    'TWITTER_API_SECRET',
+    'TWITTER_ACCESS_TOKEN',
+    'TWITTER_ACCESS_SECRET',
+    'TWITTER_BEARER_TOKEN',
+    'OAUTH_CLIENT_ID',
+    'OAUTH_CLIENT_SECRET'
+  ];
+
+  envVars.forEach(key => {
+    const value = process.env[key];
+    elizaLogger.info(`${key}: ${value ? '****' + value.slice(-4) : 'Not set'}`);
+  });
+}
 
 // Extend IAgentRuntime to include llm
 interface ExtendedAgentRuntime extends IAgentRuntime {
@@ -32,6 +218,9 @@ interface MarketData {
   price: number;
   volume24h: number;
   marketCap: number;
+  priceChange24h: number;
+  volatility: number;
+  lastUpdate: number;
   // Add other market data properties as needed
 }
 
@@ -122,7 +311,13 @@ class MemeAgentInfluencer {
       console.log('Wallet balance:', balance / 1e9, 'SOL');
 
       // Initialize trading service
-      this.tradingService = new TradingService(CONFIG.SOLANA.RPC_URL);
+      this.tradingService = new TradingService(
+        CONFIG.SOLANA.RPC_URL,
+        process.env.HELIUS_API_KEY!,
+       `https://price.jup.ag/v4/price?ids=${this.tokenAddress}`,
+       'https://tokens.jup.ag/tokens?tags=verified'
+        
+      );
       
       console.log('Solana connection initialized');
     } catch (error) {
@@ -232,7 +427,6 @@ class MemeAgentInfluencer {
               content: tweet.data.text,
               platform: 'twitter',
               author: tweet.data.author_id || 'unknown',
-              messageId: ''
             });
             // Use user context client for posting replies
             await this.twitter.v2.reply(response, tweet.data.id);
@@ -388,7 +582,6 @@ class MemeAgentInfluencer {
           content: `Current ${CONFIG.SOLANA.TOKEN_SETTINGS.SYMBOL} price: ${price} SOL`,
           platform: 'twitter',
           author: '',
-          messageId: ''
         });
         
         await this.postTweet(content);
@@ -543,8 +736,8 @@ class MemeAgentInfluencer {
   }
 
   private async analyzeMarket(): Promise<MarketAnalysis> {
-    const metrics = await this.tradingService.getMarketData(this.tokenAddress);
-    const aiAnalysis = await this.aiService.analyzeMarket(this.tokenAddress);
+    const marketData = await this.tradingService.getMarketData(this.tokenAddress);
+    const aiAnalysis = await this.aiService.analyzeMarket(marketData);
     
     // Return a properly formatted MarketAnalysis object
     return {
@@ -556,12 +749,12 @@ class MemeAgentInfluencer {
   }
 
   private async executeTrade(analysis: MarketAnalysis): Promise<TradeResult> {
-    return await this.tradingService.executeTrade({
-      inputMint: analysis.action === 'BUY' ? 'SOL' : this.tokenAddress,
-      outputMint: analysis.action === 'BUY' ? this.tokenAddress : 'SOL',
-      amount: this.calculateTradeAmount(analysis),
-      slippage: CONFIG.SOLANA.TRADING.SLIPPAGE
-    });
+    return await this.tradingService.executeTrade(
+      analysis.action === 'BUY' ? 'SOL' : this.tokenAddress,
+      analysis.action === 'BUY' ? this.tokenAddress : 'SOL',
+      this.calculateTradeAmount(analysis),
+      CONFIG.SOLANA.TRADING.SLIPPAGE
+    );
   }
 
   private async getCurrentPrice(): Promise<number> {
@@ -605,7 +798,6 @@ class MemeAgentInfluencer {
           content: command.raw,
           platform: context.platform,
           author: context.author,
-          messageId: ''
         });
     }
   }
@@ -813,25 +1005,32 @@ class MemeAgentInfluencer {
       elizaLogger.info('Starting Twitter bot...');
       
       if (!this.twitterService) {
-        this.twitterService = new TwitterService({
-          apiKey: process.env.TWITTER_API_KEY!,
-          apiSecret: process.env.TWITTER_API_SECRET!,
-          accessToken: process.env.TWITTER_ACCESS_TOKEN!,
-          accessSecret: process.env.TWITTER_ACCESS_SECRET!,
-          bearerToken: process.env.TWITTER_BEARER_TOKEN!,
-          oauthClientId: process.env.OAUTH_CLIENT_ID!,
-          oauthClientSecret: process.env.OAUTH_CLIENT_SECRET!,
-          mockMode: process.env.TWITTER_MOCK_MODE === 'true',
-          maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
-          retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
-          contentRules: {
-            maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
-            maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
-            minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
-          }
-        }, this.aiService);
-        
-        await this.twitterService.initialize();
+        this.twitterService = new TwitterService(
+          {
+            apiKey: process.env.TWITTER_API_KEY!,
+            apiSecret: process.env.TWITTER_API_SECRET!,
+            accessToken: process.env.TWITTER_ACCESS_TOKEN!,
+            accessSecret: process.env.TWITTER_ACCESS_SECRET!,
+            bearerToken: process.env.TWITTER_BEARER_TOKEN!,
+            oauthClientId: process.env.OAUTH_CLIENT_ID!,
+            oauthClientSecret: process.env.OAUTH_CLIENT_SECRET!,
+            mockMode: process.env.TWITTER_MOCK_MODE === 'true',
+            maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
+            retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
+            contentRules: {
+              maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
+              maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
+              minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
+            },
+            marketDataConfig: {
+              heliusApiKey: process.env.HELIUS_API_KEY!,
+              updateInterval: 1800000, // 30 minutes
+              volatilityThreshold: 0.05 // 5%
+            }
+          },
+          this.aiService,
+          dataProcessor
+        );
       }
       
       // Use TwitterService's methods instead of direct implementation
@@ -874,12 +1073,18 @@ async function validateWalletBalance(connection: Connection) {
 
 import { config as loadConfig } from 'dotenv';
 import { TwitterService } from './services/social/twitter';
-import { AIService } from './services/ai';
+import { AIService } from './services/ai/ai';
 import { CONFIG } from './config/settings';
+import { JupiterPriceV2Service } from './services/blockchain/defi/JupiterPriceV2Service';
+import { MarketDataProcessor } from './services/market/data/DataProcessor';
+import { HeliusService } from './services/blockchain/heliusIntegration';
+import Redis from 'ioredis';
+import { JupiterPriceV2 } from './services/blockchain/defi/jupiterPriceV2';
+
 
 loadConfig();
 
-async function main() {
+async function startMemeAgent() {
   try {
     console.log('Meme Agent Starting...');
     console.log('Loading configuration...');
@@ -907,24 +1112,32 @@ async function main() {
       maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
       temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
     });
-    const twitterService = new TwitterService({
-      apiKey: process.env.TWITTER_API_KEY!,
-      apiSecret: process.env.TWITTER_API_SECRET!,
-      accessToken: process.env.TWITTER_ACCESS_TOKEN!,
-      accessSecret: process.env.TWITTER_ACCESS_SECRET!,
-      bearerToken: process.env.TWITTER_BEARER_TOKEN!,
-      oauthClientId: process.env.OAUTH_CLIENT_ID!,
-      oauthClientSecret: process.env.OAUTH_CLIENT_SECRET!,
-      mockMode: process.env.TWITTER_MOCK_MODE === 'true',
-      maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
-      retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
-      contentRules: {
-        maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
-        maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
-        minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
+    const twitterService = new TwitterService(
+      {
+        apiKey: process.env.TWITTER_API_KEY!,
+        apiSecret: process.env.TWITTER_API_SECRET!,
+        accessToken: process.env.TWITTER_ACCESS_TOKEN!,
+        accessSecret: process.env.TWITTER_ACCESS_SECRET!,
+        bearerToken: process.env.TWITTER_BEARER_TOKEN!,
+        oauthClientId: process.env.OAUTH_CLIENT_ID!,
+        oauthClientSecret: process.env.OAUTH_CLIENT_SECRET!,
+        mockMode: process.env.TWITTER_MOCK_MODE === 'true',
+        maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
+        retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
+        contentRules: {
+          maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
+          maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
+          minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
+        },
+        marketDataConfig: {
+          heliusApiKey: process.env.HELIUS_API_KEY!,
+          updateInterval: 1800000,
+          volatilityThreshold: 0.05
+        }
       },
-      streamingEnabled: process.env.TWITTER_STREAMING_ENABLED === 'true'
-    }, aiService);
+      aiService,
+      dataProcessor // Add this here
+    );
 
     await twitterService.initialize();
 
@@ -934,7 +1147,10 @@ async function main() {
       volume24h: 67890,
       marketCap: 987654321,
       priceChange24h: 0,
-      topHolders: []
+      topHolders: [],
+      tokenAddress: function (tokenAddress: any): unknown {
+        throw new Error('Function not implemented.');
+      }
     });
 
     console.log('MemeAgent fully initialized and running!');
@@ -958,7 +1174,49 @@ async function main() {
   }
 }
 
-main();
+// Initialize base services
+const dataProcessor = new MarketDataProcessor(
+  process.env.HELIUS_API_KEY!,
+  'https://tokens.jup.ag/tokens?tags=verified'
+  
+  //CONFIG.SOLANA.TOKEN_SETTINGS.ADDRESS
+);
+const aiService = new AIService({
+  groqApiKey: process.env.GROQ_API_KEY!,
+  defaultModel: CONFIG.AI.GROQ.MODEL,
+  maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
+  temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
+});
+
+// Initialize Twitter service
+const twitterService = new TwitterService(
+  {
+    apiKey: process.env.TWITTER_API_KEY!,
+    apiSecret: process.env.TWITTER_API_SECRET!,
+    accessToken: process.env.TWITTER_ACCESS_TOKEN!,
+    accessSecret: process.env.TWITTER_ACCESS_SECRET!,
+    bearerToken: process.env.TWITTER_BEARER_TOKEN!,
+    oauthClientId: process.env.OAUTH_CLIENT_ID!,
+    oauthClientSecret: process.env.OAUTH_CLIENT_SECRET!,
+    mockMode: process.env.TWITTER_MOCK_MODE === 'true',
+    maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
+    retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
+    contentRules: {
+      maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
+      maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
+      minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
+    },
+    marketDataConfig: {
+      heliusApiKey: process.env.HELIUS_API_KEY!,
+      updateInterval: 1800000, // 30 minutes
+      volatilityThreshold: 0.05 // 5%
+    }
+  },
+  aiService,
+  dataProcessor
+);
+
+startMemeAgent();
 
 const agent = new MemeAgentInfluencer();
 agent.main().catch(error => {
@@ -972,7 +1230,13 @@ export {
   type MarketAnalysis,
   type TradeResult,
   type AgentCommand,
-  type CommandContext
+  type CommandContext,
+  initializeServices,
+  validateEnvironment,
+  logConfiguration,
+  selectMode,
+  startChat,
+  cleanup
 };
 
 function createReActAgent(llm: Groq, tools: any, memory: any, systemPrompt: string): Promise<any> {

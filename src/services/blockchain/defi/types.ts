@@ -11,25 +11,9 @@ export interface JupiterPriceResponse {
   };
 }
 
-export interface HeliusTransaction {
-  signature: string;
-  type: string;
-  timestamp: number;
-  slot: number;
-  description?: string;
-  source?: string;
-  fee?: number;
-  nativeTransfers?: {
-    fromUserAccount: string;
-    toUserAccount: string;
-    amount: number;
-  }[];
-  tokenTransfers?: {
-    fromUserAccount: string;
-    toUserAccount: string;
-    tokenAmount: number;
-    mint: string;
-  }[];
+export interface JupiterPrice {
+  price: number;
+  confidence: number;
 }
 
 export interface HeliusResponse {
@@ -72,4 +56,27 @@ export interface TransactionMetrics {
   uniqueWallets: Set<string>;
   transactionCount: number;
   lastUpdate: number;
+}
+
+// Add with other interfaces
+export interface HeliusTransaction {
+  signature: string;
+  slot: number;
+  type: string;
+  timestamp: number;
+  fee: number;
+  status: 'success' | 'failed';
+  nativeTransfers?: Array<{
+    fromUserAccount: string;
+    toUserAccount: string;
+    amount: number;
+  }>;
+  tokenTransfers?: Array<{
+    fromUserAccount: string;
+    toUserAccount: string;
+    fromTokenAccount: string;
+    toTokenAccount: string;
+    tokenAmount: number;
+    mint: string;
+  }>;
 }

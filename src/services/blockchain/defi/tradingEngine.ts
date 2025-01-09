@@ -6,7 +6,7 @@ import { EventEmitter } from 'events';
 import JSBI from 'jsbi';
 import axios from 'axios';
 import { VolatilityManager } from '../../market/volatility/VolatilityManager.js';
-import { DataProcessor } from '../../market/data/index.js';
+import { MarketDataProcessor } from '../../market/data/DataProcessor';
 import { MarketSentimentAnalyzer, SentimentSource } from '../../market/signals/marketSentiment.js';
 import { retry } from '../../../utils/common.js';
 import { JupiterPriceV2 } from './jupiterPriceV2.js';
@@ -87,7 +87,7 @@ export class TradingEngine extends EventEmitter {
   private tradeHistory: Map<string, TradeResult>;
   private readonly MAX_HISTORY = 1000;
   private volatilityManager: VolatilityManager;
-  private dataProcessor: DataProcessor;
+  private dataProcessor: MarketDataProcessor;
   private wallet: Keypair;
   private readonly MIN_PROFIT_THRESHOLD = 0.005; // 0.5% minimum profit threshold
   private readonly DEX_ENDPOINTS = {
@@ -128,7 +128,8 @@ export class TradingEngine extends EventEmitter {
       status: 'active'
     };
     this.strategies.set(defaultStrategy.id, defaultStrategy);
-    this.dataProcessor = new DataProcessor();
+    const heliusApiKey = process.env.HELIUS_API_KEY!; // Use API key from .env
+    this.dataProcessor = new MarketDataProcessor(heliusApiKey, 'https://tokens.jup.ag/tokens?tags=verified');
     this.volatilityManager = new VolatilityManager(this.dataProcessor);
     this.sentimentAnalyzer = sentimentAnalyzer;
     this.jupiterPriceV2 = new JupiterPriceV2();
@@ -215,7 +216,7 @@ export class TradingEngine extends EventEmitter {
       }
       
       // Calculate base amount with price
-      const baseAmount = params.amount * inputPrice;
+      const baseAmount = params.amount * Number(inputPrice);
 
       // Adjust position size based on volatility and price confidence
       const adjustedAmount = await this.volatilityManager.adjustPosition(
