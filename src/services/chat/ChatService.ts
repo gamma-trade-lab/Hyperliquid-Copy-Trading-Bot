@@ -238,23 +238,6 @@ export class ChatService {
     }
   }
 
-  async handleMessage(message: string): Promise<string> {
-    try {
-      if (!message?.trim()) {
-        return 'Please enter a valid message.';
-      }
-      const response = await this.aiService.generateResponse({
-        content: message,
-        author: 'user',
-        platform: 'terminal'
-      });
-      return response || 'I could not process that message.';
-    } catch (error) {
-      elizaLogger.error('Chat error:', error);
-      return 'Sorry, there was an error processing your message.';
-    }
-  }
-
   public async start(): Promise<void> {
     this.isRunning = true;
     this.modeManager.start();

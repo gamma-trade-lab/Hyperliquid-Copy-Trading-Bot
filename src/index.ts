@@ -2,10 +2,6 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { TwitterApi } from 'twitter-api-v2';
 import { Client as DiscordClient, Message } from 'discord.js';
 import Groq from "groq-sdk";
-import { ChatService } from './services/chat/ChatService';
-import { ModeManager } from './services/chat/ModeManager';
-import { CommandHandler } from './services/chat/CommandHandler';
-import { Mode } from './services/chat/types';
 import { MemorySaver } from "@langchain/langgraph";
 // Import services
 import { SocialService } from './services/social';
@@ -35,11 +31,9 @@ interface ServiceConfig {
   dataProcessor: any;
   aiService: AIService;
   twitterService: any;
-  chatService: ChatService;
-  commandHandler?: CommandHandler;
-  modeManager?: ModeManager;
   tradingService?: TradingService;
   jupiterPriceService?: JupiterPriceV2Service;
+  chatService?: any;
 }
 
 async function fetchTokenAddresses(): Promise<string[]> {
@@ -100,11 +94,6 @@ async function initializeServices() {
       dataProcessor
     );
 
-    // Initialize ModeManager and CommandHandler
-
-    // Initialize chat service and related components
-    const chatService = new ChatService(aiService);
-
     // Initialize JupiterPriceV2Service
     const jupiterPriceService = new JupiterPriceV2Service({
       redis: {
@@ -124,7 +113,6 @@ async function initializeServices() {
       dataProcessor,
       aiService,
       twitterService,
-      chatService,
       jupiterPriceService
     };
   } catch (error) {
@@ -954,7 +942,7 @@ import { CONFIG } from './config/settings';
 import { MarketDataProcessor } from './services/market/data/DataProcessor';
 import { JupiterPriceV2Service } from './services/blockchain/defi/JupiterPriceV2Service';
 import axios from 'axios';
-import { string } from 'yargs';
+import { ChatService, Mode } from './services/chat';
 
 
 loadConfig();
@@ -1055,7 +1043,6 @@ const dataProcessor = new MarketDataProcessor(
 
 startMemeAgent();
 
-const agent = new MemeAgentInfluencer();
 
 
 export {
@@ -1152,63 +1139,17 @@ async function selectMode(): Promise<Mode> {
 
 // Chat mode implementation
 async function startChat(services: ServiceConfig): Promise<void> {
-  const { chatService, aiService } = services;
+  const { aiService } = services;
   
   elizaLogger.info('Starting chat mode... Type "exit" to end.');
   
-  const memory = new MemorySaver();
-  let isRunning = true;
-
-  // Set up readline interface for chat
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-
-  const systemPrompt = "You are JENNA, an AI assistant specializing in cryptocurrency and blockchain technology. Help users understand and interact with blockchain concepts and provide market insights.";
-
-  while (isRunning) {
-    try {
-      const userInput = await new Promise<string>((resolve) => {
-        rl.question('\nYou: ', resolve);
-      });
-
-      if (userInput.toLowerCase() === 'exit') {
-        isRunning = false;
-        continue;
-      }
-
-      // Store user message
-      await memory.save({ role: 'user', content: userInput });
-
-      // Generate AI response
-      const response = await aiService.generateResponse({
-        content: userInput,
-        platform: 'terminal',
-        author: 'user',
-        context: {
-          systemPrompt: systemPrompt
-        }
-      });
-
-      console.log('\nJENNA:', response);
-
-      // Store AI response
-      await memory.save({ role: 'assistant', content: response });
-
-    } catch (error) {
-      elizaLogger.error('Error in chat mode:', error);
-      console.log('\nSorry, there was an error. Please try again.');
-    }
-  }
-
-  rl.close();
-  elizaLogger.info('Chat session ended.');
+  const chatService = new ChatService(aiService);
+  await chatService.start();
 }
 
 // Autonomous mode implementation
 async function startAutonomousMode(services: ServiceConfig): Promise<void> {
-  const { aiService, twitterService, jupiterPriceService } = services;
+  const { twitterService, jupiterPriceService } = services;
   
   elizaLogger.info('Starting autonomous mode...');
   let isRunning = true;
@@ -1221,7 +1162,6 @@ async function startAutonomousMode(services: ServiceConfig): Promise<void> {
         return;
       }
 
-      const allTokenPrices = await jupiterPriceService.getAllTokenPrices();
       const topMovers = await jupiterPriceService.getTopMovers();
       const highestVolumeTokens = await jupiterPriceService.getHighestVolumeTokens();
 

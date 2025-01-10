@@ -112,6 +112,11 @@ export class ModeManager extends EventEmitter {
     return this.modeConfigs.get(mode);
   }
 
+  public getAvailableCommands(): Command[] {
+    const config = this.getModeConfig(this.currentMode);
+    return config?.commands || [];
+  }
+
   public start(): void {
     this.isRunning = true;
     this.emit('started');
