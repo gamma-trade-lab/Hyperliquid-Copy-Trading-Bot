@@ -6,14 +6,13 @@ import { ChatService } from './services/chat/ChatService';
 import { ModeManager } from './services/chat/ModeManager';
 import { CommandHandler } from './services/chat/CommandHandler';
 import { Mode } from './services/chat/types';
-import { config } from 'dotenv'; 
 import { MemorySaver } from "@langchain/langgraph";
 // Import services
 import { SocialService } from './services/social';
 import { ContentUtils } from './utils/content';
 import { Parser } from './utils/parser';
 import { TradingService } from './services/blockchain/trading';
-
+import { createInterface } from 'readline';
 // Types
 import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext } from './services/blockchain/types';
 import { SocialMetrics } from './services/social';
@@ -24,9 +23,40 @@ import {
 
 // Import mainCharacter from local file
 import { mainCharacter } from './mainCharacter';
+
+declare module "@langchain/langgraph" {
+  interface MemorySaver {
+    save(data: { role: string; content: string }): Promise<void>;
+  }
+}
+
 loadConfig();
+interface ServiceConfig {
+  dataProcessor: any;
+  aiService: AIService;
+  twitterService: any;
+  chatService: ChatService;
+  commandHandler?: CommandHandler;
+  modeManager?: ModeManager;
+  tradingService?: TradingService;
+  jupiterPriceService?: JupiterPriceV2Service;
+}
+
+async function fetchTokenAddresses(): Promise<string[]> {
+  try {
+    const response = await axios.get('https://tokens.jup.ag/tokens?tags=verified');
+    return response.data.map((token: any) => token.address);
+  } catch (error) {
+    elizaLogger.error('Failed to fetch token addresses:', error);
+    throw error;
+  }
+}
+
 async function initializeServices() {
   try {
+    // Fetch token addresses dynamically
+    const tokenAddresses = await fetchTokenAddresses();
+
     // Initialize data processor
     const dataProcessor = new MarketDataProcessor(
       process.env.HELIUS_API_KEY!,
@@ -63,105 +93,43 @@ async function initializeServices() {
           heliusApiKey: process.env.HELIUS_API_KEY!,
           updateInterval: 1800000,
           volatilityThreshold: 0.05
-        }
+        },
+        tokenAddresses: tokenAddresses // Pass the fetched token addresses
       },
       aiService,
       dataProcessor
     );
 
+    // Initialize ModeManager and CommandHandler
+
     // Initialize chat service and related components
     const chatService = new ChatService(aiService);
+
+    // Initialize JupiterPriceV2Service
+    const jupiterPriceService = new JupiterPriceV2Service({
+      redis: {
+        host: process.env.REDIS_HOST,
+        port: Number(process.env.REDIS_PORT),
+        password: process.env.REDIS_PASSWORD,
+        keyPrefix: 'jupiter-price:',
+        enableCircuitBreaker: true
+      },
+      rateLimitConfig: {
+        requestsPerMinute: 600,
+        windowMs: 60000
+      }
+    });
 
     return {
       dataProcessor,
       aiService,
       twitterService,
-      chatService
+      chatService,
+      jupiterPriceService
     };
   } catch (error) {
     elizaLogger.error('Failed to initialize services:', error);
     throw error;
-  }
-}
-async function startChat(chatService: ChatService): Promise<void> {
-  elizaLogger.info('Starting chat interface...');
-  await chatService.start();
-}
-
-async function main() {
-  try {
-    elizaLogger.info('JENNA starting up...');
-
-    // Load and validate configuration
-    validateEnvironment();
-    logConfiguration();
-
-    // Initialize services
-    const services = await initializeServices();
-    await services.twitterService.initialize();
-
-    // Start mode selection interface
-    elizaLogger.info('\nAvailable modes:');
-    elizaLogger.info('1. chat    - Interactive chat mode');
-    elizaLogger.info('2. auto    - Autonomous mode');
-
-    const mode = await selectMode();
-
-    if (mode === 'chat') {
-      await startChat(services.chatService);
-    } else if (mode === 'auto') {
-      await startAutonomousMode(services);
-    }
-
-    // Handle cleanup on shutdown
-    process.on('SIGINT', async () => {
-      elizaLogger.info('Shutting down JENNA...');
-      await cleanup(services);
-      process.exit(0);
-    });
-
-    process.on('SIGTERM', async () => {
-      elizaLogger.info('Shutting down JENNA...');
-      await cleanup(services);
-      process.exit(0);
-    });
-
-  } catch (error) {
-    elizaLogger.error('Fatal error during startup:', error);
-    process.exit(1);
-  }
-}
-
-async function selectMode(): Promise<Mode> {
-  return new Promise((resolve) => {
-    process.stdout.write('\nChoose a mode (enter number or name): ');
-    process.stdin.once('data', (data) => {
-      const choice = data.toString().trim().toLowerCase();
-      if (choice === '1' || choice === 'chat') {
-        resolve('chat');
-      } else if (choice === '2' || choice === 'auto') {
-        resolve('auto');
-      } else {
-        elizaLogger.error('Invalid choice. Defaulting to chat mode.');
-        resolve('chat');
-      }
-    });
-  });
-}
-
-async function startAutonomousMode(services: any): Promise<void> {
-  elizaLogger.info('Starting autonomous mode...');
-  // Implement autonomous mode functionality
-  // This will use the TwitterService, AIService, etc.
-}
-
-async function cleanup(services: any): Promise<void> {
-  try {
-    await services.chatService?.stop();
-    await services.twitterService?.stop();
-    elizaLogger.success('Cleanup completed');
-  } catch (error) {
-    elizaLogger.error('Error during cleanup:', error);
   }
 }
 
@@ -213,16 +181,6 @@ interface ExtendedAgentRuntime extends IAgentRuntime {
     llm: Groq;
 }
 
-// Add interfaces
-interface MarketData {
-  price: number;
-  volume24h: number;
-  marketCap: number;
-  priceChange24h: number;
-  volatility: number;
-  lastUpdate: number;
-  // Add other market data properties as needed
-}
 
 class MemeAgentInfluencer {
   private connection!: Connection;
@@ -333,7 +291,7 @@ class MemeAgentInfluencer {
       }
 
       // Then start either chat or autonomous mode
-      const mode = await this.chooseMode();
+      const mode = await selectMode();
       
       const agentExecutor = await this.initializeAgent();
       
@@ -574,7 +532,7 @@ class MemeAgentInfluencer {
     }
   }
 
-  private scheduleTwitterContent(): void {
+  private scheduleTwitterContent(tokenAddresses: string[]): void {
     setInterval(async () => {
       try {
         const price = await this.getCurrentPrice();
@@ -591,16 +549,6 @@ class MemeAgentInfluencer {
     }, CONFIG.AUTOMATION.CONTENT_GENERATION_INTERVAL);
   }
 
-  private async createToken(_tokenSettings: {
-    name: string;
-    symbol: string;
-    decimals: number;
-    metadata: string;
-  }): Promise<{ mint: string }> {
-    // Implement the logic to create a token and return its mint address
-    const mintAddress = '9gxa9dZbWzju9wpDxsnTKusrN7SRGaxaLHq2JVXUa78H'; // Replace with actual mint address
-    return { mint: mintAddress };
-  }
 
   private async setupMessageHandling(): Promise<void> {
     this.discord.on('messageCreate', async (message: Message) => {
@@ -794,11 +742,12 @@ class MemeAgentInfluencer {
         const metrics = await this.tradingService.getMarketData(this.tokenAddress);
         return `24h Volume: ${metrics.volume24h}\nMarket Cap: ${metrics.marketCap}`;
       default:
-        return await this.aiService.generateResponse({
+        const response = await this.aiService.generateResponse({
           content: command.raw,
           platform: context.platform,
           author: context.author,
         });
+        return response;
     }
   }
 
@@ -808,21 +757,6 @@ class MemeAgentInfluencer {
       elizaLogger.success('Reply posted successfully');
     } catch (error) {
       elizaLogger.error('Failed to reply to tweet:', error);
-      throw error;
-    }
-  }
-
-  async shutdown(): Promise<void> {
-    try {
-      if (this.appOnlyClient) {
-        // Use appOnlyClient for cleaning up stream rules
-        await this.appOnlyClient.v2.updateStreamRules({ delete: { ids: ['*'] } });
-      }
-      this.discord.destroy();
-      this.isInitialized = false;
-      elizaLogger.success('Agent shutdown complete');
-    } catch (error) {
-      elizaLogger.error('Error during shutdown:', error);
       throw error;
     }
   }
@@ -920,42 +854,7 @@ class MemeAgentInfluencer {
     }
   }
 
-  private async chooseMode(): Promise<string> {
-    while (true) {
-      console.log("\nAvailable modes:");
-      console.log("1. chat    - Interactive chat mode");
-      console.log("2. auto    - Autonomous action mode");
-
-      const choice = await new Promise<string>(resolve => {
-        process.stdout.write("\nChoose a mode (enter number or name): ");
-        process.stdin.once('data', data => resolve(data.toString().trim().toLowerCase()));
-      });
-
-      if (choice === "1" || choice === "chat") {
-        return "chat";
-      } else if (choice === "2" || choice === "auto") {
-        return "auto";
-      }
-      console.log("Invalid choice. Please try again.");
-    }
-  }
-
-  async main(): Promise<void> {
-    try {
-      console.log("Starting Agent...");
-      const agentExecutor = await this.initializeAgent();
-
-      const mode = await this.chooseMode();
-      if (mode === "chat") {
-        await this.runChatMode(agentExecutor, {});
-      } else if (mode === "auto") {
-        await this.runAutonomousMode(agentExecutor, {});
-      }
-    } catch (error) {
-      console.error("Fatal error during initialization:", error);
-      process.exit(1);
-    }
-  }
+ 
 
   // Add new method for AI tweet generation
   private async generateTweetContent(context: any = {}): Promise<string> {
@@ -1000,7 +899,7 @@ class MemeAgentInfluencer {
     }
   }
 
-  async startTwitterBot(): Promise<void> {
+  async startTwitterBot(tokenAddresses: string[]): Promise<void> {
     try {
       elizaLogger.info('Starting Twitter bot...');
       
@@ -1026,7 +925,8 @@ class MemeAgentInfluencer {
               heliusApiKey: process.env.HELIUS_API_KEY!,
               updateInterval: 1800000, // 30 minutes
               volatilityThreshold: 0.05 // 5%
-            }
+            },
+            tokenAddresses: tokenAddresses
           },
           this.aiService,
           dataProcessor
@@ -1035,7 +935,7 @@ class MemeAgentInfluencer {
       
       // Use TwitterService's methods instead of direct implementation
       //await this.twitterService.startStream();
-      this.scheduleTwitterContent();
+      this.scheduleTwitterContent(tokenAddresses);/////check this 
       
       elizaLogger.success('Twitter bot started successfully');
     } catch (error) {
@@ -1045,41 +945,16 @@ class MemeAgentInfluencer {
   }
 }
 
-async function initializeSolanaConnection() {
-  console.log('Initializing Solana connection...');
-  try {
-    const connection = new Connection(CONFIG.SOLANA.RPC_URL, 'confirmed');
-    const version = await connection.getVersion();
-    console.log('Solana connection established:', version);
-    return connection;
-  } catch (error) {
-    console.error('Failed to connect to Solana:', error);
-    throw error;
-  }
-}
 
-async function validateWalletBalance(connection: Connection) {
-  console.log('Checking wallet balance...');
-  try {
-    const publicKey = new PublicKey(CONFIG.SOLANA.PUBLIC_KEY);
-    const balance = await connection.getBalance(publicKey);
-    console.log('Wallet balance:', balance / 1e9, 'SOL');
-    return balance;
-  } catch (error) {
-    console.error('Failed to check wallet balance:', error);
-    throw error;
-  }
-}
 
 import { config as loadConfig } from 'dotenv';
 import { TwitterService } from './services/social/twitter';
 import { AIService } from './services/ai/ai';
 import { CONFIG } from './config/settings';
-import { JupiterPriceV2Service } from './services/blockchain/defi/JupiterPriceV2Service';
 import { MarketDataProcessor } from './services/market/data/DataProcessor';
-import { HeliusService } from './services/blockchain/heliusIntegration';
-import Redis from 'ioredis';
-import { JupiterPriceV2 } from './services/blockchain/defi/jupiterPriceV2';
+import { JupiterPriceV2Service } from './services/blockchain/defi/JupiterPriceV2Service';
+import axios from 'axios';
+import { string } from 'yargs';
 
 
 loadConfig();
@@ -1112,6 +987,9 @@ async function startMemeAgent() {
       maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
       temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
     });
+
+    const tokenAddresses = await fetchTokenAddresses();
+
     const twitterService = new TwitterService(
       {
         apiKey: process.env.TWITTER_API_KEY!,
@@ -1133,25 +1011,16 @@ async function startMemeAgent() {
           heliusApiKey: process.env.HELIUS_API_KEY!,
           updateInterval: 1800000,
           volatilityThreshold: 0.05
-        }
+        },
+        tokenAddresses: tokenAddresses // Pass the fetched token addresses
       },
       aiService,
-      dataProcessor // Add this here
+      dataProcessor
     );
 
     await twitterService.initialize();
 
-    // Example call to publishMarketUpdate
-    await twitterService.publishMarketUpdate({
-      price: 123.45,
-      volume24h: 67890,
-      marketCap: 987654321,
-      priceChange24h: 0,
-      topHolders: [],
-      tokenAddress: function (tokenAddress: any): unknown {
-        throw new Error('Function not implemented.');
-      }
-    });
+
 
     console.log('MemeAgent fully initialized and running!');
 
@@ -1181,48 +1050,13 @@ const dataProcessor = new MarketDataProcessor(
   
   //CONFIG.SOLANA.TOKEN_SETTINGS.ADDRESS
 );
-const aiService = new AIService({
-  groqApiKey: process.env.GROQ_API_KEY!,
-  defaultModel: CONFIG.AI.GROQ.MODEL,
-  maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
-  temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
-});
 
 // Initialize Twitter service
-const twitterService = new TwitterService(
-  {
-    apiKey: process.env.TWITTER_API_KEY!,
-    apiSecret: process.env.TWITTER_API_SECRET!,
-    accessToken: process.env.TWITTER_ACCESS_TOKEN!,
-    accessSecret: process.env.TWITTER_ACCESS_SECRET!,
-    bearerToken: process.env.TWITTER_BEARER_TOKEN!,
-    oauthClientId: process.env.OAUTH_CLIENT_ID!,
-    oauthClientSecret: process.env.OAUTH_CLIENT_SECRET!,
-    mockMode: process.env.TWITTER_MOCK_MODE === 'true',
-    maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
-    retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
-    contentRules: {
-      maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
-      maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
-      minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
-    },
-    marketDataConfig: {
-      heliusApiKey: process.env.HELIUS_API_KEY!,
-      updateInterval: 1800000, // 30 minutes
-      volatilityThreshold: 0.05 // 5%
-    }
-  },
-  aiService,
-  dataProcessor
-);
 
 startMemeAgent();
 
 const agent = new MemeAgentInfluencer();
-agent.main().catch(error => {
-  console.error("Fatal error:", error);
-  process.exit(1);
-});
+
 
 export {
   MemeAgentInfluencer,
@@ -1290,4 +1124,215 @@ function createReActAgent(llm: Groq, tools: any, memory: any, systemPrompt: stri
     console.error('Error creating ReAct agent:', error);
     throw error;
   }
+}
+
+// Mode selection and execution functions
+async function selectMode(): Promise<Mode> {
+  return new Promise((resolve) => {
+    const handleChoice = (choice: string) => {
+      const normalizedChoice = choice.trim().toLowerCase();
+      if (normalizedChoice === '1' || normalizedChoice === 'chat') {
+        resolve('chat');
+      } else if (normalizedChoice === '2' || normalizedChoice === 'auto') {
+        resolve('auto');
+      } else {
+        elizaLogger.warn('Invalid choice. Please choose 1 (chat) or 2 (auto).');
+        process.stdout.write('\nChoose a mode (enter number or name): ');
+        process.stdin.once('data', (data) => handleChoice(data.toString()));
+      }
+    };
+
+    elizaLogger.info('\nAvailable modes:');
+    elizaLogger.info('1. chat    - Interactive chat mode');
+    elizaLogger.info('2. auto    - Autonomous action mode');
+    process.stdout.write('\nChoose a mode (enter number or name): ');
+    process.stdin.once('data', (data) => handleChoice(data.toString()));
+  });
+}
+
+// Chat mode implementation
+async function startChat(services: ServiceConfig): Promise<void> {
+  const { chatService, aiService } = services;
+  
+  elizaLogger.info('Starting chat mode... Type "exit" to end.');
+  
+  const memory = new MemorySaver();
+  let isRunning = true;
+
+  // Set up readline interface for chat
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  const systemPrompt = "You are JENNA, an AI assistant specializing in cryptocurrency and blockchain technology. Help users understand and interact with blockchain concepts and provide market insights.";
+
+  while (isRunning) {
+    try {
+      const userInput = await new Promise<string>((resolve) => {
+        rl.question('\nYou: ', resolve);
+      });
+
+      if (userInput.toLowerCase() === 'exit') {
+        isRunning = false;
+        continue;
+      }
+
+      // Store user message
+      await memory.save({ role: 'user', content: userInput });
+
+      // Generate AI response
+      const response = await aiService.generateResponse({
+        content: userInput,
+        platform: 'terminal',
+        author: 'user',
+        context: {
+          systemPrompt: systemPrompt
+        }
+      });
+
+      console.log('\nJENNA:', response);
+
+      // Store AI response
+      await memory.save({ role: 'assistant', content: response });
+
+    } catch (error) {
+      elizaLogger.error('Error in chat mode:', error);
+      console.log('\nSorry, there was an error. Please try again.');
+    }
+  }
+
+  rl.close();
+  elizaLogger.info('Chat session ended.');
+}
+
+// Autonomous mode implementation
+async function startAutonomousMode(services: ServiceConfig): Promise<void> {
+  const { aiService, twitterService, jupiterPriceService } = services;
+  
+  elizaLogger.info('Starting autonomous mode...');
+  let isRunning = true;
+
+  // Market monitoring interval
+  const marketInterval = setInterval(async () => {
+    try {
+      if (!jupiterPriceService) {
+        elizaLogger.error('JupiterPriceService is not initialized');
+        return;
+      }
+
+      const allTokenPrices = await jupiterPriceService.getAllTokenPrices();
+      const topMovers = await jupiterPriceService.getTopMovers();
+      const highestVolumeTokens = await jupiterPriceService.getHighestVolumeTokens();
+
+      elizaLogger.info('Top Movers:', topMovers);
+      elizaLogger.info('Highest Volume Tokens:', highestVolumeTokens);
+
+      // Post market updates if significant changes
+      for (const token of topMovers) {
+        await twitterService.publishMarketUpdate({
+          price: parseFloat(token.price),
+          volume24h: 0, // Placeholder, replace with actual volume if available
+          marketCap: 0, // Placeholder, replace with actual market cap if available
+          priceChange24h: 0, // Placeholder, replace with actual price change if available
+          topHolders: [],
+          tokenAddress: token.id
+        });
+      }
+    } catch (error) {
+      elizaLogger.error('Error in market monitoring:', error);
+    }
+  }, 300000); // 5 minutes
+
+  // Handle shutdown
+  process.on('SIGINT', () => {
+    isRunning = false;
+    clearInterval(marketInterval);
+    elizaLogger.info('Autonomous mode stopped.');
+    process.exit(0);
+  });
+
+  while (isRunning) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+}
+
+// Main execution functions
+async function main() {
+  try {
+    elizaLogger.info('JENNA starting up...');
+
+    // Initialize all services
+    validateEnvironment();
+    logConfiguration();
+    const services = await initializeServices();
+
+    // Select and start mode
+    const mode = await selectMode();
+    
+    if (mode === 'chat') {
+      await startChat(services);
+    } else if (mode === 'auto') {
+      await startAutonomousMode(services);
+    }
+
+    // Set up cleanup handlers
+    setupCleanupHandlers(services);
+
+  } catch (error) {
+    elizaLogger.error('Fatal error during startup:', error);
+    // Create a minimal ServiceConfig object with empty services
+    const emptyServices: ServiceConfig = {
+      dataProcessor: null,
+      aiService: new AIService({
+        groqApiKey: process.env.GROQ_API_KEY!,
+        defaultModel: CONFIG.AI.GROQ.MODEL,
+        maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
+        temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
+      }),
+      twitterService: null,
+      chatService: new ChatService(new AIService({
+        groqApiKey: process.env.GROQ_API_KEY!,
+        defaultModel: CONFIG.AI.GROQ.MODEL,
+        maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
+        temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
+      })),
+      jupiterPriceService: undefined
+    };
+    await cleanup(emptyServices);
+    process.exit(1);
+  }
+}
+
+function setupCleanupHandlers(services: ServiceConfig) {
+  const handleShutdown = async () => {
+    elizaLogger.info('Shutting down JENNA...');
+    await cleanup(services);
+    process.exit(0);
+  };
+
+  process.on('SIGINT', handleShutdown);
+  process.on('SIGTERM', handleShutdown);
+}
+
+async function cleanup(services: ServiceConfig) {
+  try {
+    if (services.chatService) {
+      await services.chatService.stop();
+    }
+    if (services.twitterService) {
+      await services.twitterService.stop();
+    }
+    elizaLogger.success('Cleanup completed successfully');
+  } catch (error) {
+    elizaLogger.error('Error during cleanup:', error);
+  }
+}
+
+// Start the application
+if (import.meta.url === new URL(process.argv[1], 'file:').href) {
+  main().catch(error => {
+    elizaLogger.error('Fatal error:', error);
+    process.exit(1);
+  });
 }

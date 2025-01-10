@@ -2,10 +2,11 @@ import { createInterface } from 'readline';
 import { ChatHistoryManager } from './ChatHistoryManager';
 import { ModeManager } from './ModeManager';
 import { CommandHandler } from './CommandHandler';
-import { Mode, ModeConfig, CommandResult, ServiceMarketAnalysis } from '@/types/chat';
+import { Mode, ModeConfig } from './types';
 import { MarketData, MarketAnalysis } from '@/types/market';
 import { elizaLogger } from "@ai16z/eliza";
 import { AIService } from '../ai/ai';
+import { ServiceMarketAnalysis, CommandResult } from '@/types/chat';
 
 type MessageRole = 'user' | 'assistant' | 'system';
 type IntervalHandle = ReturnType<typeof setInterval>;
@@ -132,7 +133,7 @@ export class ChatService {
         {
           name: 'market',
           description: 'Get latest market data',
-          execute: async (): Promise<void> => {
+          execute: async (args: string[]): Promise<void> => {
             try {
               const marketData = await this.aiService.getMarketMetrics();
               if (!marketData) {
@@ -185,9 +186,9 @@ export class ChatService {
               clearInterval(this.autoModeInterval);
               this.autoModeInterval = null;
               console.log('Autonomous operations paused');
-              return;
+            } else {
+              console.log('Auto mode was not running');
             }
-            console.log('Auto mode was not running');
           }
         },
         {
@@ -197,9 +198,9 @@ export class ChatService {
             if (!this.autoModeInterval) {
               await this.startAutoMode();
               console.log('Autonomous operations resumed');
-              return;
+            } else {
+              console.log('Auto mode is already running');
             }
-            console.log('Auto mode is already running');
           }
         }
       ]
@@ -227,11 +228,30 @@ export class ChatService {
         if (response) {
           this.recordMessage('assistant', response);
           console.log('\nJENNA:', response);
+        } else {
+          console.log('\nSorry, there was an error. Please try again.');
         }
       }
     } catch (error) {
       elizaLogger.error('Error processing input:', error instanceof Error ? error.message : String(error));
       console.log('\nError processing your input. Please try again.');
+    }
+  }
+
+  async handleMessage(message: string): Promise<string> {
+    try {
+      if (!message?.trim()) {
+        return 'Please enter a valid message.';
+      }
+      const response = await this.aiService.generateResponse({
+        content: message,
+        author: 'user',
+        platform: 'terminal'
+      });
+      return response || 'I could not process that message.';
+    } catch (error) {
+      elizaLogger.error('Chat error:', error);
+      return 'Sorry, there was an error processing your message.';
     }
   }
 

@@ -47,6 +47,7 @@ export interface Tweet {
 }
 
 export interface MarketAnalysis {
+  shouldUpdate: any;
   shouldTrade: boolean;
   confidence: number;
   action: 'BUY' | 'SELL' | 'HOLD';

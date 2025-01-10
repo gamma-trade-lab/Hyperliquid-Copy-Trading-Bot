@@ -61,6 +61,7 @@ export class JupiterPriceV2Service {
   private static readonly MAX_RETRIES = 3;
   private static readonly DEFAULT_RATE_LIMIT = 600; // requests per minute
   private static readonly DEFAULT_RATE_WINDOW = 60000; // 1 minute in ms
+  private static readonly BATCH_SIZE = 100; // Batch size for API requests
   
   private cache: RedisService;
   private requestCount: number = 0;
@@ -148,6 +149,7 @@ export class JupiterPriceV2Service {
         return null;
       }
 
+      // Add null check for extraInfo
       if (tokenPrice.extraInfo?.confidenceLevel === 'low') {
         elizaLogger.warn(`Low confidence price for token ${tokenMint}`);
       }
@@ -222,7 +224,11 @@ export class JupiterPriceV2Service {
         throw new Error('No depth data available');
       }
 
-      const { buyPriceImpactRatio, sellPriceImpactRatio } = priceData.extraInfo.depth;
+      const { buyPriceImpactRatio, sellPriceImpactRatio } = priceData.extraInfo?.depth ?? {};
+      if (!buyPriceImpactRatio || !sellPriceImpactRatio) {
+        throw new Error('No depth data available');
+      }
+
       const price = parseFloat(priceData.price);
       
       const volume24h = this.calculateVolume(
@@ -261,5 +267,67 @@ export class JupiterPriceV2Service {
     });
 
     return volumes.reduce((sum, vol) => sum + vol, 0);
+  }
+
+  public async getAllTokenPrices(): Promise<JupiterPriceResponse> {
+    try {
+      const response = await axios.get<JupiterPriceResponse>(`${JupiterPriceV2Service.BASE_URL}`);
+      return response.data;
+    } catch (error) {
+      elizaLogger.error('Error fetching all token prices:', error);
+      throw error;
+    }
+  }
+
+  public async getTopMovers(): Promise<TokenPrice[]> {
+    try {
+      const allPrices = await this.getAllTokenPrices();
+      const tokens = Object.values(allPrices.data);
+
+      tokens.sort((a, b) => {
+        const changeA = Math.abs(parseFloat(a.extraInfo?.quotedPrice?.buyPrice || '0') - parseFloat(a.price));
+        const changeB = Math.abs(parseFloat(b.extraInfo?.quotedPrice?.buyPrice || '0') - parseFloat(b.price));
+        return changeB - changeA;
+      });
+
+      return tokens.slice(0, 10); // Top 10 movers
+    } catch (error) {
+      elizaLogger.error('Error fetching top movers:', error);
+      throw error;
+    }
+  }
+
+  public async getHighestVolumeTokens(): Promise<TokenPrice[]> {
+    try {
+      const allPrices = await this.getAllTokenPrices();
+      const tokens = Object.values(allPrices.data);
+
+      tokens.sort((a, b) => {
+        const volumeA = parseFloat(String(a.extraInfo?.depth?.buyPriceImpactRatio.depth['1'] || '0'));
+        const volumeB = parseFloat(String(b.extraInfo?.depth?.buyPriceImpactRatio.depth['1'] || '0'));
+        return volumeB - volumeA;
+      });
+
+      return tokens.slice(0, 10); // Top 10 highest volume tokens
+    } catch (error) {
+      elizaLogger.error('Error fetching highest volume tokens:', error);
+      throw error;
+    }
+  }
+
+  async getPriceWithExtraInfo(tokenMint: string) {
+    try {
+      const data = await this.getTokenPrice(tokenMint);
+      return {
+        price: data?.price ?? 0,
+        extraInfo: {
+          lastSwappedPrice: data?.extraInfo?.lastSwappedPrice ?? null,
+          quotedPrice: data?.extraInfo?.quotedPrice ?? null,
+        }
+      };
+    } catch (error) {
+      elizaLogger.error('Price fetch error:', error);
+      return null;
+    }
   }
 }

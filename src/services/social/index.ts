@@ -62,7 +62,6 @@ export class SocialService {
     }
 
     // Initialize services with proper configuration
-    const heliusService = new HeliusService(config.helius.apiKey);
     this.jupiterService = new JupiterPriceV2Service({
       redis: {
         host: config.redis?.host || process.env.REDIS_HOST,
@@ -73,18 +72,8 @@ export class SocialService {
       }
     });
     
-    const jupiterV2 = new JupiterPriceV2();
 
     // Create price fetcher function with proper type
-    const priceFetcher = async (tokenMint: string): Promise<string | null> => {
-      try {
-        const priceData = await this.jupiterService.getTokenPrice(tokenMint);
-        return priceData?.price || null;
-      } catch (error) {
-        elizaLogger.error('Error fetching token price:', error);
-        return null;
-      }
-    };
 
     // Initialize data processor with price fetcher
     this.dataProcessor = new MarketDataProcessor(
@@ -100,12 +89,18 @@ export class SocialService {
           accessToken: config.twitter.accessToken,
           accessSecret: config.twitter.accessSecret,
           bearerToken: config.twitter.bearerToken,
-          mockMode: config.twitter.mockMode,
-          maxRetries: config.twitter.maxRetries,
-          retryDelay: config.twitter.retryDelay,
-          contentRules: config.twitter.contentRules,
+          mockMode: config.twitter.mockMode ?? false,
+          maxRetries: config.twitter.maxRetries ?? 0,
+          retryDelay: config.twitter.retryDelay ?? 0,
+          contentRules: config.twitter.contentRules || { maxEmojis: 0, maxHashtags: 0, minInterval: 0 },
           oauthClientId: config.twitter.oauthClientId,
           oauthClientSecret: config.twitter.oauthClientSecret,
+          marketDataConfig: {
+            heliusApiKey: config.helius.apiKey,
+            updateInterval: 0,
+            volatilityThreshold: 0
+          },
+          tokenAddresses: []
         },
         config.services.ai,
         this.dataProcessor

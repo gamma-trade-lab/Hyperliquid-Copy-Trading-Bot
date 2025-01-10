@@ -86,5 +86,6 @@ export interface MarketAnalysis {
   risk?: {
     level: 'low' | 'medium' | 'high';
     factors: string[];
+    shouldUpdate: boolean;
   };
 }

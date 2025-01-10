@@ -37,7 +37,7 @@ interface TweetOptions {
   replyToTweetId?: string; // Allow string or undefined
 }
 
-interface TwitterConfig {
+interface TwitterServiceConfig {
   apiKey: string;
   apiSecret: string;
   accessToken: string;
@@ -45,20 +45,20 @@ interface TwitterConfig {
   bearerToken: string;
   oauthClientId: string;
   oauthClientSecret: string;
-  mockMode?: boolean;
-  maxRetries?: number;
-  retryDelay?: number;
-  streamingEnabled?: boolean; // Make streaming optional
-  marketDataConfig?: {
-    updateInterval?: number;
-    volatilityThreshold?: number;
+  mockMode: boolean;
+  maxRetries: number;
+  retryDelay: number;
+  contentRules: {
+    maxEmojis: number;
+    maxHashtags: number;
+    minInterval: number;
+  };
+  marketDataConfig: {
     heliusApiKey: string;
+    updateInterval: number;
+    volatilityThreshold: number;
   };
-  contentRules?: {
-    maxEmojis?: number;
-    maxHashtags?: number;
-    minInterval?: number;
-  };
+  tokenAddresses: string[]; // Add tokenAddresses property
 }
 
 export class TwitterService {
@@ -66,16 +66,16 @@ export class TwitterService {
   private appClient: TwitterApi;
   private aiService: AIService;
   private isStreaming: boolean = false;
-  private readonly config: Required<TwitterConfig>;
+  private readonly config: Required<TwitterServiceConfig>;
   private userId?: string;
   private readonly MONTHLY_TWEET_LIMIT: number = 3000; // Define the monthly tweet limit
-
+  
   private dataProcessor: MarketDataProcessor;
   private priceMonitor: PriceMonitor;
   private marketUpdateInterval: NodeJS.Timeout | null = null;
 
   constructor(
-    config: TwitterConfig, 
+    config: TwitterServiceConfig, 
     aiService: AIService,
     dataProcessor: MarketDataProcessor // Add this
   ) {
@@ -86,7 +86,6 @@ export class TwitterService {
       mockMode: config.mockMode ?? false,
       maxRetries: config.maxRetries ?? 3,
       retryDelay: config.retryDelay ?? 5000,
-      streamingEnabled: config.streamingEnabled ?? false,
       contentRules: {
         maxEmojis: config.contentRules?.maxEmojis ?? 0,
         maxHashtags: config.contentRules?.maxHashtags ?? 0,
@@ -96,7 +95,8 @@ export class TwitterService {
         updateInterval: config.marketDataConfig?.updateInterval ?? 60000,
         volatilityThreshold: config.marketDataConfig?.volatilityThreshold ?? 0.05,
         heliusApiKey: config.marketDataConfig?.heliusApiKey ?? ''
-      }
+      },
+      tokenAddresses: config.tokenAddresses ?? []
     };
 
     this.aiService = aiService;
@@ -116,8 +116,8 @@ export class TwitterService {
     this.appClient = new TwitterApi(config.bearerToken);
   }
 
-  private validateConfig(config: TwitterConfig): void {
-    const requiredFields: (keyof TwitterConfig)[] = [
+  private validateConfig(config: TwitterServiceConfig): void {
+    const requiredFields: (keyof TwitterServiceConfig)[] = [
       'apiKey', 'apiSecret',
       'accessToken', 'accessSecret',
       'bearerToken',
@@ -386,17 +386,6 @@ export class TwitterService {
   }
 
   async startStream(): Promise<void> {
-    if (!this.config.streamingEnabled) {
-      elizaLogger.warn(`
-        Twitter streaming is not enabled. 
-        To enable streaming functionality, you need:
-        1. Elevated API access level
-        2. App attached to a Project
-        Visit: https://developer.twitter.com/en/portal/projects-and-apps
-      `);
-      return;
-    }
-
     if (this.isStreaming) {
       elizaLogger.warn('Twitter stream is already running');
       return;
@@ -421,7 +410,6 @@ export class TwitterService {
     } catch (error) {
       // If we get a 403 error, disable streaming
       if (error instanceof ApiResponseError && error.code === 403) {
-        this.config.streamingEnabled = false;
         elizaLogger.warn(`
           Stream setup failed due to insufficient API access.
           Streaming has been disabled.

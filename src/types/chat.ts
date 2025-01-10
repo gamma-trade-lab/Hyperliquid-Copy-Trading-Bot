@@ -10,7 +10,7 @@ export interface CommandResult {
 export interface Command {
   name: string;
   description: string;
-  execute: (args: string[]) => Promise<void>; // Ensure execute returns Promise<void>
+  execute: (args: string[]) => Promise<CommandResult>; // Ensure execute returns Promise<CommandResult>
 }
 
 export interface ModeConfig {
@@ -31,10 +31,4 @@ export interface CommandResult {
   success: boolean;
   message?: string;
   data?: any;
-}
-
-
-
-export interface ServiceMarketAnalysis extends Omit<GlobalMarketAnalysis, 'metrics'> {
-  metrics: Required<MarketData>; // Ensure metrics is required
 }

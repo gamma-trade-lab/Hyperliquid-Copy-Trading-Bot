@@ -1,7 +1,7 @@
-import { Mode} from '@/types/chat';
+import { Mode, Command, CommandResult } from '@/types/chat';
 import { ModeManager } from './ModeManager';
 import { elizaLogger } from "@ai16z/eliza";
-import { Command, CommandResult } from '@/types/command';
+
 export class CommandHandler {
   private commands: Map<string, Command>;
   private modeManager: ModeManager;

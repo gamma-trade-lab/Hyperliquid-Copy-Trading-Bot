@@ -214,6 +214,7 @@ export class AIService implements IAIService {
               confidence: 0.5,
               action: "HOLD",
               metrics: metrics,
+              shouldUpdate: undefined
             },
             prompt = `Analyze this market data and respond with ONLY valid JSON matching this exact format: ${JSON.stringify(formatExample, null, 2)}
 
@@ -274,6 +275,7 @@ Market metrics:
         confidence: analysis.confidence,
         action: analysis.action,
         metrics: metrics,
+        shouldUpdate: analysis.shouldUpdate || false
       };
     } catch (error) {
       console.error('Error analyzing market:', error);
@@ -291,6 +293,7 @@ Market metrics:
         confidence: 0,
         action: 'HOLD',
         metrics: metrics,
+        shouldUpdate: false
       };
     }
   }

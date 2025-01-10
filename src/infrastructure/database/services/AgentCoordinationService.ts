@@ -54,6 +54,7 @@ export class AgentCoordinationService {
           },
           analyzeMarket: async (data) => {
             return {
+              shouldUpdate: false,
               shouldTrade: false,
               confidence: 0.5,
               action: 'HOLD',
