@@ -57,12 +57,103 @@ interface TwitterServiceConfig {
 }
 
 export class TwitterService {
-  postTweet(tweetContent: string, arg1: { mediaUrls: string[]; }) {
-      throw new Error('Method not implemented.');
+  // Inside TwitterService class
+
+public async postTweet(content: string, options: { mediaUrls?: string[] } = {}): Promise<void> {
+  try {
+    // Validate content
+    if (!content) {
+      throw new Error('Tweet content cannot be empty');
+    }
+
+    if (content.length > 280) {
+      throw new Error('Tweet exceeds 280 characters');
+    }
+
+    // Handle media if provided
+    const mediaIds = options.mediaUrls ? await this.uploadMedia(options.mediaUrls) : [];
+
+    // Create tweet payload
+    const tweetPayload = {
+      text: content,
+      ...(mediaIds.length && { 
+        media: { 
+          media_ids: mediaIds as [string, ...string[]] 
+        }
+      })
+    };
+
+    // Post tweet
+    const result = await this.userClient.v2.tweet(tweetPayload as SendTweetV2Params);
+    elizaLogger.success(`Tweet posted successfully! ID: ${result.data.id}`);
+  } catch (error) {
+    elizaLogger.error('Failed to post tweet:', error);
+    throw error;
   }
-  postTweetWithRetry(tweetContent: string) {
-    throw new Error('Method not implemented.');
+}
+
+public async postTweetWithRetry(content: string): Promise<void> {
+  let attempt = 0;
+  let lastError: any;
+
+  while (attempt < this.config.maxRetries) {
+    try {
+      elizaLogger.info(`Attempting to post tweet (attempt ${attempt + 1}/${this.config.maxRetries})`);
+      
+      await this.postTweet(content);
+      return;
+
+    } catch (error) {
+      lastError = error;
+      attempt++;
+
+      if (error instanceof ApiResponseError) {
+        if (error.code === 429) { // Rate limit hit
+          const resetTime = this.getRateLimitReset(error);
+          if (resetTime) {
+            const waitTime = resetTime - Date.now();
+            if (waitTime > 0) {
+              elizaLogger.warn(`Rate limit hit. Waiting ${Math.ceil(waitTime/1000)}s before retry...`);
+              await this.delay(waitTime);
+              continue;
+            }
+          }
+        }
+      }
+
+      if (attempt < this.config.maxRetries) {
+        const delay = this.config.retryDelay * Math.pow(2, attempt);
+        elizaLogger.warn(`Tweet failed. Retrying in ${delay}ms...`);
+        await this.delay(delay);
+      }
+    }
   }
+
+  throw new Error(`Failed to post tweet after ${this.config.maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
+}
+
+private async uploadMedia(urls: string[]): Promise<string[]> {
+  try {
+    // Limit to maximum 4 media items per tweet
+    const mediaUrls = urls.slice(0, 4);
+    
+    const mediaIds = await Promise.all(
+      mediaUrls.map(async (url) => {
+        try {
+          return await this.userClient.v1.uploadMedia(url);
+        } catch (error) {
+          elizaLogger.error(`Failed to upload media from URL ${url}:`, error);
+          throw error;
+        }
+      })
+    );
+
+    return mediaIds;
+  } catch (error) {
+    elizaLogger.error('Failed to upload media:', error);
+    throw error;
+  }
+}
   private userClient: TwitterApi;
   private appClient: TwitterApi;
   private aiService: AIService;
@@ -387,11 +478,7 @@ export class TwitterService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  private async uploadMedia(urls: string[]): Promise<string[]> {
-    // Implement media upload logic
-    return [];
-  }
-
+  
   async startStream(): Promise<void> {
     if (this.isStreaming) {
       elizaLogger.warn('Twitter stream is already running');
@@ -515,10 +602,11 @@ export class TwitterService {
     elizaLogger.info('Twitter service stopped');
   }
 
-  getTweetCount(): number {
-    return this.getTweetCount();
-  }
+  private tweetCount: number = 0;
 
+getTweetCount(): number {
+    return this.tweetCount;
+}
   getRemainingTweets(): number {
     return this.MONTHLY_TWEET_LIMIT - this.getTweetCount();
   }

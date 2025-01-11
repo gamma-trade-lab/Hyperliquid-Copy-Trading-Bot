@@ -232,28 +232,28 @@ export class JupiterPriceV2Service {
 
   public async getTokenInfo(symbol: string): Promise<TokenInfo | null> {
     try {
-      if (this.tokenInfoCache.has(symbol)) {
-        return this.tokenInfoCache.get(symbol) || null;
+      // Check cache first
+      const cacheKey = `token:${symbol}`;
+      const cached = await this.cache.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+
+      const response = await axios.get(JupiterPriceV2Service.TOKENS_URL);
+      if (!response.data || !response.data.tokens) {
+        throw new Error('Invalid response from Jupiter API');
       }
 
-      const response = await axios.get(`${JupiterPriceV2Service.TOKENS_URL}`, {
-        params: { tags: 'verified' }
-      });
-
-      const tokens = response.data.tokens as TokenInfo[];
-      const token = tokens.find(t => 
-        t.symbol.toLowerCase() === symbol.toLowerCase() && 
-        t.verified
+      const token = response.data.tokens.find((t: TokenInfo) => 
+        t.symbol.toLowerCase() === symbol.toLowerCase()
       );
 
       if (token) {
-        this.tokenInfoCache.set(symbol, token);
+        // Cache the result
+        await this.cache.set(cacheKey, JSON.stringify(token), 300); // 5 minutes
       }
 
       return token || null;
-
     } catch (error) {
-      elizaLogger.error('Error fetching token info:', error);
+      elizaLogger.error(`Failed to fetch info for token ${symbol}:`, error);
       throw error;
     }
   }
@@ -310,16 +310,65 @@ export class JupiterPriceV2Service {
     const data = await response.json();
     return data.tokens as TokenInfo[];
   }
+  public async getMarketData(symbol: string): Promise<{
+    price: number;
+    volume24h: number;
+    priceChange24h: number;
+}> {
+    try {
+        const tokenInfo = await this.getTokenInfo(symbol);
+        if (!tokenInfo) {
+            elizaLogger.error(`Token not found: ${symbol}`);
+            return { price: 0, volume24h: 0, priceChange24h: 0 };
+        }
 
-  private calculatePriceChange(priceData: TokenPrice): number {
-    if (!priceData.extraInfo?.quotedPrice) return 0;
+        const cacheKey = `market:${symbol}`;
+        const cached = await this.cache.get(cacheKey);
+        if (cached) return JSON.parse(cached);
 
-    const currentPrice = parseFloat(priceData.price);
-    const oldPrice = parseFloat(priceData.extraInfo.quotedPrice.sellPrice);
-    
-    if (isNaN(currentPrice) || isNaN(oldPrice) || oldPrice === 0) return 0;
-    return ((currentPrice - oldPrice) / oldPrice) * 100;
+        const response = await axios.get(
+            `${JupiterPriceV2Service.BASE_URL}?ids=${tokenInfo.address}&showExtraInfo=true`
+        );
+
+        if (!response.data?.data || !response.data.data[tokenInfo.address]) {
+            throw new Error(`No price data found for ${symbol}`);
+        }
+
+        const priceData = response.data.data[tokenInfo.address];
+        const marketData = {
+            price: parseFloat(priceData.price),
+            volume24h: (await this.getTokenVolume(tokenInfo.address)).volume24h,
+            priceChange24h: this.calculatePriceChange(priceData)
+        };
+
+        // Cache the result
+        await this.cache.set(cacheKey, JSON.stringify(marketData), JupiterPriceV2Service.CACHE_TTL);
+
+        return marketData;
+    } catch (error) {
+        elizaLogger.error(`Failed to fetch market data for ${symbol}:`, error);
+        throw error;
+    }
+}
+private calculatePriceChange(priceData: TokenPrice): number {
+  try {
+      if (!priceData?.extraInfo?.quotedPrice) return 0;
+
+      const currentPrice = parseFloat(priceData.price);
+      const oldPrice = parseFloat(priceData.extraInfo.quotedPrice.sellPrice);
+      
+      if (isNaN(currentPrice) || isNaN(oldPrice) || oldPrice === 0) {
+          elizaLogger.warn('Invalid price data for price change calculation');
+          return 0;
+      }
+
+      const change = ((currentPrice - oldPrice) / oldPrice) * 100;
+      return Number(change.toFixed(2)); // Round to 2 decimal places
+  } catch (error) {
+      elizaLogger.error('Error calculating price change:', error);
+      return 0;
   }
+}
 
   private calculateMarketCap(price: string, tokenInfo: TokenInfo): number {
     const priceNum = parseFloat(price);

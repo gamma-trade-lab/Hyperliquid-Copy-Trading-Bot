@@ -17,6 +17,7 @@ import { toBN } from "../utils/bignumber.js";
 import { WalletProvider, Item } from "./wallet.js";
 import { Connection } from "@solana/web3.js";
 import { getWalletKey } from "../utils/keypairUtils.js";
+import { elizaLogger } from "@ai16z/eliza";
 
 interface BirdeyeResponse<T> {
     success: boolean;
@@ -78,23 +79,15 @@ export class TokenProvider {
         });
     }
 
-    private async getCachedData<T>(key: string): Promise<T> {
-        // Check in-memory cache first
-        const cachedData = this.cache.get<T>(key);
-        if (cachedData) {
-            return cachedData;
+    private async getCachedData(key: string): Promise<any> {
+        try {
+          const cached = await this.cache.get(key);
+          return cached ? JSON.parse(cached as string) : null;
+        } catch (error) {
+          elizaLogger.error('Cache error:', error);
+          return null;
         }
-
-        // Check file-based cache
-        const fileCachedData = await this.readFromCache<T>(key);
-        if (fileCachedData) {
-            // Populate in-memory cache
-            this.cache.set(key, fileCachedData);
-            return fileCachedData;
-        }
-
-        throw new Error(`No cached data found for key: ${key}`);
-    }
+      }
 
     private async setCachedData<T>(cacheKey: string, data: T): Promise<void> {
         // Set in-memory cache
@@ -177,7 +170,7 @@ export class TokenProvider {
     async fetchTokenCodex(): Promise<TokenCodex> {
         try {
             const cacheKey = `token_${this.tokenAddress}`;
-            const cachedData = this.getCachedData<TokenCodex>(cacheKey);
+            const cachedData = this.getCachedData(cacheKey);
             if (cachedData) {
                 console.log(
                     `Returning cached token data for ${this.tokenAddress}.`
@@ -270,7 +263,7 @@ export class TokenProvider {
     async fetchPrices(): Promise<Prices> {
         try {
             const cacheKey = "prices";
-            const cachedData = await this.getCachedData<Prices>(cacheKey);
+            const cachedData = await this.getCachedData(cacheKey);
             if (cachedData) {
                 console.log("Returning cached prices.");
                 return cachedData;
@@ -372,7 +365,7 @@ export class TokenProvider {
 
     async fetchTokenSecurity(): Promise<TokenSecurityData> {
         const cacheKey = `tokenSecurity_${this.tokenAddress}`;
-        const cachedData = await this.getCachedData<TokenSecurityData>(cacheKey);
+        const cachedData = await this.getCachedData(cacheKey);
         if (cachedData) {
             console.log(
                 `Returning cached token security data for ${this.tokenAddress}.`
@@ -412,7 +405,7 @@ export class TokenProvider {
 
     async fetchTokenTradeData(): Promise<TokenTradeData> {
         const cacheKey = `tokenTradeData_${this.tokenAddress}`;
-        const cachedData = await this.getCachedData<TokenTradeData>(cacheKey);
+        const cachedData = await this.getCachedData(cacheKey);
         if (cachedData) {
             console.log(
                 `Returning cached token trade data for ${this.tokenAddress}.`
@@ -710,7 +703,7 @@ export class TokenProvider {
 
     async fetchDexScreenerData(): Promise<DexScreenerData> {
         const cacheKey = `dexScreenerData_${this.tokenAddress}`;
-        const cachedData = this.getCachedData<DexScreenerData>(cacheKey);
+        const cachedData = this.getCachedData(cacheKey);
         if (cachedData) {
             console.log("Returning cached DexScreener data.");
             return cachedData;
@@ -753,7 +746,7 @@ export class TokenProvider {
         symbol: string
     ): Promise<DexScreenerPair | null> {
         const cacheKey = `dexScreenerData_search_${symbol}`;
-        const cachedData = await this.getCachedData<DexScreenerData>(cacheKey);
+        const cachedData = await this.getCachedData(cacheKey);
         if (cachedData) {
             console.log("Returning cached search DexScreener data.");
             return this.getHighestLiquidityPair(cachedData);
@@ -850,7 +843,7 @@ export class TokenProvider {
 
     async fetchHolderList(): Promise<HolderData[]> {
         const cacheKey = `holderList_${this.tokenAddress}`;
-        const cachedData = this.getCachedData<HolderData[]>(cacheKey);
+        const cachedData = this.getCachedData(cacheKey);
         if (cachedData) {
             console.log("Returning cached holder list.");
             return cachedData;

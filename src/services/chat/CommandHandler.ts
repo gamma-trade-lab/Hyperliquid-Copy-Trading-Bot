@@ -11,7 +11,7 @@ export class CommandHandler {
   private aliases: Map<string, string>;
   private twitterService: TwitterService;
   private jupiterService: JupiterPriceV2Service;
-
+// Current Issue: Not handling all error cases and missing proper formatting
   constructor(
     modeManager: ModeManager,
     twitterService: TwitterService,
@@ -163,43 +163,50 @@ export class CommandHandler {
       name: 'market',
       description: 'Get market data for a token',
       execute: async (args: string[]): Promise<CommandResult> => {
-        if (!args.length) {
-          return {
-            success: false,
-            message: 'Please specify a token symbol (e.g., market SOL)'
-          };
-        }
-        
         try {
+          if (!args.length) {
+            return {
+              success: false,
+              message: 'Please specify a token symbol (e.g., market SOL)'
+            };
+          }
+    
           const symbol = args[0].toUpperCase();
+          elizaLogger.info(`Fetching market data for ${symbol}`);
+    
+          const tokenInfo = await this.jupiterService.getTokenInfo(symbol);
+          if (!tokenInfo) {
+            return {
+              success: false,
+              message: `Token ${symbol} not found or not verified`
+            };
+          }
+    
           const marketData = await this.jupiterService.getMarketMetrics(symbol);
-          
           if (!marketData) {
             return {
               success: false,
-              message: `No market data found for ${symbol}`
+              message: `No market data available for ${symbol}`
             };
           }
-
-          const formattedData = {
-            symbol,
-            price: marketData.price,
-            volume24h: marketData.volume24h,
-            priceChange24h: marketData.priceChange24h,
-            marketCap: marketData.marketCap,
-            confidenceLevel: marketData.confidenceLevel
-          };
-
+    
+          console.log(`\n${symbol} Market Data:`);
+          console.log(`Price: $${marketData.price.toFixed(2)}`);
+          console.log(`24h Change: ${marketData.priceChange24h.toFixed(2)}%`);
+          console.log(`24h Volume: $${marketData.volume24h.toLocaleString()}`);
+          console.log(`Market Cap: $${marketData.marketCap.toLocaleString()}`);
+          console.log(`Confidence: ${marketData.confidenceLevel}`);
+    
           return {
             success: true,
-            data: formattedData,
-            message: `${symbol}: $${formattedData.price.toFixed(2)} | 24h: ${formattedData.priceChange24h.toFixed(2)}% | Vol: $${formattedData.volume24h.toLocaleString()}`
+            data: marketData,
+            message: 'Market data retrieved successfully'
           };
         } catch (error) {
-          elizaLogger.error('Error fetching market data:', error);
+          elizaLogger.error(`Error fetching market data for ${args[0]}:`, error);
           return {
             success: false,
-            message: `Error fetching market data: ${error}`
+            message: `Error fetching market data: ${error instanceof Error ? error.message : 'Unknown error'}`
           };
         }
       }
@@ -210,56 +217,83 @@ export class CommandHandler {
       name: 'tweet',
       description: 'Post a tweet',
       execute: async (args: string[]): Promise<CommandResult> => {
-        const content = args.join(' ');
-        if (!content) {
-          return {
-            success: false,
-            message: 'Please provide tweet content'
-          };
-        }
-        // Need to actually call the Twitter service here
         try {
+          if (!args.length) {
+            return {
+              success: false,
+              message: 'Please provide tweet content'
+            };
+          }
+    
+          const content = args.join(' ');
+          if (content.length > 280) {
+            return {
+              success: false,
+              message: 'Tweet exceeds 280 characters'
+            };
+          }
+    
+          elizaLogger.info('Attempting to post tweet:', { content });
           await this.twitterService.postTweetWithRetry(content);
+    
           return {
             success: true,
             message: 'Tweet posted successfully'
           };
         } catch (error) {
+          elizaLogger.error('Failed to post tweet:', error);
           return {
             success: false,
-            message: `Failed to post tweet: ${error}`
+            message: `Failed to post tweet: ${error instanceof Error ? error.message : 'Unknown error'}`
           };
         }
       }
     });
   }
 
-  public async handleCommand(input: string): Promise<boolean> {
-    try {
-      const [commandName, ...args] = input.trim().toLowerCase().split(' ');
-      
-      // Check aliases first
-      const resolvedCommand = this.aliases.get(commandName) || commandName;
-      const command = this.commands.get(resolvedCommand);
+  // Add request timeout handling
+private async executeWithTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number = 5000
+): Promise<T> {
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Request timed out')), timeoutMs);
+  });
 
-      if (!command) {
-        return false;
-      }
+  return Promise.race([promise, timeoutPromise]) as Promise<T>;
+}
 
-      elizaLogger.info(`Executing command: ${resolvedCommand}`);
-      const result = await command.execute(args);
+// Improve command execution
+public async handleCommand(input: string): Promise<boolean> {
+  try {
+    const [commandName, ...args] = input.trim().toLowerCase().split(' ');
+    const resolvedCommand = this.aliases.get(commandName) || commandName;
+    const command = this.commands.get(resolvedCommand);
 
-      if (!result.success) {
-        console.log(`Command failed: ${result.message || 'Unknown error'}`);
-      }
-
-      return true;
-    } catch (error) {
-      elizaLogger.error('Error executing command:', error);
-      console.log('Error executing command. Please try again.');
-      return true;
+    if (!command) {
+      return false;
     }
+
+    elizaLogger.info(`Executing command: ${resolvedCommand}`, { args });
+    
+    const result = await this.executeWithTimeout(
+      command.execute(args),
+      10000 // 10 second timeout
+    );
+
+    if (!result.success) {
+      console.log(`\n❌ ${result.message}`);
+    } else if (result.message) {
+      console.log(`\n✅ ${result.message}`);
+    }
+
+    return true;
+  } catch (error) {
+    elizaLogger.error('Command execution failed:', error);
+    console.log('\n❌ Command failed. Please try again.');
+    return true;
   }
+}
 
   public registerCommand(command: Command): void {
     if (!command.name || typeof command.execute !== 'function') {
