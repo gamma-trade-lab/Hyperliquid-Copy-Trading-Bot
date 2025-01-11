@@ -56,6 +56,9 @@ export interface JupiterPriceServiceConfig {
 }
 
 export class JupiterPriceV2Service {
+  getMarketMetrics(symbol: string) {
+      throw new Error('Method not implemented.');
+  }
   private static readonly BASE_URL = 'https://api.jup.ag/price/v2';
   private static readonly CACHE_TTL = 60; // 1 minute
   private static readonly MAX_RETRIES = 3;

@@ -6,7 +6,12 @@ import { Mode, ModeConfig } from './types';
 import { MarketData, MarketAnalysis } from '@/types/market';
 import { elizaLogger } from "@ai16z/eliza";
 import { AIService } from '../ai/ai';
+
 import { ServiceMarketAnalysis, CommandResult } from '@/types/chat';
+import { TwitterCommands } from './TwitterCommands';
+import { TwitterService } from '../social/twitter';
+import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service';
+
 
 type MessageRole = 'user' | 'assistant' | 'system';
 type IntervalHandle = ReturnType<typeof setInterval>;
@@ -16,6 +21,9 @@ export class ChatService {
   private modeManager: ModeManager;
   private commandHandler: CommandHandler;
   private aiService: AIService;
+  private twitterService: TwitterService;
+  private jupiterService: JupiterPriceV2Service;
+  private twitterCommands: TwitterCommands;
   private isRunning: boolean = false;
   private autoModeInterval: IntervalHandle | null = null;
   
@@ -24,13 +32,39 @@ export class ChatService {
     output: process.stdout
   });
 
-  constructor(aiService: AIService) {
+  constructor(
+    aiService: AIService,
+    twitterService: TwitterService,
+    jupiterService: JupiterPriceV2Service
+  ) {
     this.history = new ChatHistoryManager();
     this.modeManager = new ModeManager();
     this.commandHandler = new CommandHandler(this.modeManager);
     this.aiService = aiService;
+    this.twitterService = twitterService;
+    this.jupiterService = jupiterService;
+    
+    // Initialize TwitterCommands
+    this.twitterCommands = new TwitterCommands(
+      this,
+      this.twitterService,
+      this.jupiterService,
+      this.aiService
+    );
+    
     this.initializeModes();
     this.setupEventListeners();
+  }
+
+  // Add method to add commands (needed by TwitterCommands)
+  public addCommands(commands: ModeConfig['commands']): void {
+    const currentMode = this.modeManager.getCurrentMode();
+    const config = this.modeManager.getModeConfig(currentMode);
+    
+    if (config && commands) {
+      config.commands = [...(config.commands || []), ...commands];
+      this.modeManager.registerModeConfig(currentMode, config);
+    }
   }
 
   private setupEventListeners(): void {
@@ -53,7 +87,6 @@ export class ChatService {
 
     this.autoModeInterval = setInterval(async () => {
       try {
-        // Generate autonomous action using market analysis
         const marketData = await this.aiService.getMarketMetrics();
         if (!marketData) {
           elizaLogger.error('Failed to fetch market data');
@@ -85,11 +118,9 @@ export class ChatService {
 
         console.log('\nAuto mode action:', serviceAnalysis.action);
         
-        // Execute the action
         const result = await this.executeAutoAction(serviceAnalysis);
         console.log('Action result:', result);
         
-        // Record in history
         this.recordMessage('assistant', `Executed action: ${serviceAnalysis.action}`);
         this.recordMessage('assistant', `Result: ${result}`);
         
@@ -140,7 +171,6 @@ export class ChatService {
                 console.log('Failed to fetch market data');
                 return;
               }
-
               console.log('\nMarket Data:', marketData);
             } catch (error) {
               console.log('Error fetching market data');
@@ -206,17 +236,22 @@ export class ChatService {
       ]
     };
 
+    // Register base configs first
     this.modeManager.registerModeConfig('chat', chatConfig);
     this.modeManager.registerModeConfig('auto', autoConfig);
+
+    // Add Twitter commands to chat mode
+    const twitterCommands = this.twitterCommands.getTwitterCommands().commands;
+    if (twitterCommands) {
+      this.addCommands(twitterCommands);
+    }
   }
 
   private async processInput(input: string): Promise<void> {
     try {
-      // First try to handle as command
       const commandResult = await this.commandHandler.handleCommand(input);
       
       if (commandResult === false) {
-        // Handle as regular chat message
         this.recordMessage('user', input);
         
         const response = await this.aiService.generateResponse({
@@ -249,7 +284,6 @@ export class ChatService {
       console.log('\n' + config.welcomeMessage);
     }
 
-    // Start input loop
     this.readline.on('line', async (input: string) => {
       if (!this.isRunning) return;
 
@@ -267,7 +301,6 @@ export class ChatService {
       this.stop();
     });
 
-    // Handle Ctrl+C
     process.on('SIGINT', () => {
       this.stop();
     });

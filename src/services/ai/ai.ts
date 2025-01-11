@@ -71,6 +71,9 @@ interface GenerateResponseInput {
 }
 
 export class AIService implements IAIService {
+  generateMarketTweet(arg0: { topic: string; price: string; volume: any; priceChange: any; }) {
+      throw new Error('Method not implemented.');
+  }
   
   private characterConfig?: Character;
 

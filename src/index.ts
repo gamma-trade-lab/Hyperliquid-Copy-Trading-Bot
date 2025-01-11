@@ -54,11 +54,11 @@ async function initializeServices() {
     // Initialize data processor
     const dataProcessor = new MarketDataProcessor(
       process.env.HELIUS_API_KEY!,
-      'https://tokens.jup.ag/tokens?tags=verified'
+      'https://tokens.jup.ag/tokens?tags=verified',
     );
 
     // Initialize AI service
-    const aiService = new AIService({
+    const aiService: AIService = new AIService({
       groqApiKey: process.env.GROQ_API_KEY!,
       defaultModel: CONFIG.AI.GROQ.MODEL,
       maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
@@ -179,7 +179,11 @@ class MemeAgentInfluencer {
   private socialService!: SocialService;
   private tradingService!: TradingService;
   private twitterService!: TwitterService;
-  private tokenAddress: string;
+  public tokenAddress: string;
+
+  public getTokenAddress(): string {
+    return this.tokenAddress;
+  }
   private isInitialized: boolean;
   private twitterClient!: TwitterApi;  // Add separate client for app-only auth
   private appOnlyClient!: TwitterApi;
@@ -306,6 +310,9 @@ class MemeAgentInfluencer {
         accessToken: process.env.TWITTER_ACCESS_TOKEN!,
         accessSecret: process.env.TWITTER_ACCESS_SECRET!,
         bearerToken: process.env.TWITTER_BEARER_TOKEN!,
+        oauthClientId: process.env.OAUTH_CLIENT_ID!,
+        oauthClientSecret: process.env.OAUTH_CLIENT_SECRET!,
+        mockMode: process.env.TWITTER_MOCK_MODE === 'true',
         maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
         retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
         contentRules: {
@@ -937,15 +944,17 @@ class MemeAgentInfluencer {
 
 import { config as loadConfig } from 'dotenv';
 import { TwitterService } from './services/social/twitter';
-import { AIService } from './services/ai/ai';
+import { aiService, AIService } from './services/ai/ai';
 import { CONFIG } from './config/settings';
 import { MarketDataProcessor } from './services/market/data/DataProcessor';
 import { JupiterPriceV2Service } from './services/blockchain/defi/JupiterPriceV2Service';
 import axios from 'axios';
 import { ChatService, Mode } from './services/chat';
+import { number, string } from 'yargs';
 
 
 loadConfig();
+
 
 async function startMemeAgent() {
   try {
@@ -969,7 +978,7 @@ async function startMemeAgent() {
     console.log('OAuth Client ID:', process.env.OAUTH_CLIENT_ID);
     console.log('OAuth Client Secret:', process.env.OAUTH_CLIENT_SECRET);
 
-    const aiService = new AIService({
+    const aiService: AIService = new AIService({
       groqApiKey: process.env.GROQ_API_KEY!,
       defaultModel: CONFIG.AI.GROQ.MODEL,
       maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
@@ -1138,12 +1147,53 @@ async function selectMode(): Promise<Mode> {
 }
 
 // Chat mode implementation
-async function startChat(services: ServiceConfig): Promise<void> {
+async function startChat(this: MemeAgentInfluencer, services: ServiceConfig): Promise<void> {
   const { aiService } = services;
   
   elizaLogger.info('Starting chat mode... Type "exit" to end.');
   
-  const chatService = new ChatService(aiService);
+  const twitterService = new TwitterService({
+      apiKey: process.env.TWITTER_API_KEY!,
+      apiSecret: process.env.TWITTER_API_SECRET!,
+      accessToken: process.env.TWITTER_ACCESS_TOKEN!,
+      accessSecret: process.env.TWITTER_ACCESS_SECRET!,
+      bearerToken: process.env.TWITTER_BEARER_TOKEN!,
+      oauthClientId: process.env.OAUTH_CLIENT_ID!,
+      oauthClientSecret: process.env.OAUTH_CLIENT_SECRET!,
+      mockMode: process.env.TWITTER_MOCK_MODE === 'true',
+      maxRetries: Number(process.env.TWITTER_MAX_RETRIES) || 3,
+      retryDelay: Number(process.env.TWITTER_RETRY_DELAY) || 5000,
+      contentRules: {
+        maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
+        maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
+        minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
+      },
+      marketDataConfig: {
+        updateInterval: 1800000,
+        volatilityThreshold: 0.05,
+        heliusApiKey: ''
+      },
+      tokenAddresses: [`https://api.jup.ag/price/v2?ids=${this.tokenAddress}`]
+    }, aiService, dataProcessor);
+  
+  const jupiterService = new JupiterPriceV2Service({
+    redis: {
+      host: process.env.REDIS_HOST,
+      port: Number(process.env.REDIS_PORT),
+      keyPrefix: 'jupiter-price:',
+      enableCircuitBreaker: true
+    },
+    rateLimitConfig: {
+      requestsPerMinute: 600,
+      windowMs: 60000
+    }
+  });
+  
+  const chatService = new ChatService(
+    aiService,
+    twitterService,
+    jupiterService
+  );
   await chatService.start();
 }
 
@@ -1198,7 +1248,7 @@ async function startAutonomousMode(services: ServiceConfig): Promise<void> {
 }
 
 // Main execution functions
-async function main() {
+async function main(this: any) {
   try {
     elizaLogger.info('JENNA starting up...');
 
@@ -1211,13 +1261,24 @@ async function main() {
     const mode = await selectMode();
     
     if (mode === 'chat') {
-      await startChat(services);
+      await startChat.call(new MemeAgentInfluencer(), services);
     } else if (mode === 'auto') {
       await startAutonomousMode(services);
     }
 
     // Set up cleanup handlers
-    setupCleanupHandlers(services);
+        setupCleanupHandlers(services);
+    
+    function setupCleanupHandlers(services: ServiceConfig) {
+      const handleShutdown = async () => {
+        elizaLogger.info('Shutting down JENNA...');
+        await cleanup(services);
+        process.exit(0);
+      };
+    
+      process.on('SIGINT', handleShutdown);
+      process.on('SIGTERM', handleShutdown);
+    }
 
   } catch (error) {
     elizaLogger.error('Fatal error during startup:', error);
@@ -1231,13 +1292,63 @@ async function main() {
         temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
       }),
       twitterService: null,
-      chatService: new ChatService(new AIService({
-        groqApiKey: process.env.GROQ_API_KEY!,
-        defaultModel: CONFIG.AI.GROQ.MODEL,
-        maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
-        temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
-      })),
-      jupiterPriceService: undefined
+      chatService: new ChatService(
+        new AIService({
+          groqApiKey: process.env.GROQ_API_KEY!,
+          defaultModel: CONFIG.AI.GROQ.MODEL,
+          maxTokens: CONFIG.AI.GROQ.MAX_TOKENS,
+          temperature: CONFIG.AI.GROQ.DEFAULT_TEMPERATURE
+        }),
+        new TwitterService({
+          apiKey: process.env.TWITTER_API_KEY!,
+          apiSecret: process.env.TWITTER_API_SECRET!,
+          accessToken: process.env.TWITTER_ACCESS_TOKEN!,
+          accessSecret: process.env.TWITTER_ACCESS_SECRET!,
+          bearerToken: process.env.TWITTER_BEARER_TOKEN!,
+          oauthClientId: process.env.TWITTER_OAUTH_CLIENT_ID!,
+          oauthClientSecret: process.env.TWITTER_OAUTH_CLIENT_SECRET!,
+          mockMode: process.env.TWITTER_MOCK_MODE === 'true',
+          maxRetries: parseInt(process.env.TWITTER_MAX_RETRIES!, 10) || 3,
+          retryDelay: parseInt(process.env.TWITTER_RETRY_DELAY!, 10) || 1000,
+          contentRules: {
+            maxEmojis: Number(process.env.TWITTER_MAX_EMOJIS) || 0,
+            maxHashtags: Number(process.env.TWITTER_MAX_HASHTAGS) || 0,
+            minInterval: Number(process.env.TWITTER_MIN_INTERVAL) || 300000
+          },
+          marketDataConfig: {
+            heliusApiKey: process.env.HELIUS_API_KEY!,
+            updateInterval: 1800000,
+            volatilityThreshold: parseFloat(process.env.VOLATILITY_THRESHOLD!),
+          },
+          tokenAddresses:  [`https://api.jup.ag/price/v2?ids=${this.tokenAddress}`]
+        }, aiService!, dataProcessor),
+        new JupiterPriceV2Service({
+          redis: {
+            host: process.env.REDIS_HOST,
+            port: Number(process.env.REDIS_PORT),
+          
+            keyPrefix: 'jupiter-price:',
+            enableCircuitBreaker: true
+          },
+          rateLimitConfig: {
+            requestsPerMinute: 600,
+            windowMs: 60000
+          }
+        })
+      ),
+        jupiterPriceService: new JupiterPriceV2Service({
+          redis: {
+            host: process.env.REDIS_HOST,
+            port: Number(process.env.REDIS_PORT),
+            
+            keyPrefix: 'jupiter-price:',
+            enableCircuitBreaker: true
+          },
+          rateLimitConfig: {
+            requestsPerMinute: 600,
+            windowMs: 60000
+          }
+        }),
     };
     await cleanup(emptyServices);
     process.exit(1);

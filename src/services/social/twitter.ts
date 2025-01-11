@@ -62,6 +62,12 @@ interface TwitterServiceConfig {
 }
 
 export class TwitterService {
+  postTweet(tweetContent: string, arg1: { mediaUrls: string[]; }) {
+      throw new Error('Method not implemented.');
+  }
+  postTweetWithRetry(tweetContent: string) {
+    throw new Error('Method not implemented.');
+  }
   private userClient: TwitterApi;
   private appClient: TwitterApi;
   private aiService: AIService;
