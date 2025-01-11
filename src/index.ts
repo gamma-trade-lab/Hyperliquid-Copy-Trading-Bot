@@ -88,7 +88,8 @@ async function initializeServices() {
           updateInterval: 1800000,
           volatilityThreshold: 0.05
         },
-        tokenAddresses: tokenAddresses // Pass the fetched token addresses
+        tokenAddresses: tokenAddresses, // Pass the fetched token addresses
+         baseUrl: 'https://api.twitter.com'
       },
       aiService,
       dataProcessor
@@ -921,7 +922,8 @@ class MemeAgentInfluencer {
               updateInterval: 1800000, // 30 minutes
               volatilityThreshold: 0.05 // 5%
             },
-            tokenAddresses: tokenAddresses
+            tokenAddresses: tokenAddresses,
+            baseUrl: 'https://api.twitter.com'
           },
           this.aiService,
           dataProcessor
@@ -1009,7 +1011,8 @@ async function startMemeAgent() {
           updateInterval: 1800000,
           volatilityThreshold: 0.05
         },
-        tokenAddresses: tokenAddresses // Pass the fetched token addresses
+        tokenAddresses: tokenAddresses, // Pass the fetched token addresses
+        baseUrl: 'https://api.twitter.com'
       },
       aiService,
       dataProcessor
@@ -1173,7 +1176,8 @@ async function startChat(this: MemeAgentInfluencer, services: ServiceConfig): Pr
         volatilityThreshold: 0.05,
         heliusApiKey: ''
       },
-      tokenAddresses: [`https://api.jup.ag/price/v2?ids=${this.tokenAddress}`]
+      tokenAddresses: [`https://api.jup.ag/price/v2?ids=${this.tokenAddress}`],
+      baseUrl: 'https://api.twitter.com'
     }, aiService, dataProcessor);
   
   const jupiterService = new JupiterPriceV2Service({
@@ -1221,11 +1225,11 @@ async function startAutonomousMode(services: ServiceConfig): Promise<void> {
       // Post market updates if significant changes
       for (const token of topMovers) {
         await twitterService.publishMarketUpdate({
-          price: parseFloat(token.price),
-          volume24h: 0, // Placeholder, replace with actual volume if available
-          marketCap: 0, // Placeholder, replace with actual market cap if available
-          priceChange24h: 0, // Placeholder, replace with actual price change if available
-          topHolders: [],
+          price: parseFloat(token.price.toString()),
+          volume24h: token.volume24h, // Replace placeholder with actual volume
+          marketCap: token.marketCap, // Replace placeholder with actual market cap
+          // priceChange24h: token.priceChange24h, // Replace placeholder with actual price change
+          topHolders: [], // Add actual top holders if available
           tokenAddress: token.id
         });
       }
@@ -1320,7 +1324,8 @@ async function main(this: any) {
             updateInterval: 1800000,
             volatilityThreshold: parseFloat(process.env.VOLATILITY_THRESHOLD!),
           },
-          tokenAddresses:  [`https://api.jup.ag/price/v2?ids=${this.tokenAddress}`]
+          tokenAddresses:  [`https://api.jup.ag/price/v2?ids=${this.tokenAddress}`],
+           baseUrl: 'https://api.twitter.com'
         }, aiService!, dataProcessor),
         new JupiterPriceV2Service({
           redis: {

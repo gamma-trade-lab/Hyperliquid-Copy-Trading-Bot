@@ -92,6 +92,7 @@ export class SocialService {
           mockMode: config.twitter.mockMode ?? false,
           maxRetries: config.twitter.maxRetries ?? 0,
           retryDelay: config.twitter.retryDelay ?? 0,
+          baseUrl: 'https://api.twitter.com', // Add baseUrl
           contentRules: config.twitter.contentRules || { maxEmojis: 0, maxHashtags: 0, minInterval: 0 },
           oauthClientId: config.twitter.oauthClientId,
           oauthClientSecret: config.twitter.oauthClientSecret,

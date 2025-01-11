@@ -37,19 +37,23 @@ export class ChatService {
     twitterService: TwitterService,
     jupiterService: JupiterPriceV2Service
   ) {
-    this.history = new ChatHistoryManager();
-    this.modeManager = new ModeManager();
-    this.commandHandler = new CommandHandler(this.modeManager);
     this.aiService = aiService;
     this.twitterService = twitterService;
     this.jupiterService = jupiterService;
     
-    // Initialize TwitterCommands
+    this.history = new ChatHistoryManager();
+    this.modeManager = new ModeManager();
+    this.commandHandler = new CommandHandler(
+      this.modeManager,
+      twitterService,
+      jupiterService
+    );
+    
     this.twitterCommands = new TwitterCommands(
       this,
-      this.twitterService,
-      this.jupiterService,
-      this.aiService
+      twitterService,
+      jupiterService,
+      aiService
     );
     
     this.initializeModes();

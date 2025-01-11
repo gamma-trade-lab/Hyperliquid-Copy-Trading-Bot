@@ -9,21 +9,15 @@ import {
 import { AIService } from '../ai/ai';
 import { elizaLogger } from "@ai16z/eliza";
 import { MarketUpdateData } from '@/types/market';
-
-// Add new imports for market data integration
 import { MarketDataProcessor } from '../market/data/DataProcessor';
 import { PriceMonitor } from '../market/analysis/priceMonitor';
-import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service';
-import { JupiterPriceV2 } from '../blockchain/defi/jupiterPriceV2';
+import { JupiterPriceV2Service, TokenInfo } from '../blockchain/defi/JupiterPriceV2Service';
 import { HeliusService } from '../blockchain/heliusIntegration';
 
-// Add interfaces for market data types
 export interface MarketMetrics {
   price: number;
   volume24h: number;
   priceChange24h: number;
-  marketCap: number;
-  volatility: number;
 }
 
 interface ContentRules {
@@ -48,6 +42,7 @@ interface TwitterServiceConfig {
   mockMode: boolean;
   maxRetries: number;
   retryDelay: number;
+  baseUrl: string;
   contentRules: {
     maxEmojis: number;
     maxHashtags: number;
@@ -58,7 +53,7 @@ interface TwitterServiceConfig {
     updateInterval: number;
     volatilityThreshold: number;
   };
-  tokenAddresses: string[]; // Add tokenAddresses property
+  tokenAddresses: string[];
 }
 
 export class TwitterService {
@@ -71,6 +66,8 @@ export class TwitterService {
   private userClient: TwitterApi;
   private appClient: TwitterApi;
   private aiService: AIService;
+  //private jupiterService: JupiterPriceV2Service;
+  //private heliusService: HeliusService;
   private isStreaming: boolean = false;
   private readonly config: Required<TwitterServiceConfig>;
   private userId?: string;
@@ -83,7 +80,7 @@ export class TwitterService {
   constructor(
     config: TwitterServiceConfig, 
     aiService: AIService,
-    dataProcessor: MarketDataProcessor // Add this
+    dataProcessor: MarketDataProcessor,
   ) {
     this.validateConfig(config);
     
@@ -92,6 +89,7 @@ export class TwitterService {
       mockMode: config.mockMode ?? false,
       maxRetries: config.maxRetries ?? 3,
       retryDelay: config.retryDelay ?? 5000,
+      baseUrl: config.baseUrl ?? 'https://api.twitter.com', // Add default baseUrl
       contentRules: {
         maxEmojis: config.contentRules?.maxEmojis ?? 0,
         maxHashtags: config.contentRules?.maxHashtags ?? 0,
@@ -103,10 +101,12 @@ export class TwitterService {
         heliusApiKey: config.marketDataConfig?.heliusApiKey ?? ''
       },
       tokenAddresses: config.tokenAddresses ?? []
-    };
+    } as Required<TwitterServiceConfig>;
 
     this.aiService = aiService;
     this.dataProcessor = dataProcessor;
+    //this.jupiterService = jupiterService;
+    //this.heliusService = heliusService;
     this.priceMonitor = new PriceMonitor(dataProcessor, aiService);
     this.setupMarketMonitoring();
 
@@ -127,7 +127,8 @@ export class TwitterService {
       'apiKey', 'apiSecret',
       'accessToken', 'accessSecret',
       'bearerToken',
-      'oauthClientId', 'oauthClientSecret'
+      'oauthClientId', 'oauthClientSecret',
+      'baseUrl'
     ];
 
     const missing = requiredFields.filter(field => !config[field]);
@@ -521,4 +522,6 @@ export class TwitterService {
   getRemainingTweets(): number {
     return this.MONTHLY_TWEET_LIMIT - this.getTweetCount();
   }
-}
+
+     
+    }

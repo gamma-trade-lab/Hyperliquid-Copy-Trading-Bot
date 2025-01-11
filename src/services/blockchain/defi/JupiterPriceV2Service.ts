@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { RedisService } from '../../../services/market/data/RedisCache';
 import { elizaLogger } from "@ai16z/eliza";
-import Redis from 'ioredis';
 
+// Required interfaces
 export interface TokenPrice {
   id: string;
   type: string;
@@ -34,11 +34,24 @@ export interface TokenPrice {
   };
 }
 
-export interface JupiterPriceResponse {
-  data: {
-    [key: string]: TokenPrice;
-  };
-  timeTaken: number;
+export interface MarketMetrics {
+  price: number;
+  volume24h: number;
+  priceChange24h: number;
+  marketCap: number;
+  confidenceLevel: 'high' | 'medium' | 'low';
+}
+
+export interface TokenInfo {
+  id: string;
+  symbol: string;
+  name: string;
+  price: number;
+  volume24h: number;
+  marketCap: number;
+  address: string;
+  verified: boolean;
+  // Add other properties as needed
 }
 
 export interface JupiterPriceServiceConfig {
@@ -56,17 +69,15 @@ export interface JupiterPriceServiceConfig {
 }
 
 export class JupiterPriceV2Service {
-  getMarketMetrics(symbol: string) {
-      throw new Error('Method not implemented.');
-  }
   private static readonly BASE_URL = 'https://api.jup.ag/price/v2';
+  private static readonly TOKENS_URL = 'https://tokens.jup.ag/tokens';
   private static readonly CACHE_TTL = 60; // 1 minute
   private static readonly MAX_RETRIES = 3;
-  private static readonly DEFAULT_RATE_LIMIT = 600; // requests per minute
-  private static readonly DEFAULT_RATE_WINDOW = 60000; // 1 minute in ms
-  private static readonly BATCH_SIZE = 100; // Batch size for API requests
-  
+  private static readonly DEFAULT_RATE_LIMIT = 600;
+  private static readonly DEFAULT_RATE_WINDOW = 60000;
+
   private cache: RedisService;
+  private tokenInfoCache: Map<string, TokenInfo> = new Map();
   private requestCount: number = 0;
   private windowStart: number = Date.now();
   private readonly rateLimit: number;
@@ -78,18 +89,13 @@ export class JupiterPriceV2Service {
       port: config?.redis?.port || 6379,
       password: config?.redis?.password,
       keyPrefix: config?.redis?.keyPrefix || 'jupiter-price:',
-      enableCircuitBreaker: config?.redis?.enableCircuitBreaker ?? true,
-      circuitBreakerOptions: {
-        failureThreshold: 5,
-        resetTimeout: 30000
-      }
+      enableCircuitBreaker: config?.redis?.enableCircuitBreaker ?? true
     };
 
     this.cache = new RedisService(redisConfig);
     this.rateLimit = config?.rateLimitConfig?.requestsPerMinute || JupiterPriceV2Service.DEFAULT_RATE_LIMIT;
     this.rateWindow = config?.rateLimitConfig?.windowMs || JupiterPriceV2Service.DEFAULT_RATE_WINDOW;
 
-    // Initialize Redis connection
     this.initializeCache().catch(error => {
       elizaLogger.error('Failed to initialize Redis cache:', error);
       throw error;
@@ -115,7 +121,6 @@ export class JupiterPriceV2Service {
 
     if (this.requestCount >= this.rateLimit) {
       const waitTime = this.rateWindow - (now - this.windowStart);
-      elizaLogger.info(`Rate limit reached. Waiting ${waitTime}ms before next request`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
       this.requestCount = 0;
       this.windowStart = Date.now();
@@ -135,27 +140,15 @@ export class JupiterPriceV2Service {
 
       await this.checkRateLimit();
 
-      const response = await axios.get<JupiterPriceResponse>(
-        `${JupiterPriceV2Service.BASE_URL}`,
-        {
-          params: {
-            ids: tokenMint,
-            showExtraInfo: true
-          }
+      const response = await axios.get(`${JupiterPriceV2Service.BASE_URL}`, {
+        params: {
+          ids: tokenMint,
+          showExtraInfo: true
         }
-      );
+      });
 
       const tokenPrice = response.data.data[tokenMint];
-      
-      if (!tokenPrice) {
-        elizaLogger.warn(`No price data found for token ${tokenMint}`);
-        return null;
-      }
-
-      // Add null check for extraInfo
-      if (tokenPrice.extraInfo?.confidenceLevel === 'low') {
-        elizaLogger.warn(`Low confidence price for token ${tokenMint}`);
-      }
+      if (!tokenPrice) return null;
 
       await this.cache.set(
         cacheKey,
@@ -163,51 +156,104 @@ export class JupiterPriceV2Service {
         JupiterPriceV2Service.CACHE_TTL
       );
 
-      elizaLogger.info('Jupiter price fetched successfully', {
-        token: tokenMint,
-        price: tokenPrice.price,
-        confidence: tokenPrice.extraInfo?.confidenceLevel
-      });
-
       return tokenPrice;
 
     } catch (error) {
-      elizaLogger.error('Error fetching Jupiter price:', error);
+      elizaLogger.error('Error fetching token price:', error);
       throw error;
     }
   }
 
-  public async getTokensPrice(tokenMints: string[]): Promise<JupiterPriceResponse> {
+  public async getMarketMetrics(symbol: string): Promise<MarketMetrics | null> {
     try {
-      const cacheKey = `prices:${tokenMints.sort().join(',')}`;
+      const cacheKey = `metrics:${symbol}`;
       const cachedData = await this.cache.get(cacheKey);
-
+      
       if (cachedData) {
         return JSON.parse(cachedData);
       }
 
-      await this.checkRateLimit();
+      const tokenInfo = await this.getTokenInfo(symbol);
+      if (!tokenInfo) return null;
 
-      const response = await axios.get<JupiterPriceResponse>(
-        `${JupiterPriceV2Service.BASE_URL}`,
-        {
-          params: {
-            ids: tokenMints.join(','),
-            showExtraInfo: true
-          }
-        }
-      );
+      const priceData = await this.getTokenPrice(tokenInfo.address);
+      if (!priceData) return null;
+
+      const volumeData = await this.getTokenVolume(tokenInfo.address);
+      const priceChange = this.calculatePriceChange(priceData);
+
+      const metrics: MarketMetrics = {
+        price: parseFloat(priceData.price),
+        volume24h: volumeData.volume24h,
+        priceChange24h: priceChange,
+        marketCap: this.calculateMarketCap(priceData.price, tokenInfo),
+        confidenceLevel: priceData.extraInfo?.confidenceLevel || 'low'
+      };
 
       await this.cache.set(
         cacheKey,
-        JSON.stringify(response.data),
+        JSON.stringify(metrics),
         JupiterPriceV2Service.CACHE_TTL
       );
 
-      return response.data;
+      return metrics;
 
     } catch (error) {
-      elizaLogger.error('Error fetching Jupiter prices:', error);
+      elizaLogger.error('Error fetching market metrics:', error);
+      throw error;
+    }
+  }
+
+  public async getPriceWithMetrics(symbol: string): Promise<{
+    price: number;
+    metrics: MarketMetrics | null;
+  }> {
+    try {
+      const tokenInfo = await this.getTokenInfo(symbol);
+      if (!tokenInfo) {
+        return { price: 0, metrics: null };
+      }
+
+      const [priceData, metrics] = await Promise.all([
+        this.getTokenPrice(tokenInfo.address),
+        this.getMarketMetrics(symbol)
+      ]);
+
+      return {
+        price: parseFloat(priceData?.price || '0'),
+        metrics
+      };
+
+    } catch (error) {
+      elizaLogger.error('Error fetching price with metrics:', error);
+      throw error;
+    }
+  }
+
+  public async getTokenInfo(symbol: string): Promise<TokenInfo | null> {
+    try {
+      if (this.tokenInfoCache.has(symbol)) {
+        return this.tokenInfoCache.get(symbol) || null;
+      }
+
+      const response = await axios.get(`${JupiterPriceV2Service.TOKENS_URL}`, {
+        params: { tags: 'verified' }
+      });
+
+      const tokens = response.data.tokens as TokenInfo[];
+      const token = tokens.find(t => 
+        t.symbol.toLowerCase() === symbol.toLowerCase() && 
+        t.verified
+      );
+
+      if (token) {
+        this.tokenInfoCache.set(symbol, token);
+      }
+
+      return token || null;
+
+    } catch (error) {
+      elizaLogger.error('Error fetching token info:', error);
       throw error;
     }
   }
@@ -224,14 +270,10 @@ export class JupiterPriceV2Service {
       const priceData = await this.getTokenPrice(tokenMint);
       
       if (!priceData || !priceData.extraInfo?.depth) {
-        throw new Error('No depth data available');
+        return { volume24h: 0 };
       }
 
-      const { buyPriceImpactRatio, sellPriceImpactRatio } = priceData.extraInfo?.depth ?? {};
-      if (!buyPriceImpactRatio || !sellPriceImpactRatio) {
-        throw new Error('No depth data available');
-      }
-
+      const { buyPriceImpactRatio, sellPriceImpactRatio } = priceData.extraInfo.depth;
       const price = parseFloat(priceData.price);
       
       const volume24h = this.calculateVolume(
@@ -241,12 +283,7 @@ export class JupiterPriceV2Service {
       );
 
       const result = { volume24h };
-
-      await this.cache.set(
-        cacheKey,
-        JSON.stringify(result),
-        JupiterPriceV2Service.CACHE_TTL
-      );
+      await this.cache.set(cacheKey, JSON.stringify(result), JupiterPriceV2Service.CACHE_TTL);
 
       return result;
 
@@ -254,6 +291,42 @@ export class JupiterPriceV2Service {
       elizaLogger.error('Error calculating token volume:', error);
       throw error;
     }
+  }
+
+  public async getTopMovers(): Promise<TokenInfo[]> {
+    const response = await fetch(`${JupiterPriceV2Service.BASE_URL}/top-movers`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch top movers');
+    }
+    const data = await response.json();
+    return data.tokens as TokenInfo[];
+  }
+
+  public async getHighestVolumeTokens(): Promise<TokenInfo[]> {
+    const response = await fetch(`${JupiterPriceV2Service.BASE_URL}/highest-volume`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch highest volume tokens');
+    }
+    const data = await response.json();
+    return data.tokens as TokenInfo[];
+  }
+
+  private calculatePriceChange(priceData: TokenPrice): number {
+    if (!priceData.extraInfo?.quotedPrice) return 0;
+
+    const currentPrice = parseFloat(priceData.price);
+    const oldPrice = parseFloat(priceData.extraInfo.quotedPrice.sellPrice);
+    
+    if (isNaN(currentPrice) || isNaN(oldPrice) || oldPrice === 0) return 0;
+    return ((currentPrice - oldPrice) / oldPrice) * 100;
+  }
+
+  private calculateMarketCap(price: string, tokenInfo: TokenInfo): number {
+    const priceNum = parseFloat(price);
+    if (isNaN(priceNum)) return 0;
+    
+    const defaultSupply = 1_000_000;
+    return priceNum * (tokenInfo.marketCap || defaultSupply);
   }
 
   private calculateVolume(
@@ -270,67 +343,5 @@ export class JupiterPriceV2Service {
     });
 
     return volumes.reduce((sum, vol) => sum + vol, 0);
-  }
-
-  public async getAllTokenPrices(): Promise<JupiterPriceResponse> {
-    try {
-      const response = await axios.get<JupiterPriceResponse>(`${JupiterPriceV2Service.BASE_URL}`);
-      return response.data;
-    } catch (error) {
-      elizaLogger.error('Error fetching all token prices:', error);
-      throw error;
-    }
-  }
-
-  public async getTopMovers(): Promise<TokenPrice[]> {
-    try {
-      const allPrices = await this.getAllTokenPrices();
-      const tokens = Object.values(allPrices.data);
-
-      tokens.sort((a, b) => {
-        const changeA = Math.abs(parseFloat(a.extraInfo?.quotedPrice?.buyPrice || '0') - parseFloat(a.price));
-        const changeB = Math.abs(parseFloat(b.extraInfo?.quotedPrice?.buyPrice || '0') - parseFloat(b.price));
-        return changeB - changeA;
-      });
-
-      return tokens.slice(0, 10); // Top 10 movers
-    } catch (error) {
-      elizaLogger.error('Error fetching top movers:', error);
-      throw error;
-    }
-  }
-
-  public async getHighestVolumeTokens(): Promise<TokenPrice[]> {
-    try {
-      const allPrices = await this.getAllTokenPrices();
-      const tokens = Object.values(allPrices.data);
-
-      tokens.sort((a, b) => {
-        const volumeA = parseFloat(String(a.extraInfo?.depth?.buyPriceImpactRatio.depth['1'] || '0'));
-        const volumeB = parseFloat(String(b.extraInfo?.depth?.buyPriceImpactRatio.depth['1'] || '0'));
-        return volumeB - volumeA;
-      });
-
-      return tokens.slice(0, 10); // Top 10 highest volume tokens
-    } catch (error) {
-      elizaLogger.error('Error fetching highest volume tokens:', error);
-      throw error;
-    }
-  }
-
-  async getPriceWithExtraInfo(tokenMint: string) {
-    try {
-      const data = await this.getTokenPrice(tokenMint);
-      return {
-        price: data?.price ?? 0,
-        extraInfo: {
-          lastSwappedPrice: data?.extraInfo?.lastSwappedPrice ?? null,
-          quotedPrice: data?.extraInfo?.quotedPrice ?? null,
-        }
-      };
-    } catch (error) {
-      elizaLogger.error('Price fetch error:', error);
-      return null;
-    }
   }
 }
