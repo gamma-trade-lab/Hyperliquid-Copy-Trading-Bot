@@ -145,7 +145,7 @@ async function handler(runtime: IAgentRuntime, message: Memory) {
         );
     });
 
-    const { publicKey } = await getWalletKey(runtime, false);
+    const { publicKey } = await getWalletKey(runtime, false, { requirePrivateKey: false, publicKeyString: '' });
     if (!publicKey) {
         throw new Error("Public key is undefined");
     }

@@ -89,3 +89,29 @@ export interface MarketAnalysis {
     shouldUpdate: boolean;
   };
 }
+
+export interface MarketMetrics {
+  price: number;
+  volume24h: number;
+  priceChange24h: number;
+  marketCap: number;
+  confidenceLevel: 'high' | 'medium' | 'low';
+}
+
+export interface JupiterPriceServiceConfig {
+  redis: {
+    host?: string;
+    port?: number;
+    password?: string;
+    keyPrefix?: string;
+    enableCircuitBreaker?: boolean;
+  };
+  rpcConnection?: {
+    url: string;
+    walletPublicKey?: string;
+  };
+  rateLimitConfig?: {
+    requestsPerMinute?: number;
+    windowMs?: number;
+  };
+}

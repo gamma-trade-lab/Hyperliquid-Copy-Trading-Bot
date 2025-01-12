@@ -1,6 +1,9 @@
-import axios from 'axios';
-import { RedisService } from '../../../services/market/data/RedisCache';
+import { TokenProvider } from '../../../providers/token';
+import { RedisService } from '../../market/data/RedisCache';
 import { elizaLogger } from "@ai16z/eliza";
+import { Connection, PublicKey, PublicKeyInitData } from '@solana/web3.js';
+import { WalletProvider } from '../../../providers/wallet';
+import { ICacheManager } from '@elizaos/core';
 
 // Required interfaces
 export interface TokenPrice {
@@ -32,6 +35,7 @@ export interface TokenPrice {
       };
     };
   };
+  connection?: string;
 }
 
 export interface MarketMetrics {
@@ -66,331 +70,391 @@ export interface JupiterPriceServiceConfig {
     requestsPerMinute?: number;
     windowMs?: number;
   };
+  rpcConnection?: {
+    url?: string;
+    walletPublicKey?: string;
+  };
+}
+
+export interface TokenMovement {
+  id: string;          // Added
+  symbol: string;
+  address: string;
+  price: number;       // Added
+  priceChange24h: number;
+  volume24h: number;
+  currentPrice: number;
+  marketCap: number;   // Added
 }
 
 export class JupiterPriceV2Service {
-  private static readonly BASE_URL = 'https://api.jup.ag/price/v2';
-  private static readonly TOKENS_URL = 'https://tokens.jup.ag/tokens';
-  private static readonly CACHE_TTL = 60; // 1 minute
-  private static readonly MAX_RETRIES = 3;
-  private static readonly DEFAULT_RATE_LIMIT = 600;
-  private static readonly DEFAULT_RATE_WINDOW = 60000;
-
+  private tokenProvider: TokenProvider;
   private cache: RedisService;
-  private tokenInfoCache: Map<string, TokenInfo> = new Map();
-  private requestCount: number = 0;
-  private windowStart: number = Date.now();
-  private readonly rateLimit: number;
-  private readonly rateWindow: number;
+  private readonly SOLANA_PUBLIC_KEY: PublicKey = new PublicKey(
+    process.env.SOLANA_PUBLIC_KEY || 'C7DjuqwXZ2kZ2D9RMDXv5HjiR7PVkLFJgnX7PKraPDaM'
+  );
+  private static readonly CACHE_TTL = 300; // 5 minutes
+  private readonly config: JupiterPriceServiceConfig;
 
-  constructor(config?: JupiterPriceServiceConfig) {
-    const redisConfig = {
-      host: config?.redis?.host || 'localhost',
-      port: config?.redis?.port || 6379,
-      password: config?.redis?.password,
-      keyPrefix: config?.redis?.keyPrefix || 'jupiter-price:',
-      enableCircuitBreaker: config?.redis?.enableCircuitBreaker ?? true
-    };
-
-    this.cache = new RedisService(redisConfig);
-    this.rateLimit = config?.rateLimitConfig?.requestsPerMinute || JupiterPriceV2Service.DEFAULT_RATE_LIMIT;
-    this.rateWindow = config?.rateLimitConfig?.windowMs || JupiterPriceV2Service.DEFAULT_RATE_WINDOW;
-
-    this.initializeCache().catch(error => {
-      elizaLogger.error('Failed to initialize Redis cache:', error);
-      throw error;
+  constructor(config: JupiterPriceServiceConfig) {
+    this.config = config;
+    
+    // Initialize Redis cache
+    this.cache = new RedisService({
+      host: config.redis?.host || 'localhost',
+      port: config.redis?.port || 6379,
+      password: config.redis?.password,
+      keyPrefix: config.redis?.keyPrefix || 'jupiter-price:'
     });
-  }
 
-  private async initializeCache(): Promise<void> {
+    // Initialize providers with validation
+    const connection = new Connection(
+      config.rpcConnection?.url || 'https://api.mainnet-beta.solana.com'
+    );
+    
+    let walletPublicKey: PublicKey;
     try {
-      await this.cache.connect();
-      elizaLogger.info('Jupiter price cache initialized successfully');
+      walletPublicKey = config.rpcConnection?.walletPublicKey ? 
+        new PublicKey(config.rpcConnection.walletPublicKey) :
+        new PublicKey(this.SOLANA_PUBLIC_KEY);
     } catch (error) {
-      elizaLogger.error('Failed to initialize Jupiter price cache:', error);
-      throw error;
+      elizaLogger.warn('Invalid wallet public key provided, using default');
+      walletPublicKey = new PublicKey(this.SOLANA_PUBLIC_KEY);
     }
+    
+    const walletProvider = new WalletProvider(connection, walletPublicKey);
+    
+    this.tokenProvider = new TokenProvider(
+      '',  // Will be set per request
+      walletProvider,
+      this.cache as ICacheManager
+    );
   }
 
-  private async checkRateLimit(): Promise<void> {
-    const now = Date.now();
-    if (now - this.windowStart >= this.rateWindow) {
-      this.windowStart = now;
-      this.requestCount = 0;
-    }
-
-    if (this.requestCount >= this.rateLimit) {
-      const waitTime = this.rateWindow - (now - this.windowStart);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      this.requestCount = 0;
-      this.windowStart = Date.now();
-    }
-
-    this.requestCount++;
-  }
-
-  public async getTokenPrice(tokenMint: string): Promise<TokenPrice | null> {
-    try {
-      const cacheKey = `price:${tokenMint}`;
-      const cachedData = await this.cache.get(cacheKey);
-
-      if (cachedData) {
-        return JSON.parse(cachedData);
-      }
-
-      await this.checkRateLimit();
-
-      const response = await axios.get(`${JupiterPriceV2Service.BASE_URL}`, {
-        params: {
-          ids: tokenMint,
-          showExtraInfo: true
-        }
-      });
-
-      const tokenPrice = response.data.data[tokenMint];
-      if (!tokenPrice) return null;
-
-      await this.cache.set(
-        cacheKey,
-        JSON.stringify(tokenPrice),
-        JupiterPriceV2Service.CACHE_TTL
-      );
-
-      return tokenPrice;
-
-    } catch (error) {
-      elizaLogger.error('Error fetching token price:', error);
-      throw error;
-    }
-  }
-
-  public async getMarketMetrics(symbol: string): Promise<MarketMetrics | null> {
+  public async getMarketMetrics(symbol: string): Promise<MarketMetrics> {
     try {
       const cacheKey = `metrics:${symbol}`;
-      const cachedData = await this.cache.get(cacheKey);
+      const cached = await this.cache.get(cacheKey);
       
-      if (cachedData) {
-        return JSON.parse(cachedData);
+      if (typeof cached === 'string') {
+        return JSON.parse(cached);
       }
 
-      const tokenInfo = await this.getTokenInfo(symbol);
-      if (!tokenInfo) return null;
+      // Get token data
+      const tokenData = await this.tokenProvider.getProcessedTokenData();
+      const tradeData = tokenData.tradeData;
+      const dexData = tokenData.dexScreenerData;
 
-      const priceData = await this.getTokenPrice(tokenInfo.address);
-      if (!priceData) return null;
-
-      const volumeData = await this.getTokenVolume(tokenInfo.address);
-      const priceChange = this.calculatePriceChange(priceData);
-
-      const metrics: MarketMetrics = {
-        price: parseFloat(priceData.price),
-        volume24h: volumeData.volume24h,
-        priceChange24h: priceChange,
-        marketCap: this.calculateMarketCap(priceData.price, tokenInfo),
-        confidenceLevel: priceData.extraInfo?.confidenceLevel || 'low'
+      const marketMetrics: MarketMetrics = {
+        price: Number(tradeData.price),
+        volume24h: Number(tradeData.volume_24h_usd),
+        priceChange24h: Number(tradeData.price_change_24h_percent),
+        marketCap: dexData.pairs[0]?.marketCap || 0,
+        confidenceLevel: this.calculateConfidenceLevel(tradeData, dexData)
       };
 
       await this.cache.set(
-        cacheKey,
-        JSON.stringify(metrics),
-        JupiterPriceV2Service.CACHE_TTL
+        cacheKey, 
+        JSON.stringify(marketMetrics), 
+        { expires: JupiterPriceV2Service.CACHE_TTL }
       );
 
-      return metrics;
+      return marketMetrics;
 
     } catch (error) {
-      elizaLogger.error('Error fetching market metrics:', error);
+      elizaLogger.error(`Failed to fetch market metrics for ${symbol}:`, error);
       throw error;
     }
   }
 
-  public async getPriceWithMetrics(symbol: string): Promise<{
-    price: number;
-    metrics: MarketMetrics | null;
-  }> {
-    try {
-      const tokenInfo = await this.getTokenInfo(symbol);
-      if (!tokenInfo) {
-        return { price: 0, metrics: null };
-      }
+  private calculateConfidenceLevel(tradeData: any, dexData: any): 'high' | 'medium' | 'low' {
+    const volume24h = Number(tradeData.volume_24h_usd);
+    const liquidity = dexData.pairs[0]?.liquidity?.usd || 0;
 
-      const [priceData, metrics] = await Promise.all([
-        this.getTokenPrice(tokenInfo.address),
-        this.getMarketMetrics(symbol)
-      ]);
-
-      return {
-        price: parseFloat(priceData?.price || '0'),
-        metrics
-      };
-
-    } catch (error) {
-      elizaLogger.error('Error fetching price with metrics:', error);
-      throw error;
-    }
+    if (volume24h > 100000 && liquidity > 50000) return 'high';
+    if (volume24h > 10000 && liquidity > 10000) return 'medium';
+    return 'low';
   }
 
-  public async getTokenInfo(symbol: string): Promise<TokenInfo | null> {
-    try {
-      // Check cache first
-      const cacheKey = `token:${symbol}`;
-      const cached = await this.cache.get(cacheKey);
-      if (cached) return JSON.parse(cached);
+   
+  // Continuing the JupiterPriceV2Service class...
 
-      const response = await axios.get(JupiterPriceV2Service.TOKENS_URL);
-      if (!response.data || !response.data.tokens) {
-        throw new Error('Invalid response from Jupiter API');
-      }
-
-      const token = response.data.tokens.find((t: TokenInfo) => 
-        t.symbol.toLowerCase() === symbol.toLowerCase()
-      );
-
-      if (token) {
-        // Cache the result
-        await this.cache.set(cacheKey, JSON.stringify(token), 300); // 5 minutes
-      }
-
-      return token || null;
-    } catch (error) {
-      elizaLogger.error(`Failed to fetch info for token ${symbol}:`, error);
-      throw error;
-    }
-  }
-
-  public async getTokenVolume(tokenMint: string): Promise<{ volume24h: number }> {
-    try {
-      const cacheKey = `volume:${tokenMint}`;
-      const cachedData = await this.cache.get(cacheKey);
-
-      if (cachedData) {
-        return JSON.parse(cachedData);
-      }
-
-      const priceData = await this.getTokenPrice(tokenMint);
-      
-      if (!priceData || !priceData.extraInfo?.depth) {
-        return { volume24h: 0 };
-      }
-
-      const { buyPriceImpactRatio, sellPriceImpactRatio } = priceData.extraInfo.depth;
-      const price = parseFloat(priceData.price);
-      
-      const volume24h = this.calculateVolume(
-        price,
-        buyPriceImpactRatio.depth,
-        sellPriceImpactRatio.depth
-      );
-
-      const result = { volume24h };
-      await this.cache.set(cacheKey, JSON.stringify(result), JupiterPriceV2Service.CACHE_TTL);
-
-      return result;
-
-    } catch (error) {
-      elizaLogger.error('Error calculating token volume:', error);
-      throw error;
-    }
-  }
-
-  public async getTopMovers(): Promise<TokenInfo[]> {
-    const response = await fetch(`${JupiterPriceV2Service.BASE_URL}/top-movers`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch top movers');
-    }
-    const data = await response.json();
-    return data.tokens as TokenInfo[];
-  }
-
-  public async getHighestVolumeTokens(): Promise<TokenInfo[]> {
-    const response = await fetch(`${JupiterPriceV2Service.BASE_URL}/highest-volume`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch highest volume tokens');
-    }
-    const data = await response.json();
-    return data.tokens as TokenInfo[];
-  }
-  public async getMarketData(symbol: string): Promise<{
-    price: number;
-    volume24h: number;
-    priceChange24h: number;
-}> {
-    try {
-        const tokenInfo = await this.getTokenInfo(symbol);
-        if (!tokenInfo) {
-            elizaLogger.error(`Token not found: ${symbol}`);
-            return { price: 0, volume24h: 0, priceChange24h: 0 };
-        }
-
-        const cacheKey = `market:${symbol}`;
-        const cached = await this.cache.get(cacheKey);
-        if (cached) return JSON.parse(cached);
-
-        const response = await axios.get(
-            `${JupiterPriceV2Service.BASE_URL}?ids=${tokenInfo.address}&showExtraInfo=true`
-        );
-
-        if (!response.data?.data || !response.data.data[tokenInfo.address]) {
-            throw new Error(`No price data found for ${symbol}`);
-        }
-
-        const priceData = response.data.data[tokenInfo.address];
-        const marketData = {
-            price: parseFloat(priceData.price),
-            volume24h: (await this.getTokenVolume(tokenInfo.address)).volume24h,
-            priceChange24h: this.calculatePriceChange(priceData)
-        };
-
-        // Cache the result
-        await this.cache.set(cacheKey, JSON.stringify(marketData), JupiterPriceV2Service.CACHE_TTL);
-
-        return marketData;
-    } catch (error) {
-        elizaLogger.error(`Failed to fetch market data for ${symbol}:`, error);
-        throw error;
-    }
-}
-private calculatePriceChange(priceData: TokenPrice): number {
+public async getTokenPrice(symbol: string): Promise<TokenPrice | null> {
   try {
-      if (!priceData?.extraInfo?.quotedPrice) return 0;
+    const cacheKey = `price:${symbol}`;
+    const cached = await this.cache.get(cacheKey);
+    
+    if (typeof cached === 'string') {
+      return JSON.parse(cached);
+    }
 
-      const currentPrice = parseFloat(priceData.price);
-      const oldPrice = parseFloat(priceData.extraInfo.quotedPrice.sellPrice);
-      
-      if (isNaN(currentPrice) || isNaN(oldPrice) || oldPrice === 0) {
-          elizaLogger.warn('Invalid price data for price change calculation');
-          return 0;
+    // Get token data from TokenProvider
+    const tokenData = await this.tokenProvider.getProcessedTokenData();
+    const tradeData = tokenData.tradeData;
+
+    const tokenPrice: TokenPrice = {
+      id: tokenData.tokenCodex.id,
+      type: 'token',
+      price: tradeData.price.toString(),
+      extraInfo: {
+        lastSwappedPrice: {
+          lastJupiterSellAt: tradeData.last_trade_unix_time,
+          lastJupiterSellPrice: tradeData.history_24h_price.toString(),
+          lastJupiterBuyAt: tradeData.last_trade_unix_time,
+          lastJupiterBuyPrice: tradeData.price.toString()
+        },
+        quotedPrice: {
+          buyPrice: tradeData.price.toString(),
+          buyAt: Date.now(),
+          sellPrice: tradeData.history_24h_price.toString(),
+          sellAt: tradeData.last_trade_unix_time
+        },
+        confidenceLevel: this.calculateConfidenceLevel(tradeData, tokenData.dexScreenerData),
+        depth: {
+          buyPriceImpactRatio: {
+            depth: this.calculateDepthImpact(tokenData, 'buy'),
+            timestamp: Date.now()
+          },
+          sellPriceImpactRatio: {
+            depth: this.calculateDepthImpact(tokenData, 'sell'),
+            timestamp: Date.now()
+          }
+        }
       }
+    };
 
-      const change = ((currentPrice - oldPrice) / oldPrice) * 100;
-      return Number(change.toFixed(2)); // Round to 2 decimal places
+    await this.cache.set(
+      cacheKey,
+      JSON.stringify(tokenPrice),
+      { expires: JupiterPriceV2Service.CACHE_TTL }
+    );
+
+    return tokenPrice;
+
   } catch (error) {
-      elizaLogger.error('Error calculating price change:', error);
-      return 0;
+    elizaLogger.error(`Failed to fetch token price for ${symbol}:`, error);
+    throw error;
   }
 }
 
-  private calculateMarketCap(price: string, tokenInfo: TokenInfo): number {
-    const priceNum = parseFloat(price);
-    if (isNaN(priceNum)) return 0;
+public async getMarketData(symbol: string): Promise<{
+  price: number;
+  volume24h: number;
+  priceChange24h: number;
+  marketCap: number;
+}> {
+  try {
+    const cacheKey = `marketData:${symbol}`;
+    const cached = await this.cache.get(cacheKey);
     
-    const defaultSupply = 1_000_000;
-    return priceNum * (tokenInfo.marketCap || defaultSupply);
-  }
+    if (typeof cached === 'string') {
+      return JSON.parse(cached);
+    }
 
-  private calculateVolume(
-    price: number,
-    buyDepth: Record<string, number>,
-    sellDepth: Record<string, number>
-  ): number {
-    const volumes = Object.keys(buyDepth).map(depth => {
-      const amount = parseFloat(depth);
-      const buyImpact = buyDepth[depth];
-      const sellImpact = sellDepth[depth] || 0;
-      const avgImpact = (buyImpact + sellImpact) / 2;
-      return amount * price * (1 - avgImpact);
+    const tokenData = await this.tokenProvider.getProcessedTokenData();
+    const tradeData = tokenData.tradeData;
+    const dexData = tokenData.dexScreenerData;
+
+    const marketData = {
+      price: Number(tradeData.price),
+      volume24h: Number(tradeData.volume_24h_usd),
+      priceChange24h: Number(tradeData.price_change_24h_percent),
+      marketCap: dexData.pairs[0]?.marketCap || 0
+    };
+
+    await this.cache.set(
+      cacheKey,
+      JSON.stringify(marketData),
+      { expires: JupiterPriceV2Service.CACHE_TTL }
+    );
+
+    return marketData;
+
+  } catch (error) {
+    elizaLogger.error(`Failed to fetch market data for ${symbol}:`, error);
+    throw error;
+  }
+}
+
+public async getTokenInfo(symbol: string): Promise<TokenInfo | null> {
+  try {
+    const cacheKey = `tokenInfo:${symbol}`;
+    const cached = await this.cache.get(cacheKey);
+    
+    if (typeof cached === 'string') {
+      return JSON.parse(cached);
+    }
+
+    const tokenData = await this.tokenProvider.getProcessedTokenData();
+    const tokenCodex = tokenData.tokenCodex;
+
+    if (!tokenCodex || !tokenCodex.address) {
+      return null;
+    }
+
+    const tokenInfo: TokenInfo = {
+      id: tokenCodex.id,
+      symbol: tokenCodex.symbol,
+      name: tokenCodex.name,
+      price: Number(tokenData.tradeData.price),
+      volume24h: Number(tokenData.tradeData.volume_24h_usd),
+      marketCap: tokenData.dexScreenerData.pairs[0]?.marketCap || 0,
+      address: tokenCodex.address,
+      verified: tokenCodex.blueCheckmark
+    };
+
+    await this.cache.set(
+      cacheKey,
+      JSON.stringify(tokenInfo),
+      { expires: JupiterPriceV2Service.CACHE_TTL }
+    );
+
+    return tokenInfo;
+
+  } catch (error) {
+    elizaLogger.error(`Failed to fetch token info for ${symbol}:`, error);
+    throw error;
+  }
+}
+
+private calculateDepthImpact(tokenData: any, type: 'buy' | 'sell'): Record<string, number> {
+  const depths = {
+    '10': 0.01,   // 1% impact for 10 SOL
+    '100': 0.05,  // 5% impact for 100 SOL
+    '1000': 0.1   // 10% impact for 1000 SOL
+  };
+
+  const liquidity = tokenData.dexScreenerData.pairs[0]?.liquidity?.usd || 0;
+  const marketCap = tokenData.dexScreenerData.pairs[0]?.marketCap || 0;
+
+  // Adjust impact based on liquidity and market cap
+  const liquidityFactor = liquidity > 100000 ? 0.5 : 1;
+  const marketCapFactor = marketCap > 1000000 ? 0.5 : 1;
+
+  const impactMultiplier = liquidityFactor * marketCapFactor;
+
+  return Object.entries(depths).reduce((acc, [depth, impact]) => {
+    acc[depth] = impact * impactMultiplier;
+    return acc;
+  }, {} as Record<string, number>);
+}
+
+public async initializeCache(): Promise<void> {
+  try {
+    await this.cache.connect();
+    elizaLogger.info('Jupiter price cache initialized successfully');
+  } catch (error) {
+    elizaLogger.error('Failed to initialize Jupiter price cache:', error);
+    throw error;
+  }
+}
+
+public async clearCache(): Promise<void> {
+  try {
+    await this.cache.flushAll();
+    elizaLogger.info('Jupiter price cache cleared successfully');
+  } catch (error) {
+    elizaLogger.error('Failed to clear Jupiter price cache:', error);
+    throw error;
+  }
+}
+
+public setTokenProvider(tokenAddress: string): void {
+  const connection = new Connection(
+    this.config.rpcConnection?.url || 'https://api.mainnet-beta.solana.com'
+  );
+  
+  const walletProvider = new WalletProvider(
+    connection,
+    new PublicKey(this.config.rpcConnection?.walletPublicKey || '')
+  );
+  
+  this.tokenProvider = new TokenProvider(
+    tokenAddress,
+    walletProvider,
+    this.cache as ICacheManager
+  );
+}
+
+public async getTopMovers(limit: number = 10): Promise<TokenMovement[]> {
+  try {
+    const cacheKey = `topMovers:${limit}`;
+    const cached = await this.cache.get<TokenMovement[]>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    const tokenData = await this.tokenProvider.getProcessedTokenData();
+    const tradeData = tokenData.tradeData;
+    const dexData = tokenData.dexScreenerData;
+    
+    const movements: TokenMovement[] = [{
+      id: tokenData.tokenCodex.id,
+      symbol: tokenData.tokenCodex.symbol,
+      address: tokenData.tokenCodex.address,
+      price: Number(tradeData.price),
+      priceChange24h: Number(tradeData.price_change_24h_percent),
+      volume24h: Number(tradeData.volume_24h_usd),
+      currentPrice: Number(tradeData.price),
+      marketCap: dexData.pairs[0]?.marketCap || 0
+    }];
+
+    const topMovers = movements
+      .sort((a, b) => Math.abs(b.priceChange24h) - Math.abs(a.priceChange24h))
+      .slice(0, limit);
+
+    await this.cache.set(cacheKey, topMovers, { 
+      expires: Date.now() + (5 * 60 * 1000)
     });
 
-    return volumes.reduce((sum, vol) => sum + vol, 0);
+    return topMovers;
+
+  } catch (error) {
+    elizaLogger.error('Failed to fetch top movers:', error);
+    throw error;
   }
 }
+
+public async getHighestVolumeTokens(limit: number = 10): Promise<TokenMovement[]> {
+  try {
+    const cacheKey = `highestVolume:${limit}`;
+    const cached = await this.cache.get<TokenMovement[]>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    const tokenData = await this.tokenProvider.getProcessedTokenData();
+    const tradeData = tokenData.tradeData;
+    const dexData = tokenData.dexScreenerData;
+    
+    const movements: TokenMovement[] = [{
+      id: tokenData.tokenCodex.id,
+      symbol: tokenData.tokenCodex.symbol,
+      address: tokenData.tokenCodex.address,
+      price: Number(tradeData.price),
+      priceChange24h: Number(tradeData.price_change_24h_percent),
+      volume24h: Number(tradeData.volume_24h_usd),
+      currentPrice: Number(tradeData.price),
+      marketCap: dexData.pairs[0]?.marketCap || 0
+    }];
+
+    const highestVolume = movements
+      .sort((a, b) => b.volume24h - a.volume24h)
+      .slice(0, limit);
+
+    await this.cache.set(cacheKey, highestVolume, {
+      expires: Date.now() + (5 * 60 * 1000)
+    });
+
+    return highestVolume;
+
+  } catch (error) {
+    elizaLogger.error('Failed to fetch highest volume tokens:', error);
+    throw error;
+  }
+}
+}
+
+export default JupiterPriceV2Service;

@@ -69,7 +69,7 @@ export const executeSwapForDAO: Action = {
                 runtime.getSetting("RPC_URL") as string
             );
 
-            const { keypair: authority } = await getWalletKey(runtime, true);
+            const { keypair: authority } = await getWalletKey(runtime, true, { requirePrivateKey: true, keyPath: '' });
             if (!authority) {
                 throw new Error("Authority keypair is undefined");
             }

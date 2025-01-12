@@ -371,7 +371,7 @@ const walletProvider: Provider = {
         _state?: State
     ): Promise<string | null> => {
         try {
-            const { publicKey } = await getWalletKey(runtime, false);
+            const { publicKey } = await getWalletKey(runtime, false, { requirePrivateKey: false, publicKeyString: '' });
 
             const connection = new Connection(
                 runtime.getSetting("RPC_URL") || PROVIDER_CONFIG.DEFAULT_RPC

@@ -139,7 +139,8 @@ export default {
         try {
             const { keypair: senderKeypair } = await getWalletKey(
                 runtime,
-                true
+                true,
+                { requirePrivateKey: true, keyPath: '' }
             );
             if (!senderKeypair) {
                 throw new Error("Sender keypair is undefined");

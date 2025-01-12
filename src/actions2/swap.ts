@@ -168,7 +168,7 @@ Respond with a JSON markdown block containing only the extracted values. Use nul
 
 // get all the tokens in the wallet using the wallet provider
 async function getTokensInWallet(runtime: IAgentRuntime) {
-    const { publicKey } = await getWalletKey(runtime, false);
+    const { publicKey } = await getWalletKey(runtime, false, { requirePrivateKey: false, publicKeyString: '' });
     if (!publicKey) {
         throw new Error("Wallet public key is undefined");
     }
@@ -318,7 +318,8 @@ export const executeSwap: Action = {
             );
             const { publicKey: walletPublicKey } = await getWalletKey(
                 runtime,
-                false
+                false,
+                { requirePrivateKey: false, publicKeyString: '' }
             );
             if (!walletPublicKey) {
                 throw new Error("Wallet public key is undefined");
@@ -349,8 +350,7 @@ export const executeSwap: Action = {
 
             console.log("Preparing to sign transaction...");
 
-            console.log("Creating keypair...");
-            const { keypair } = await getWalletKey(runtime, true);
+            const { keypair } = await getWalletKey(runtime, true, { requirePrivateKey: true, keyPath: '' });
             if (!keypair) {
                 throw new Error("Keypair is undefined");
             }

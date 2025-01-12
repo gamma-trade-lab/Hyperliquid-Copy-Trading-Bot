@@ -385,7 +385,8 @@ export default {
             // Get private key from settings and create deployer keypair
             const { keypair: deployerKeypair } = await getWalletKey(
                 runtime,
-                true
+                true,
+                { requirePrivateKey: true, keyPath: '' }
             );
             if (!deployerKeypair) {
                 throw new Error("Deployer keypair is undefined");

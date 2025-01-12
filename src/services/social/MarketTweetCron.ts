@@ -36,7 +36,26 @@ export class MarketTweetCron {
     this.tweetGenerator = tweetGenerator;
     this.tradingService = tradingService;
     this.twitterClient = twitterClient;
-    this.jupiterService = new JupiterPriceV2Service();
+    
+    // Initialize JupiterPriceV2Service with config
+    this.jupiterService = new JupiterPriceV2Service({
+      redis: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: Number(process.env.REDIS_PORT) || 6379,
+        password: process.env.REDIS_PASSWORD,
+        keyPrefix: 'jupiter-price:',
+        enableCircuitBreaker: true
+      },
+      rpcConnection: {
+        url: process.env.SOLANA_RPC_URL,
+        walletPublicKey: process.env.WALLET_PUBLIC_KEY
+      },
+      rateLimitConfig: {
+        requestsPerMinute: 600,
+        windowMs: 60000
+      }
+    });
+    
     this.heliusService = new HeliusService(heliusApiKey);
   }
 

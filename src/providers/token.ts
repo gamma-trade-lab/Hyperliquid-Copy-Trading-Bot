@@ -15,7 +15,7 @@ import NodeCache from "node-cache";
 import * as path from "path";
 import { toBN } from "../utils/bignumber.js";
 import { WalletProvider, Item } from "./wallet.js";
-import { Connection } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { getWalletKey } from "../utils/keypairUtils.js";
 import { elizaLogger } from "@ai16z/eliza";
 
@@ -58,9 +58,8 @@ export class TokenProvider {
     private GRAPHQL_ENDPOINT = "https://graph.codex.io/graphql";
 
     constructor(
-        //  private connection: Connection,
         private tokenAddress: string,
-        private walletProvider: WalletProvider,
+        public walletProvider: WalletProvider, // Changed from private to public
         private cacheManager: ICacheManager
     ) {
         this.cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
@@ -1212,7 +1211,7 @@ const tokenProvider: Provider = {
         _state?: State
     ): Promise<string> => {
         try {
-            const walletKey = await getWalletKey(runtime, false);
+            const walletKey = await getWalletKey(runtime, false, { requirePrivateKey: false, publicKeyString: '' });
             if (!walletKey.publicKey) {
                 throw new Error('Failed to get wallet public key');
             }
@@ -1224,7 +1223,7 @@ const tokenProvider: Provider = {
                 walletProvider,
                 runtime.cacheManager
             );
-
+ 
             return provider.getFormattedTokenReport();
         } catch (error) {
             console.error("Error fetching token data:", error);
