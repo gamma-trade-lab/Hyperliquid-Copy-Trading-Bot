@@ -13,6 +13,7 @@ import { createInterface } from 'readline';
 import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext } from './services/blockchain/types';
 import { SocialMetrics } from './services/social';
 
+import { WalletProvider, walletProvider } from "./providers/wallet";
 import {
     IAgentRuntime,
     elizaLogger} from "@ai16z/eliza";
@@ -95,6 +96,34 @@ async function initializeServices() {
       dataProcessor
     );
 
+    // Initialize WalletProvider
+    const walletProviderInstance = new WalletProvider(
+      new Connection(CONFIG.SOLANA.RPC_URL),
+      new PublicKey(CONFIG.SOLANA.PUBLIC_KEY)
+    );
+
+    // Initialize TokenProvider
+    // Create cache adapter that implements ICacheManager
+    const cacheAdapter = {
+      async get<T>(key: string): Promise<T | undefined> {
+        return cache.get(key);
+      },
+      async set<T>(key: string, value: T, options?: any): Promise<void> {
+        cache.set(key, value, options?.ttl);
+      },
+      async delete(key: string): Promise<void> {
+        cache.del(key);
+      }
+    };
+
+    const cache = new NodeCache();
+    const tokenProvider = new TokenProvider(
+      tokenAddresses[0],
+      walletProviderInstance,
+      cacheAdapter,  // Use the adapter instead of raw cache
+      { apiKey: CONFIG.SOLANA.RPC_URL } // Pass the correct configuration object
+    );
+
     // Initialize JupiterPriceV2Service
     const jupiterPriceService = new JupiterPriceV2Service({
       redis: {
@@ -107,14 +136,27 @@ async function initializeServices() {
       rateLimitConfig: {
         requestsPerMinute: 600,
         windowMs: 60000
+      },
+      rpcConnection: {
+        url: CONFIG.SOLANA.RPC_URL,
+        walletPublicKey: CONFIG.SOLANA.PUBLIC_KEY
       }
-    });
+    }, tokenProvider); // Pass the tokenProvider argument
+
+    // Initialize ChatService
+    const chatService = new ChatService(
+      aiService,
+      twitterService,
+      jupiterPriceService,
+      tokenProvider // Add this argument
+    );
 
     return {
       dataProcessor,
       aiService,
       twitterService,
-      jupiterPriceService
+      jupiterPriceService,
+      chatService
     };
   } catch (error) {
     elizaLogger.error('Failed to initialize services:', error);
@@ -253,7 +295,10 @@ class MemeAgentInfluencer {
 
   private async initializeSolana(): Promise<void> {
     try {
-      this.connection = new Connection(CONFIG.SOLANA.RPC_URL);
+      this.connection = new Connection(CONFIG.SOLANA.RPC_URL, { 
+        commitment: 'confirmed',
+        disableRetryOnRateLimit: false
+      });
       const version = await this.connection.getVersion();
       console.log('Solana connection established:', version);
 
@@ -556,8 +601,9 @@ class MemeAgentInfluencer {
 
         const command: AgentCommand = {
           ...parsedCommand,
-          type: parsedCommand.command,
-          raw: message.content
+          type: parsedCommand.type,
+          raw: message.content,
+          command: ''
         };
 
         await this.handleCommand(command, {
@@ -953,7 +999,8 @@ import { JupiterPriceV2Service } from './services/blockchain/defi/JupiterPriceV2
 import axios from 'axios';
 import { ChatService, Mode } from './services/chat';
 import { number, string } from 'yargs';
-
+import { tokenProvider, TokenProvider } from './providers/token';
+import NodeCache from 'node-cache';
 
 loadConfig();
 
@@ -1190,13 +1237,41 @@ async function startChat(this: MemeAgentInfluencer, services: ServiceConfig): Pr
     rateLimitConfig: {
       requestsPerMinute: 600,
       windowMs: 60000
+    },
+    rpcConnection: {
+      url: CONFIG.SOLANA.RPC_URL,
+      walletPublicKey: CONFIG.SOLANA.PUBLIC_KEY
     }
-  });
+  }, tokenProvider);
   
+  const walletProviderInstance = new WalletProvider(
+    new Connection(CONFIG.SOLANA.RPC_URL),
+    new PublicKey(CONFIG.SOLANA.PUBLIC_KEY)
+  );
+
+  const cache = new NodeCache();
+  const cacheAdapter = {
+    async get<T>(key: string): Promise<T | undefined> {
+      return cache.get(key);
+    },
+    async set<T>(key: string, value: T, options?: any): Promise<void> {
+      cache.set(key, value, options?.ttl);
+    },
+    async delete(key: string): Promise<void> {
+      cache.del(key);
+    }
+  };
+
   const chatService = new ChatService(
     aiService,
     twitterService,
-    jupiterService
+    jupiterService,
+    new TokenProvider(
+      this.tokenAddress,
+      walletProviderInstance,
+      cacheAdapter,
+      { apiKey: CONFIG.SOLANA.RPC_URL }
+    )
   );
   await chatService.start();
 }
@@ -1325,35 +1400,34 @@ async function main(this: any) {
             volatilityThreshold: parseFloat(process.env.VOLATILITY_THRESHOLD!),
           },
           tokenAddresses:  [`https://api.jup.ag/price/v2?ids=${this.tokenAddress}`],
-           baseUrl: 'https://api.twitter.com'
+          baseUrl: 'https://api.twitter.com'
         }, aiService!, dataProcessor),
         new JupiterPriceV2Service({
           redis: {
             host: process.env.REDIS_HOST,
             port: Number(process.env.REDIS_PORT),
-          
             keyPrefix: 'jupiter-price:',
             enableCircuitBreaker: true
           },
           rateLimitConfig: {
             requestsPerMinute: 600,
             windowMs: 60000
-          }
-        })
-      ),
-        jupiterPriceService: new JupiterPriceV2Service({
-          redis: {
-            host: process.env.REDIS_HOST,
-            port: Number(process.env.REDIS_PORT),
-            
-            keyPrefix: 'jupiter-price:',
-            enableCircuitBreaker: true
           },
-          rateLimitConfig: {
-            requestsPerMinute: 600,
-            windowMs: 60000
+          rpcConnection: {
+            url: CONFIG.SOLANA.RPC_URL,
+            walletPublicKey: CONFIG.SOLANA.PUBLIC_KEY
           }
-        }),
+        }, tokenProvider),
+        new TokenProvider(
+          this.tokenAddress,
+          new WalletProvider(
+            new Connection(CONFIG.SOLANA.RPC_URL),
+            new PublicKey(CONFIG.SOLANA.PUBLIC_KEY)
+          ),
+          cacheAdapter,
+          { apiKey: CONFIG.SOLANA.RPC_URL }
+        )
+      )
     };
     await cleanup(emptyServices);
     process.exit(1);
@@ -1371,8 +1445,30 @@ function setupCleanupHandlers(services: ServiceConfig) {
   process.on('SIGTERM', handleShutdown);
 }
 
+// Define cache adapter interface
+interface ICacheAdapter {
+  get<T>(key: string): Promise<T | undefined>;
+  set<T>(key: string, value: T, options?: any): Promise<void>;
+  delete(key: string): Promise<void>;
+}
+
+// Create singleton cache instance
+const cache = new NodeCache();
+const cacheAdapter: ICacheAdapter = {
+  async get<T>(key: string): Promise<T | undefined> {
+    return cache.get(key);
+  },
+  async set<T>(key: string, value: T, options?: any): Promise<void> {
+    cache.set(key, value, options?.ttl);
+  },
+  async delete(key: string): Promise<void> {
+    cache.del(key);
+  }
+};
+
 async function cleanup(services: ServiceConfig) {
   try {
+
     if (services.chatService) {
       await services.chatService.stop();
     }

@@ -1,6 +1,7 @@
 // src/utils/config-validator.ts
 import { PublicKey } from '@solana/web3.js';
 import { NetworkType } from '../config/constants.js';
+import { elizaLogger } from "@ai16z/eliza";
 
 export function validatePrivateKey(privateKey: string): boolean {
   try {
@@ -16,33 +17,46 @@ export function validatePrivateKey(privateKey: string): boolean {
   }
 }
 
-export function validateConfig(config: any): void {
-  const requiredFields: { [key: string]: (value: any) => boolean } = {
-    'SOLANA.NETWORK': (v: string) => Object.values(NetworkType).includes(v as NetworkType),
-    'SOLANA.RPC_URL': (v: string) => v.startsWith('http'),
-    'SOLANA.PRIVATE_KEY': validatePrivateKey,
-    'SOLANA.PUBKEY': (v: string) => {
-      try {
-        new PublicKey(v);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    'SOLANA.TOKEN_SETTINGS.DECIMALS': (v: number) => !isNaN(v) && v >= 0,
-    'SOLANA.TRADING.BASE_AMOUNT': (v: number) => !isNaN(v) && v > 0,
-    'SOLANA.TRADING.MIN_CONFIDENCE': (v: number) => !isNaN(v) && v >= 0 && v <= 1,
-    'SOLANA.TRADING.SLIPPAGE': (v: number) => !isNaN(v) && v >= 0 && v <= 1,
-    'AI.GROQ.MAX_TOKENS': (v: number) => !isNaN(v) && v > 0,
-    'AUTOMATION.CONTENT_GENERATION_INTERVAL': (v: number) => !isNaN(v) && v > 0,
-    'AUTOMATION.MARKET_MONITORING_INTERVAL': (v: number) => !isNaN(v) && v > 0,
-    'AUTOMATION.COMMUNITY_ENGAGEMENT_INTERVAL': (v: number) => !isNaN(v) && v > 0
-  };
+function isValidPublicKey(key: string): boolean {
+  try {
+    new PublicKey(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-  for (const [path, validator] of Object.entries(requiredFields)) {
-    const value = path.split('.').reduce((obj, key) => obj?.[key], config);
-    if (value === undefined || !validator(value)) {
-      throw new Error(`Invalid configuration for ${path}`);
+export function validateConfig(config: any, path = ''): void {
+  if (path === 'SOLANA') {
+    // Validate Solana configuration
+    if (!config.NETWORK) {
+      throw new Error('SOLANA.NETWORK is required');
     }
+
+    if (!config.RPC_URL) {
+      throw new Error('SOLANA.RPC_URL is required');
+    }
+
+    if (!config.PUBLIC_KEY || !isValidPublicKey(config.PUBLIC_KEY)) {
+      throw new Error('Invalid SOLANA.PUBLIC_KEY');
+    }
+
+    if (!config.PRIVATE_KEY) {
+      throw new Error('SOLANA.PRIVATE_KEY is required');
+    }
+
+    if (!config.helius?.API_KEY) {
+      throw new Error('SOLANA.helius.API_KEY is required');
+    }
+
+    return;
+  }
+
+  // Recursively validate nested objects
+  if (typeof config === 'object' && config !== null) {
+    Object.entries(config).forEach(([key, value]) => {
+      const newPath = path ? `${path}.${key}` : key;
+      validateConfig(value, newPath);
+    });
   }
 }

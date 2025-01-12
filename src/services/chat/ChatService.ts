@@ -11,10 +11,27 @@ import { ServiceMarketAnalysis, CommandResult } from '@/types/chat';
 import { TwitterCommands } from './TwitterCommands';
 import { TwitterService } from '../social/twitter';
 import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service';
-
+import { TokenProvider } from '../../providers/token';
 
 type MessageRole = 'user' | 'assistant' | 'system';
 type IntervalHandle = ReturnType<typeof setInterval>;
+
+interface MarketTweetData {
+  topic: string;
+  price: string;
+  volume: string;
+  priceChange: string;
+}
+
+interface IAIService extends AIService {
+  generateMarketTweet(data: MarketTweetData): Promise<string | null>;
+}
+
+declare module '../ai/ai' {
+  interface AIService {
+    generateMarketTweet(data: MarketTweetData): Promise<string | null>;
+  }
+}
 
 export class ChatService {
   private history: ChatHistoryManager;
@@ -23,6 +40,7 @@ export class ChatService {
   private aiService: AIService;
   private twitterService: TwitterService;
   private jupiterService: JupiterPriceV2Service;
+  private tokenProvider: TokenProvider;
   private twitterCommands: TwitterCommands;
   private isRunning: boolean = false;
   private autoModeInterval: IntervalHandle | null = null;
@@ -35,11 +53,13 @@ export class ChatService {
   constructor(
     aiService: AIService,
     twitterService: TwitterService,
-    jupiterService: JupiterPriceV2Service
+    jupiterService: JupiterPriceV2Service,
+    tokenProvider: TokenProvider // Add this argument
   ) {
     this.aiService = aiService;
     this.twitterService = twitterService;
     this.jupiterService = jupiterService;
+    this.tokenProvider = tokenProvider; // Assign this argument
     
     this.history = new ChatHistoryManager();
     this.modeManager = new ModeManager();
@@ -170,7 +190,13 @@ export class ChatService {
           description: 'Get latest market data',
           execute: async (args: string[]): Promise<void> => {
             try {
-              const marketData = await this.aiService.getMarketMetrics();
+              const symbol = args[0]?.toUpperCase();
+              if (!symbol) {
+                console.log('Please provide a token symbol');
+                return;
+              }
+
+              const marketData = await this.getMarketData(symbol);
               if (!marketData) {
                 console.log('Failed to fetch market data');
                 return;
@@ -186,7 +212,13 @@ export class ChatService {
           description: 'Analyze current market conditions',
           execute: async (args: string[]): Promise<void> => {
             try {
-              const marketData = await this.aiService.getMarketMetrics();
+              const symbol = args[0]?.toUpperCase();
+              if (!symbol) {
+                console.log('Please provide a token symbol');
+                return;
+              }
+
+              const marketData = await this.getMarketData(symbol);
               if (!marketData) {
                 console.log('Failed to fetch market data');
                 return;
@@ -201,6 +233,31 @@ export class ChatService {
               console.log('\nMarket Analysis:', analysis);
             } catch (error) {
               console.log('Error analyzing market');
+            }
+          }
+        },
+        {
+          name: 'tweet',
+          description: 'Post a tweet with market data',
+          execute: async (args: string[]): Promise<void> => {
+            try {
+              const symbol = args[0]?.toUpperCase();
+              if (!symbol) {
+                console.log('Please provide a token symbol');
+                return;
+              }
+
+              const tweetContent = await this.generateMarketDataTweet(symbol);
+
+              if (tweetContent === null) {
+                console.log('Failed to generate tweet content');
+                return;
+              }
+
+              await this.twitterService.postTweetWithRetry(tweetContent);
+              console.log('Tweet posted successfully!');
+            } catch (error) {
+              console.log('Error posting tweet');
             }
           }
         }
@@ -322,5 +379,61 @@ export class ChatService {
     this.readline.close();
     console.log('\nGoodbye! JENNA shutting down...');
     process.exit(0);
+  }
+
+  private async getMarketData(symbol: string): Promise<MarketData | null> {
+    try {
+      this.tokenProvider.setTokenAddress(symbol);
+      const tokenData = await this.tokenProvider.getProcessedTokenData();
+      const marketMetrics = await this.jupiterService.getMarketMetrics(symbol);
+
+      return {
+        price: marketMetrics.price,
+        volume24h: marketMetrics.volume24h,
+        priceChange24h: marketMetrics.priceChange24h,
+        marketCap: marketMetrics.marketCap,
+        lastUpdate: marketMetrics.lastUpdate,
+        tokenAddress: marketMetrics.tokenAddress,
+        topHolders: marketMetrics.topHolders,
+        volatility: marketMetrics.volatility,
+        holders: marketMetrics.holders,
+        onChainActivity: marketMetrics.onChainActivity,
+      };
+    } catch (error) {
+      elizaLogger.error(`Failed to fetch market data for ${symbol}:`, error);
+      return null;
+    }
+  }
+
+  private async generateMarketTweet(data: MarketTweetData): Promise<string | null> {
+    try {
+      const tweetContent = await this.aiService.generateMarketTweet(data);
+      return tweetContent;
+    } catch (error) {
+      elizaLogger.error('Error generating market tweet:', error);
+      return null;
+    }
+  }
+
+  // Helper method to generate market data tweet
+  public async generateMarketDataTweet(symbol: string): Promise<string | null> {
+    try {
+      const marketData = await this.getMarketData(symbol);
+      if (!marketData) {
+        return null;
+      }
+
+      const tweetData: MarketTweetData = {
+        topic: symbol,
+        price: marketData.price.toString(),
+        volume: marketData.volume24h.toString(),
+        priceChange: marketData.priceChange24h?.toString() || '0'
+      };
+
+      return this.generateMarketTweet(tweetData);
+    } catch (error) {
+      elizaLogger.error('Error generating market data tweet:', error);
+      return null;
+    }
   }
 }

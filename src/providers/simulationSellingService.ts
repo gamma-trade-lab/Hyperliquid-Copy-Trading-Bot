@@ -158,7 +158,8 @@ export class SimulationSellingService {
             const tokenProvider = new TokenProvider(
                 tokenAddress,
                 this.walletProvider,
-                this.runtime.cacheManager
+                this.runtime.cacheManager,
+                { apiKey: this.runtime.getSetting("API_KEY") || "" }
             );
 
             // Update sell details in the database
@@ -231,7 +232,8 @@ export class SimulationSellingService {
             const tokenProvider = new TokenProvider(
                 tokenPerformance.tokenAddress,
                 this.walletProvider,
-                this.runtime.cacheManager
+                this.runtime.cacheManager,
+                { apiKey: this.runtime.getSetting("API_KEY") || "" }
             );
             // const shouldTrade = await tokenProvider.shouldTradeToken();
             // if (shouldTrade) {
@@ -277,7 +279,8 @@ export class SimulationSellingService {
             const tokenProvider = new TokenProvider(
                 tokenPerformance.tokenAddress,
                 this.walletProvider,
-                this.runtime.cacheManager
+                this.runtime.cacheManager,
+                { apiKey: this.runtime.getSetting("API_KEY") || "" }
             );
             const balance = tokenPerformance.balance;
             const sell_recommender_id = recommenderId;

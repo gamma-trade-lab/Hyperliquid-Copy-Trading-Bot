@@ -70,8 +70,19 @@ interface GenerateResponseInput {
   };
 }
 
+interface MarketTweetData {
+  topic: string;
+  price: string;
+  volume: string;
+  priceChange: string;
+}
+
+export interface AIService {
+  generateMarketTweet(data: MarketTweetData): Promise<string | null>;
+}
+
 export class AIService implements IAIService {
-  generateMarketTweet(arg0: { topic: string; price: string; volume: any; priceChange: any; }) {
+  async generateMarketTweet(data: MarketTweetData): Promise<string | null> {
       throw new Error('Method not implemented.');
   }
   

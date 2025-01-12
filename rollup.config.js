@@ -31,10 +31,7 @@ export default {
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
       preventAssignment: true
     }),
-    resolve({
-      preferBuiltins: true,
-      extensions: ['.ts', '.js', '.json']
-    }),
+    resolve(),
     commonjs(),
     typescript({
       tsconfig: './tsconfig.json',

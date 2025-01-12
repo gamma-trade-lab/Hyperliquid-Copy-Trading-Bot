@@ -1,204 +1,309 @@
-// src/utils/parser.ts
-
 import { PublicKey } from '@solana/web3.js';
-import { CONFIG } from '../../src/config/settings.js';
+import { elizaLogger } from "@ai16z/eliza";
+import { CONFIG } from '../config/settings';
 
-interface ParsedCommand {
-   command: string;
-   args: string[];
-   flags: Record<string, string | boolean>;
+// Command Types
+export enum CommandType {
+    MARKET = 'market',
+    ANALYZE = 'analyze',
+    TRADE = 'trade',
+    TWEET = 'tweet',
+    THREAD = 'thread',
+    AUTO = 'auto',
+    STATUS = 'status',
+    HELP = 'help'
 }
 
-interface ParsedTransaction {
-   type: 'swap' | 'transfer' | 'stake' | 'liquidity';
-   amount: number;
-   tokenAddress?: string;
-   destination?: string;
-   slippage?: number;
+// Command Arguments Interface
+export interface CommandArgs {
+    symbol?: string;
+    amount?: number;
+    slippage?: number;
+    timeframe?: string;
+    limit?: number;
+    type?: string;
+    content?: string;
+    images?: string[];
+    options?: Record<string, any>;
+    raw?: string;
 }
 
-interface ParsedMarketData {
-   price: number;
-   volume: number;
-   marketCap: number;
-   change24h: number;
+// Parsed Command Interface
+export interface ParsedCommand {
+    type: CommandType;
+    args: CommandArgs;
+    raw: string;
+}
+
+// Market Data Interface
+export interface ParsedMarketData {
+    price: number;
+    volume24h: number;
+    marketCap: number;
+    priceChange24h: number;
+    holders?: number;
+    liquidity?: number;
+}
+
+// Transaction Types
+export enum TransactionType {
+    SWAP = 'swap',
+    BUY = 'buy',
+    SELL = 'sell'
+}
+
+// Transaction Request Interface
+export interface ParsedTransaction {
+    type: TransactionType;
+    inputToken: string;
+    outputToken: string;
+    amount: number;
+    slippage?: number;
+    options?: {
+        limit?: number;
+        timeout?: number;
+        maxImpact?: number;
+    };
 }
 
 export class Parser {
-   /**
-    * Parse social media commands
-    */
-   static parseCommand(message: string): ParsedCommand | null {
-       try {
-           // Remove extra spaces and split by space
-           const parts = message.trim().split(/\s+/);
-           
-           // Check if message starts with command prefix
-           if (!parts[0].startsWith(CONFIG.SOCIAL.DISCORD.COMMAND_PREFIX)) {
-               return null;
-           }
+    private static readonly TOKEN_REGEX = /^[A-Z0-9]{2,10}$/i;
+    private static readonly NUMBER_REGEX = /^-?\d*\.?\d+$/;
+    private static readonly ADDRESS_REGEX = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+    
+    /**
+     * Parse command from user input
+     */
+    static parseCommand(input: string): ParsedCommand | null {
+        try {
+            const parts = input.trim().toLowerCase().split(/\s+/);
+            if (parts.length === 0) return null;
 
-           const command = parts[0].slice(1).toLowerCase();
-           const args: string[] = [];
-           const flags: Record<string, string | boolean> = {};
+            const commandType = parts[0] as CommandType;
+            const args: CommandArgs = { raw: input };
 
-           // Parse arguments and flags
-           for (let i = 1; i < parts.length; i++) {
-               const part = parts[i];
-               
-               if (part.startsWith('--')) {
-                   // Long flag with value
-                   const flagParts = part.slice(2).split('=');
-                   flags[flagParts[0]] = flagParts[1] || true;
-               } else if (part.startsWith('-')) {
-                   // Short flag
-                   flags[part.slice(1)] = true;
-               } else {
-                   // Regular argument
-                   args.push(part);
-               }
-           }
+            switch (commandType) {
+                case CommandType.MARKET:
+                case CommandType.ANALYZE:
+                    return this.parseMarketCommand(commandType, parts.slice(1));
+                    
+                case CommandType.TRADE:
+                    return this.parseTradeCommand(parts.slice(1));
+                    
+                case CommandType.TWEET:
+                case CommandType.THREAD:
+                    return this.parseSocialCommand(commandType, parts.slice(1));
+                    
+                case CommandType.AUTO:
+                    return this.parseAutoCommand(parts.slice(1));
+                    
+                case CommandType.STATUS:
+                case CommandType.HELP:
+                    return { type: commandType, args: {}, raw: input };
+                    
+                default:
+                    return null;
+            }
+        } catch (error) {
+            elizaLogger.error('Error parsing command:', error);
+            return null;
+        }
+    }
 
-           return { command, args, flags };
-       } catch (error) {
-           console.error('Error parsing command:', error);
-           return null;
-       }
-   }
+    /**
+     * Parse market-related commands
+     */
+    private static parseMarketCommand(type: CommandType, args: string[]): ParsedCommand {
+        const symbol = args[0]?.toUpperCase();
+        if (!symbol || !this.isValidTokenSymbol(symbol)) {
+            throw new Error('Invalid token symbol');
+        }
 
-   /**
-    * Parse transaction requests from messages
-    */
-   static parseTransactionRequest(message: string): ParsedTransaction | null {
-       try {
-           const words = message.toLowerCase().split(/\s+/);
-           
-           // Identify transaction type
-           const transactionTypes = {
-               swap: ['swap', 'trade', 'exchange'],
-               transfer: ['send', 'transfer', 'give'],
-               stake: ['stake', 'staking', 'earn'],
-               liquidity: ['lp', 'pool', 'liquidity']
-           };
+        const timeframe = args[1]?.toLowerCase();
+        const validTimeframes = ['1h', '24h', '7d', '30d'];
+        
+        return {
+            type,
+            args: {
+                symbol,
+                timeframe: validTimeframes.includes(timeframe) ? timeframe : '24h',
+                options: this.parseOptions(args.slice(2))
+            },
+            raw: args.join(' ')
+        };
+    }
 
-           let type: ParsedTransaction['type'] | undefined;
-           for (const [txType, keywords] of Object.entries(transactionTypes)) {
-               if (keywords.some(keyword => words.includes(keyword))) {
-                   type = txType as ParsedTransaction['type'];
-                   break;
-               }
-           }
+    /**
+     * Parse trading commands
+     */
+    private static parseTradeCommand(args: string[]): ParsedCommand {
+        if (args.length < 3) throw new Error('Invalid trade command format');
 
-           if (!type) return null;
+        const [action, amountStr, symbol] = args;
+        const amount = this.parseNumber(amountStr);
+        
+        if (!amount || !this.isValidTokenSymbol(symbol)) {
+            throw new Error('Invalid amount or token symbol');
+        }
 
-           // Extract amount
-           const amountMatch = message.match(/\d+(\.\d+)?/);
-           if (!amountMatch) return null;
-           const amount = parseFloat(amountMatch[0]);
+        const options = this.parseOptions(args.slice(3));
+        return {
+            type: CommandType.TRADE,
+            args: {
+                type: action,
+                symbol: symbol.toUpperCase(),
+                amount,
+                slippage: options.slippage || CONFIG.SOLANA.TRADING.SLIPPAGE,
+                options
+            },
+            raw: args.join(' ')
+        };
+    }
 
-           // Extract token address if present
-           const addressMatch = message.match(/[1-9A-HJ-NP-Za-km-z]{32,44}/);
-           const tokenAddress = addressMatch ? addressMatch[0] : undefined;
+    /**
+     * Parse social media commands
+     */
+    private static parseSocialCommand(type: CommandType, args: string[]): ParsedCommand {
+        const content = args.join(' ');
+        if (!content) throw new Error('Content is required for social commands');
 
-           // Extract destination for transfers
-           const destination = type === 'transfer' ? this.extractAddress(message) : undefined;
+        return {
+            type,
+            args: {
+                content,
+                images: this.extractUrls(content)
+            },
+            raw: args.join(' ')
+        };
+    }
 
-           // Extract slippage for swaps
-           const slippageMatch = message.match(/slippage[:\s]+(\d+(\.\d+)?)/i);
-           const slippage = slippageMatch ? parseFloat(slippageMatch[1]) : undefined;
+    /**
+     * Parse automation commands
+     */
+    private static parseAutoCommand(args: string[]): ParsedCommand {
+        return {
+            type: CommandType.AUTO,
+            args: {
+                type: args[0] || 'status',
+                options: this.parseOptions(args.slice(1))
+            },
+            raw: args.join(' ')
+        };
+    }
 
-           return {
-               type,
-               amount,
-               tokenAddress,
-               destination,
-               slippage
-           };
-       } catch (error) {
-           console.error('Error parsing transaction request:', error);
-           return null;
-       }
-   }
+    /**
+     * Parse market data from various sources
+     */
+    static parseMarketData(data: any): ParsedMarketData {
+        try {
+            return {
+                price: this.parseNumber(data.price) || 0,
+                volume24h: this.parseNumber(data.volume24h) || 0,
+                marketCap: this.parseNumber(data.marketCap) || 0,
+                priceChange24h: this.parseNumber(data.priceChange24h) || 0,
+                holders: this.parseNumber(data.holders) ?? undefined,
+                liquidity: this.parseNumber(data.liquidity) ?? undefined
+            };
+        } catch (error) {
+            elizaLogger.error('Error parsing market data:', error);
+            throw new Error('Invalid market data format');
+        }
+    }
 
-   /**
-    * Parse market data from various sources
-    */
-   static parseMarketData(data: any): ParsedMarketData {
-       try {
-           return {
-               price: this.parseNumber(data.price),
-               volume: this.parseNumber(data.volume),
-               marketCap: this.parseNumber(data.marketCap),
-               change24h: this.parseNumber(data.change24h)
-           };
-       } catch (error) {
-           console.error('Error parsing market data:', error);
-           throw error;
-       }
-   }
+    /**
+     * Parse transaction from market data
+     */
+    static parseTransaction(input: string): ParsedTransaction {
+        try {
+            const parts = input.toLowerCase().split(/\s+/);
+            const type = parts[0] as TransactionType;
+            
+            if (!Object.values(TransactionType).includes(type)) {
+                throw new Error('Invalid transaction type');
+            }
 
-   /**
-    * Validate and parse Solana addresses
-    */
-   static validateAddress(address: string): PublicKey | null {
-       try {
-           return new PublicKey(address);
-       } catch {
-           return null;
-       }
-   }
+            const amount = this.parseNumber(parts[1]);
+            if (!amount) throw new Error('Invalid amount');
 
-   /**
-    * Extract token amount from text
-    */
-   static extractAmount(text: string): number | null {
-       const match = text.match(/(\d+(\.\d+)?)\s*(sol|usdc|$meme)/i);
-       if (!match) return null;
-       return parseFloat(match[1]);
-   }
+            const inputToken = parts[2]?.toUpperCase();
+            const outputToken = parts[4]?.toUpperCase();
+            
+            if (!this.isValidTokenSymbol(inputToken) || !this.isValidTokenSymbol(outputToken)) {
+                throw new Error('Invalid token symbols');
+            }
 
-   /**
-    * Format errors for user display
-    */
-   static formatError(error: any): string {
-       if (typeof error === 'string') return error;
-       if (error.message) return error.message;
-       return 'An unknown error occurred';
-   }
+            const options = this.parseOptions(parts.slice(5));
 
-   // Private helper methods
-   private static extractAddress(text: string): string | undefined {
-       const words = text.split(/\s+/);
-       for (const word of words) {
-           if (this.validateAddress(word)) {
-               return word;
-           }
-       }
-       return undefined;
-   }
+            return {
+                type,
+                inputToken,
+                outputToken,
+                amount,
+                slippage: options.slippage,
+                options
+            };
+        } catch (error) {
+            elizaLogger.error('Error parsing transaction:', error);
+            throw new Error('Invalid transaction format');
+        }
+    }
 
-   private static parseNumber(value: any): number {
-       if (typeof value === 'number') return value;
-       if (typeof value === 'string') return parseFloat(value);
-       return 0;
-   }
-}
+    /**
+     * Validate Solana address
+     */
+    static validateAddress(address: string): PublicKey | null {
+        try {
+            if (!this.ADDRESS_REGEX.test(address)) return null;
+            return new PublicKey(address);
+        } catch {
+            return null;
+        }
+    }
 
-// Example usage
-function example() {
-   // Parse command
-   const command = Parser.parseCommand('!trade 100 MEME --slippage=1.5');
-   console.log('Parsed Command:', command);
-   // Output: { command: 'trade', args: ['100', 'MEME'], flags: { slippage: '1.5' } }
+    // Helper methods
+    private static isValidTokenSymbol(symbol: string): boolean {
+        return this.TOKEN_REGEX.test(symbol);
+    }
 
-   // Parse transaction request
-   const transaction = Parser.parseTransactionRequest('swap 50 SOL to MEME with 1% slippage');
-   console.log('Parsed Transaction:', transaction);
-   // Output: { type: 'swap', amount: 50, slippage: 1 }
+    private static parseNumber(value: any): number | null {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string' && this.NUMBER_REGEX.test(value)) {
+            return parseFloat(value);
+        }
+        return null;
+    }
 
-   // Validate address
-   const address = Parser.validateAddress('YourSolanaAddress');
-   console.log('Valid Address:', address !== null);
+    private static parseOptions(args: string[]): Record<string, any> {
+        const options: Record<string, any> = {};
+        
+        for (let i = 0; i < args.length; i++) {
+            const arg = args[i];
+            if (arg.startsWith('--')) {
+                const [key, value] = arg.slice(2).split('=');
+                options[key] = value === undefined ? true : this.parseOptionValue(value);
+            }
+        }
+        
+        return options;
+    }
+
+    private static parseOptionValue(value: string): any {
+        if (this.NUMBER_REGEX.test(value)) return parseFloat(value);
+        if (value.toLowerCase() === 'true') return true;
+        if (value.toLowerCase() === 'false') return false;
+        return value;
+    }
+
+    private static extractUrls(text: string): string[] {
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        return text.match(urlRegex) || [];
+    }
+
+    static formatError(error: any): string {
+        if (typeof error === 'string') return error;
+        if (error instanceof Error) return error.message;
+        return 'An unknown error occurred';
+    }
 }
 
 export default Parser;

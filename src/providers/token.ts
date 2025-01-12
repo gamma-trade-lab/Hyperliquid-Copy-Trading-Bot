@@ -18,27 +18,31 @@ import { WalletProvider, Item } from "./wallet.js";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { getWalletKey } from "../utils/keypairUtils.js";
 import { elizaLogger } from "@ai16z/eliza";
+import { CONFIG } from '../config/settings';
 
 interface BirdeyeResponse<T> {
     success: boolean;
     data: T;
+    error?: string;
 }
 
 const PROVIDER_CONFIG = {
-    BIRDEYE_API: "https://public-api.birdeye.so",
+    BIRDEYE_API: "https://public-api.birdeye.so/defi/tokenlist?sort_by=v24hUSD&sort_type=desc&offset=0&limit=50&min_liquidity=100",
     MAX_RETRIES: 3,
     RETRY_DELAY: 2000,
     DEFAULT_RPC: "https://api.mainnet-beta.solana.com",
     TOKEN_ADDRESSES: {
         SOL: "So11111111111111111111111111111111111111112",
         BTC: "qfnqNqs3nCAHjnyCgLRDbBtq4p2MtHZxw8YjSyYhPoL",
-        ETH: "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs",
-        Example: "2weMjPLLybRMMva1fM3U31goWWrCpF59CHWNhnCJ9Vyh",
+        ETH: "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs"
     },
-    TOKEN_SECURITY_ENDPOINT: "/defi/token_security?address=",
-    TOKEN_TRADE_DATA_ENDPOINT: "/defi/v3/token/trade-data/single?address=",
-    DEX_SCREENER_API: "https://api.dexscreener.com/latest/dex/tokens/",
-    MAIN_WALLET: "",
+    TOKEN_SECURITY_ENDPOINT: "/token/security?address=",
+    TOKEN_TRADE_DATA_ENDPOINT: "/token/trade?address=",
+    HEADERS: {
+        'Accept': 'application/json',
+        'x-chain': 'solana',
+        'X-API-KEY': '***' // Will be set during runtime
+    }
 };
 
 interface TokenTradeResponse {
@@ -52,24 +56,48 @@ interface TokenTradeResponse {
 }
 
 export class TokenProvider {
+    private readonly BASE_URL = 'https://public-api.birdeye.so';
+    private readonly DEFAULT_HEADERS = {
+        'accept': 'application/json',
+        'x-chain': 'solana'
+    };
+    private readonly ENDPOINTS = {
+        PRICE: '/defi/price',
+        TOKEN_LIST: '/defi/tokenlist',
+        TOKEN_INFO: '/defi/token_info',
+        TOKEN_SECURITY: '/defi/token_security', 
+        TOKEN_TRADE_DATA: '/defi/token_trades'
+    };
     private cache: NodeCache;
     private cacheKey: string = "solana/tokens";
     private NETWORK_ID = 1399811149;
     private GRAPHQL_ENDPOINT = "https://graph.codex.io/graphql";
+    private apiKey: string;
+    config: any;
 
     constructor(
         private tokenAddress: string,
-        public walletProvider: WalletProvider, // Changed from private to public
-        private cacheManager: ICacheManager
+        public walletProvider: WalletProvider,
+        private cacheManager: ICacheManager,
+        config: { apiKey: string }
     ) {
+        this.apiKey = config.apiKey;
+        this.validateApiKey();
         this.cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
     }
 
-    private async readFromCache<T>(key: string): Promise<T | null> {
-        const cached = await this.cacheManager.get<T>(
-            path.join(this.cacheKey, key)
-        );
-        return cached || null;
+    // Add a method to set the token address dynamically
+    public setTokenAddress(tokenAddress: string): void {
+        this.tokenAddress = tokenAddress;
+    }
+
+    private async validateConfig<T>(key: string) {
+        if (!this.config.apiKey) {
+            const cached = await this.cacheManager.get<T>(
+                path.join(this.cacheKey, key)
+            );
+            return cached || null;
+        }
     }
 
     private async writeToCache<T>(key: string, data: T): Promise<void> {
@@ -96,50 +124,78 @@ export class TokenProvider {
         await this.writeToCache(cacheKey, data);
     }
 
-    private async fetchWithRetry<T>(
-        url: string,
-        options: RequestInit = {}
-    ): Promise<BirdeyeResponse<T>> {
-        let lastError: Error = new Error("Unknown error");
+    private async fetchWithRetry<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
+        const maxRetries = this.config.retryAttempts || 3;
+        const baseDelay = this.config.retryDelay || 2000;
+        const timeout = this.config.timeout || 10000;
 
-        for (let i = 0; i < PROVIDER_CONFIG.MAX_RETRIES; i++) {
+        // Build URL with parameters
+        const queryParams = new URLSearchParams(params).toString();
+        const url = `${this.BASE_URL}${endpoint}${queryParams ? '?' + queryParams : ''}`;
+
+        let lastError: Error | null = null;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
+                elizaLogger.info(`API Request Attempt ${attempt} to: ${url}`);
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+
                 const response = await fetch(url, {
-                    ...options,
-                    headers: {
-                        Accept: "application/json",
-                        "x-chain": "solana",
-                        "X-API-KEY": settings.BIRDEYE_API_KEY || "",
-                        ...options.headers,
-                    },
+                    method: 'GET',
+                    headers: new Headers({
+                        ...this.DEFAULT_HEADERS,
+                        'X-API-KEY': this.config.apiKey
+                    }),
+                    signal: controller.signal
                 });
+
+                clearTimeout(timeoutId);
+
+                // Check response content type
+                const contentType = response.headers.get('content-type');
+                if (contentType?.includes('text/html')) {
+                    throw new Error('Invalid API response: received HTML instead of JSON');
+                }
 
                 if (!response.ok) {
                     const errorText = await response.text();
-                    throw new Error(
-                        `HTTP error! status: ${response.status}, message: ${errorText}`
-                    );
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
                 }
 
                 const data = await response.json();
-                return data as BirdeyeResponse<T>;
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'API request failed');
+                }
+
+                return data as T;
+
             } catch (error) {
-                console.error(`Attempt ${i + 1} failed:`, error);
                 lastError = error as Error;
-                if (i < PROVIDER_CONFIG.MAX_RETRIES - 1) {
-                    const delay = PROVIDER_CONFIG.RETRY_DELAY * Math.pow(2, i);
-                    console.log(`Waiting ${delay}ms before retrying...`);
-                    await new Promise((resolve) => setTimeout(resolve, delay));
-                    continue;
+                elizaLogger.warn(`Attempt ${attempt} failed:`, error);
+
+                if (attempt < maxRetries) {
+                    const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), 10000);
+                    elizaLogger.info(`Waiting ${delay}ms before retrying...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
                 }
             }
         }
 
-        console.error(
-            "All attempts failed. Throwing the last error:",
-            lastError
-        );
-        throw lastError;
+        throw lastError || new Error('Request failed after all retry attempts');
+    }
+
+    // Add API key validation helper
+    private validateApiKey(): void {
+        if (!settings.BIRDEYE_API_KEY) {
+            throw new Error('BIRDEYE_API_KEY is required. Please set it in your environment variables.');
+        }
+    
+        if (!settings.HELIUS_API_KEY) {
+            throw new Error('HELIUS_API_KEY is required for holder data. Please set it in your environment variables.');
+        }
     }
 
     async getTokensInWallet(runtime: IAgentRuntime): Promise<Item[]> {
@@ -155,7 +211,7 @@ export class TokenProvider {
             const items = await this.getTokensInWallet(runtime);
             const token = items.find((item) => item.symbol === tokenSymbol);
 
-            if (token) {
+            if (token) { 
                 return token.address;
             } else {
                 return null;
@@ -269,6 +325,8 @@ export class TokenProvider {
             }
 
             interface PriceResponse {
+                success: any;
+                data: any;
                 value: number;
             }
 
@@ -282,12 +340,7 @@ export class TokenProvider {
 
             for (const token of tokens) {
                 const response = await this.fetchWithRetry<PriceResponse>(
-                    `${PROVIDER_CONFIG.BIRDEYE_API}/defi/price?address=${token}`,
-                    {
-                        headers: {
-                            "x-chain": "solana",
-                        },
-                    }
+                    `${PROVIDER_CONFIG.BIRDEYE_API}/defi/price?address=${token}`
                 );
 
                 if (response?.success && response?.data?.value) {
@@ -373,6 +426,8 @@ export class TokenProvider {
         }
 
         interface SecurityResponse {
+            success: any;
+            data: any;
             ownerBalance: string;
             creatorBalance: string;
             ownerPercentage: number;
@@ -486,7 +541,7 @@ export class TokenProvider {
             } as Record<string, string>,
         };
 
-        const response = await this.fetchWithRetry<TokenTradeResponse>(url, options);
+        const response = await this.fetchWithRetry<TokenTradeResponse>(url);
 
         if (!response?.success || !response?.data) {
             throw new Error("No token trade data available");
@@ -881,6 +936,7 @@ export class TokenProvider {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
+                        "x-chain": "solana",
                     },
                     body: JSON.stringify({
                         jsonrpc: "2.0",
@@ -1201,7 +1257,7 @@ export class TokenProvider {
     }
 }
 
-const tokenAddress = PROVIDER_CONFIG.TOKEN_ADDRESSES.Example;
+const tokenAddress = PROVIDER_CONFIG.TOKEN_ADDRESSES.SOL; // or BTC, ETH as needed
 
 const connection = new Connection(PROVIDER_CONFIG.DEFAULT_RPC);
 const tokenProvider: Provider = {
@@ -1221,7 +1277,8 @@ const tokenProvider: Provider = {
             const provider = new TokenProvider(
                 tokenAddress,
                 walletProvider,
-                runtime.cacheManager
+                runtime.cacheManager,
+                { apiKey: settings.BIRDEYE_API_KEY || '' }
             );
  
             return provider.getFormattedTokenReport();

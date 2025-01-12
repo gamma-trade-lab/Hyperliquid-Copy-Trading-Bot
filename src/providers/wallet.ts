@@ -53,12 +53,24 @@ interface Prices {
 
 export class WalletProvider {
     private cache: NodeCache;
+    public publicKey: PublicKey; // Add this property
+    public signTransaction: () => Promise<null>; // Add this property
+    public isConnected: boolean; // Add this property
+    public sendTransaction: () => Promise<{ signature: string }>; // Add this property
+    public connect: () => Promise<void>; // Add this property
+    public disconnect: () => Promise<void>; // Add this property
 
     constructor(
         private connection: Connection,
-        private walletPublicKey: PublicKey
+        public walletPublicKey: PublicKey // Ensure this is public
     ) {
         this.cache = new NodeCache({ stdTTL: 300 }); // Cache TTL set to 5 minutes
+        this.publicKey = walletPublicKey; // Initialize the publicKey property
+        this.signTransaction = async () => null; // Initialize the signTransaction property
+        this.isConnected = false; // Initialize the isConnected property
+        this.sendTransaction = async () => ({ signature: '' }); // Initialize the sendTransaction property
+        this.connect = async () => {}; // Initialize the connect property
+        this.disconnect = async () => {}; // Initialize the disconnect property
     }
 
     private async fetchWithRetry(

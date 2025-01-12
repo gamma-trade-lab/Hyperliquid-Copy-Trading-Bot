@@ -1,9 +1,17 @@
+import 'reflect-metadata';  // Add this at the top
+import { injectable, inject } from 'tsyringe'; // Use a proper DI container
 import { TokenProvider } from '../../../providers/token';
 import { RedisService } from '../../market/data/RedisCache';
 import { elizaLogger } from "@ai16z/eliza";
 import { Connection, PublicKey, PublicKeyInitData } from '@solana/web3.js';
 import { WalletProvider } from '../../../providers/wallet';
 import { ICacheManager } from '@elizaos/core';
+import { Tool } from "@goat-sdk/core";
+import { SolanaWalletClient } from "@goat-sdk/wallet-solana";
+
+import { VersionedTransaction } from "@solana/web3.js";
+import { GetQuoteParameters } from './jupiterParameters';
+
 
 // Required interfaces
 export interface TokenPrice {
@@ -39,6 +47,13 @@ export interface TokenPrice {
 }
 
 export interface MarketMetrics {
+  holders: { total: number; top: { address: string; balance: number; percentage: number; }[]; };
+  onChainActivity: { transactions: number; swaps: number; uniqueTraders: number; };
+  lastUpdate: number;
+  tokenAddress: string;
+  topHolders: { address: string; balance: number; }[];
+  volatility: { currentVolatility: number; averageVolatility: number; adjustmentFactor: number; };
+  liquidity: any;
   price: number;
   volume24h: number;
   priceChange24h: number;
@@ -87,26 +102,80 @@ export interface TokenMovement {
   marketCap: number;   // Added
 }
 
+export class JupiterService {
+    private readonly baseUrl = "https://quote-api.jup.ag";
+
+    @Tool({
+        description: "Get a quote for a swap on the Jupiter DEX",
+    })
+    async getQuote(parameters: GetQuoteParameters) {
+        const url = `${this.baseUrl}/v1/quote?${new URLSearchParams(parameters as any).toString()}`;
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            throw new Error(`Failed to get quote: ${error}`);
+        }
+    }
+
+    @Tool({
+        description: "Swap an SPL token for another token on the Jupiter DEX",
+    })
+    async swapTokens(walletClient: SolanaWalletClient, parameters: GetQuoteParameters) {
+        const quoteResponse = await this.getQuote(parameters);
+
+        const swapRequest = {
+            userPublicKey: walletClient.getAddress(),
+            quoteResponse: quoteResponse,
+            dynamicComputeUnitLimit: true,
+            prioritizationFeeLamports: "auto",
+        };
+
+        const response = await fetch(`${this.baseUrl}/v1/swap`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(swapRequest),
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const { swapTransaction } = await response.json();
+        const versionedTransaction = VersionedTransaction.deserialize(Buffer.from(swapTransaction, "base64"));
+        const instructions = await walletClient.decompileVersionedTransactionToInstructions(versionedTransaction);
+
+        const { hash } = await walletClient.sendTransaction({
+            instructions,
+            addressLookupTableAddresses: versionedTransaction.message.addressTableLookups.map((lookup) =>
+                lookup.accountKey.toBase58(),
+            ),
+        });
+
+        return {
+            hash,
+        };
+    }
+}
+
+@injectable()
 export class JupiterPriceV2Service {
-  private tokenProvider: TokenProvider;
-  private cache: RedisService;
   private readonly SOLANA_PUBLIC_KEY: PublicKey = new PublicKey(
     process.env.SOLANA_PUBLIC_KEY || 'C7DjuqwXZ2kZ2D9RMDXv5HjiR7PVkLFJgnX7PKraPDaM'
   );
   private static readonly CACHE_TTL = 300; // 5 minutes
-  private readonly config: JupiterPriceServiceConfig;
 
-  constructor(config: JupiterPriceServiceConfig) {
-    this.config = config;
-    
-    // Initialize Redis cache
-    this.cache = new RedisService({
-      host: config.redis?.host || 'localhost',
-      port: config.redis?.port || 6379,
-      password: config.redis?.password,
-      keyPrefix: config.redis?.keyPrefix || 'jupiter-price:'
-    });
-
+  constructor(
+    @inject('JupiterPriceServiceConfig') private config: JupiterPriceServiceConfig,
+    @inject('TokenProvider') private tokenProvider: TokenProvider,
+    @inject('RedisService') private cache: RedisService,
+    @inject('JupiterService') private jupiterService: JupiterService
+  ) {
     // Initialize providers with validation
     const connection = new Connection(
       config.rpcConnection?.url || 'https://api.mainnet-beta.solana.com'
@@ -127,8 +196,11 @@ export class JupiterPriceV2Service {
     this.tokenProvider = new TokenProvider(
       '',  // Will be set per request
       walletProvider,
-      this.cache as ICacheManager
+      this.cache as ICacheManager,
+      { apiKey: process.env.API_KEY || '' }
     );
+
+    this.jupiterService = new JupiterService();
   }
 
   public async getMarketMetrics(symbol: string): Promise<MarketMetrics> {
@@ -150,7 +222,25 @@ export class JupiterPriceV2Service {
         volume24h: Number(tradeData.volume_24h_usd),
         priceChange24h: Number(tradeData.price_change_24h_percent),
         marketCap: dexData.pairs[0]?.marketCap || 0,
-        confidenceLevel: this.calculateConfidenceLevel(tradeData, dexData)
+        confidenceLevel: this.calculateConfidenceLevel(tradeData, dexData),
+        holders: {
+          total: 0,
+          top: []
+        },
+        onChainActivity: {
+          transactions: 0,
+          swaps: 0,
+          uniqueTraders: 0
+        },
+        lastUpdate: 0,
+        tokenAddress: '',
+        topHolders: [],
+        volatility: {
+          currentVolatility: 0,
+          averageVolatility: 0,
+          adjustmentFactor: 0
+        },
+        liquidity: undefined
       };
 
       await this.cache.set(
@@ -372,7 +462,8 @@ public setTokenProvider(tokenAddress: string): void {
   this.tokenProvider = new TokenProvider(
     tokenAddress,
     walletProvider,
-    this.cache as ICacheManager
+    this.cache as ICacheManager,
+    { apiKey: process.env.API_KEY || '' }
   );
 }
 
@@ -455,6 +546,11 @@ public async getHighestVolumeTokens(limit: number = 10): Promise<TokenMovement[]
     throw error;
   }
 }
+
+public setTokenAddress(tokenAddress: string): void {
+    this.tokenProvider.setTokenAddress(tokenAddress);
+}
+
 }
 
 export default JupiterPriceV2Service;
