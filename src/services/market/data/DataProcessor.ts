@@ -1,12 +1,16 @@
 // services/market/data/DataProcessor.ts
 import { HeliusService } from '../../blockchain/heliusIntegration';
-import { JupiterPriceV2Service } from '../../blockchain/defi/JupiterPriceV2Service';
+import { JupiterPriceV2Service, JupiterService } from '../../blockchain/defi/JupiterPriceV2Service';
 import { JupiterPriceV2 } from '../../blockchain/defi/jupiterPriceV2';
 import Redis from 'ioredis';
 import { elizaLogger } from "@ai16z/eliza";
 import * as zlib from 'zlib';
 import { promisify } from 'util';
 import { PriceData } from '../../../types/market';
+import { TokenProvider } from '../../../providers/token';
+import { WalletProvider } from '../../../providers/wallet';
+import { Connection, PublicKey } from '@solana/web3.js';
+import { RedisService } from './RedisCache';
 
 const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
@@ -76,7 +80,13 @@ export class MarketDataProcessor {
         host: '127.0.0.1',
         port: 6379
       }
-    });
+    }, new TokenProvider('', new WalletProvider(new Connection('https://api.mainnet-beta.solana.com'), new PublicKey('')), new RedisService({
+      host: '127.0.0.1',
+      port: 6379
+    }), { apiKey: '' }), new RedisService({
+      host: '127.0.0.1',
+      port: 6379
+    }), new JupiterService());
     this.jupiterV2 = new JupiterPriceV2();
 
     this.setupRedisHandlers();
@@ -327,31 +337,3 @@ export class MarketDataProcessor {
   }
 }
 
-export class RedisCache {
-  private redis: Redis;
-  private prefix: string;
-
-  constructor(prefix: string = '') {
-    const redisUrl = 'redis://127.0.0.1:6379';
-
-    this.redis = new Redis(redisUrl, {
-      retryStrategy: (times: number) => {
-        const delay = Math.min(times * 50, 2000);
-        return delay;
-      },
-      maxRetriesPerRequest: 3,
-    });
-
-    this.prefix = prefix ? `${prefix}:` : '';
-
-    // Handle connection errors
-    this.redis.on('error', (error: Error) => {
-      console.error('Redis connection error:', error);
-    });
-
-    // Log successful connection
-    this.redis.on('connect', () => {
-      console.log('Connected to Redis');
-    });
-  }
-}

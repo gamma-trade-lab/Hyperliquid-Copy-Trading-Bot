@@ -1,0 +1,148 @@
+// src/services/blockchain/solana.ts
+import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { CONFIG } from '../../config/settings.js';
+import { createMint, createTransferInstruction, mintTo, TOKEN_PROGRAM_ID, createAssociatedTokenAccount, getAssociatedTokenAddress } from '../../utils/spl-token/index.js';
+export class SolanaService {
+    connection;
+    payer;
+    constructor() {
+        this.connection = new Connection(CONFIG.SOLANA.RPC_URL, 'confirmed');
+        this.payer = Keypair.fromSecretKey(Buffer.from(CONFIG.SOLANA.PRIVATE_KEY, 'base64'));
+    }
+    /**
+     * Create a new SPL token
+     */
+    async createToken(config) {
+        try {
+            const decimals = config.decimals || 9;
+            // Create token mint
+            const mint = await createMint(this.connection, this.payer, this.payer.publicKey, this.payer.publicKey, decimals);
+            // Get the token account of the creator
+            const tokenAccountAddress = await getAssociatedTokenAddress(mint, this.payer.publicKey);
+            await createAssociatedTokenAccount(this.connection, this.payer, mint, this.payer.publicKey);
+            // Mint initial supply
+            const signature = await mintTo(this.connection, this.payer, mint, tokenAccountAddress, this.payer, config.totalSupply * Math.pow(10, decimals));
+            return {
+                signature,
+                tokenAddress: mint.toBase58()
+            };
+        }
+        catch (error) {
+            console.error('Error creating token:', error);
+            throw error;
+        }
+    }
+    /**
+     * Get balance of SOL and tokens
+     */
+    async getBalance(address) {
+        try {
+            const publicKey = new PublicKey(address);
+            // Get SOL balance
+            const solBalance = await this.connection.getBalance(publicKey);
+            // Get token accounts
+            const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(publicKey, { programId: TOKEN_PROGRAM_ID });
+            const tokens = tokenAccounts.value.map(account => ({
+                mint: account.account.data.parsed.info.mint,
+                amount: account.account.data.parsed.info.tokenAmount.uiAmount,
+                decimals: account.account.data.parsed.info.tokenAmount.decimals
+            }));
+            return {
+                sol: solBalance / LAMPORTS_PER_SOL,
+                tokens
+            };
+        }
+        catch (error) {
+            console.error('Error getting balance:', error);
+            throw error;
+        }
+    }
+    /**
+     * Transfer SOL to an address
+     */
+    async transferSol(to, amount) {
+        try {
+            const toPublicKey = new PublicKey(to);
+            const lamports = amount * LAMPORTS_PER_SOL;
+            const transaction = new Transaction().add(SystemProgram.transfer({
+                fromPubkey: this.payer.publicKey,
+                toPubkey: toPublicKey,
+                lamports
+            }));
+            return await sendAndConfirmTransaction(this.connection, transaction, [this.payer]);
+        }
+        catch (error) {
+            console.error('Error transferring SOL:', error);
+            throw error;
+        }
+    }
+    /**
+     * Transfer tokens to an address
+     */
+    async transferToken(tokenAddress, to, amount) {
+        try {
+            const mint = new PublicKey(tokenAddress);
+            const toPublicKey = new PublicKey(to);
+            // Get source token account
+            const sourceAccountAddress = await getAssociatedTokenAddress(mint, this.payer.publicKey);
+            await createAssociatedTokenAccount(this.connection, this.payer, mint, this.payer.publicKey);
+            // Get or create destination token account
+            const destinationAccountAddress = await getAssociatedTokenAddress(mint, toPublicKey);
+            await createAssociatedTokenAccount(this.connection, this.payer, mint, toPublicKey);
+            // Create transfer instruction
+            const transaction = new Transaction().add(createTransferInstruction(sourceAccountAddress, destinationAccountAddress, this.payer.publicKey, amount, [], TOKEN_PROGRAM_ID));
+            return await sendAndConfirmTransaction(this.connection, transaction, [this.payer]);
+        }
+        catch (error) {
+            console.error('Error transferring token:', error);
+            throw error;
+        }
+    }
+    /**
+     * Get transaction details
+     */
+    async getTransaction(signature) {
+        try {
+            return await this.connection.getParsedTransaction(signature);
+        }
+        catch (error) {
+            console.error('Error getting transaction:', error);
+            throw error;
+        }
+    }
+    /**
+     * Utility function to validate Solana address
+     */
+    isValidAddress(address) {
+        try {
+            new PublicKey(address);
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }
+    /**
+     * Get network stats
+     */
+    async getNetworkStats() {
+        try {
+            const [slot, blockTime, epochInfo] = await Promise.all([
+                this.connection.getSlot(),
+                this.connection.getBlockTime(await this.connection.getSlot()),
+                this.connection.getEpochInfo()
+            ]);
+            return {
+                currentSlot: slot,
+                blockTime,
+                epoch: epochInfo.epoch,
+                epochProgress: `${((epochInfo.slotIndex / epochInfo.slotsInEpoch) * 100).toFixed(2)}%`
+            };
+        }
+        catch (error) {
+            console.error('Error getting network stats:', error);
+            throw error;
+        }
+    }
+}
+export default SolanaService;

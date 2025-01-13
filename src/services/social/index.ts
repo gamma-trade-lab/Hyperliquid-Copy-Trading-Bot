@@ -1,13 +1,12 @@
 import { TwitterService } from './twitter';
 import { DiscordService } from './discord';
-import { TweetV2PostTweetResult } from 'twitter-api-v2';
 import { MarketDataProcessor } from '../market/data/DataProcessor';
-import { HeliusService } from '../blockchain/heliusIntegration';
-import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service';
-import { JupiterPriceV2 } from '../blockchain/defi/jupiterPriceV2';
-import Redis from 'ioredis';
+import { JupiterPriceV2Service, JupiterService } from '../blockchain/defi/JupiterPriceV2Service';
 import { elizaLogger } from "@ai16z/eliza";
-import { TokenPrice } from '../blockchain/defi/JupiterPriceV2Service';
+import { RedisService as RedisCacheService } from '../../services/market/data/RedisCache';
+import { TokenProvider } from '../../providers/token';
+import { Connection, PublicKey } from '@solana/web3.js';
+import { WalletProvider } from '../../providers/wallet';
 
 export interface SocialMetrics {
   followers: number;
@@ -61,19 +60,37 @@ export class SocialService {
       throw new Error('Helius API key is required');
     }
 
-    // Initialize services with proper configuration
+    // Initialize RedisCacheService
+    const redisService = new RedisCacheService({
+      host: config.redis?.host || process.env.REDIS_HOST || '',
+      port: config.redis?.port || parseInt(process.env.REDIS_PORT || '6379'),
+      password: config.redis?.password || process.env.REDIS_PASSWORD || '',
+      keyPrefix: 'jupiter-price:',
+      enableCircuitBreaker: true
+    });
+
+    // Initialize TokenProvider
+    const tokenProvider = new TokenProvider(
+      '', // Token address will be set per request
+      new WalletProvider(new Connection(''), new PublicKey('')),
+      redisService,
+      { apiKey: process.env.API_KEY || '' }
+    );
+
+    // Initialize JupiterPriceV2Service
     this.jupiterService = new JupiterPriceV2Service({
       redis: {
-        host: config.redis?.host || process.env.REDIS_HOST,
+        host: config.redis?.host || process.env.REDIS_HOST || '',
         port: config.redis?.port || parseInt(process.env.REDIS_PORT || '6379'),
-        password: config.redis?.password || process.env.REDIS_PASSWORD,
+        password: config.redis?.password || process.env.REDIS_PASSWORD || '',
         keyPrefix: 'jupiter-price:',
         enableCircuitBreaker: true
+      },
+      rpcConnection: {
+        url: process.env.SOLANA_RPC_URL || '',
+        walletPublicKey: process.env.SOLANA_PUBLIC_KEY || ''
       }
-    });
-    
-
-    // Create price fetcher function with proper type
+    }, tokenProvider, redisService, new JupiterService());
 
     // Initialize data processor with price fetcher
     this.dataProcessor = new MarketDataProcessor(

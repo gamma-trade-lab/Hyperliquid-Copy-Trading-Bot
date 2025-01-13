@@ -1,7 +1,11 @@
-import { Connection } from '@solana/web3.js';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service';
 import { elizaLogger } from "@ai16z/eliza";
 import { CommandResult } from '../../types/chat';
+import { TokenProvider } from '../../providers/token';
+import { RedisService } from '../market/data/RedisCache';
+import { JupiterService } from '../blockchain/defi/JupiterPriceV2Service';
+import { WalletProvider } from '../../providers/wallet';
 
 export class MarketCommand {
   private jupiterService: JupiterPriceV2Service;
@@ -9,16 +13,42 @@ export class MarketCommand {
 
   constructor(config: { rpcUrl: string }) {
     this.connection = new Connection(config.rpcUrl);
+    if (!process.env.WALLET_PUBLIC_KEY) {
+      throw new Error('WALLET_PUBLIC_KEY environment variable is not set');
+    }
+    const walletProvider = new WalletProvider(this.connection, new PublicKey(process.env.WALLET_PUBLIC_KEY));
+    const tokenProvider = new TokenProvider('tokenAddress', walletProvider, new RedisService({
+      host: process.env.REDIS_HOST || 'localhost',
+      port: Number(process.env.REDIS_PORT) || 6379,
+      password: process.env.REDIS_PASSWORD,
+      keyPrefix: 'jupiter-price:',
+      enableCircuitBreaker: true
+    }), { apiKey: process.env.API_KEY || '' });
+    const redisService = new RedisService({
+      host: process.env.REDIS_HOST || 'localhost',
+      port: Number(process.env.REDIS_PORT) || 6379,
+      password: process.env.REDIS_PASSWORD,
+      keyPrefix: 'jupiter-price:',
+      enableCircuitBreaker: true
+    });
+    const jupiterService = new JupiterService();
     this.jupiterService = new JupiterPriceV2Service({
       redis: {
         host: process.env.REDIS_HOST || 'localhost',
         port: Number(process.env.REDIS_PORT) || 6379,
-        password: process.env.REDIS_PASSWORD
+        password: process.env.REDIS_PASSWORD,
+        keyPrefix: 'jupiter-price:',
+        enableCircuitBreaker: true
       },
       rpcConnection: {
-        url: config.rpcUrl
+        url: config.rpcUrl,
+        walletPublicKey: process.env.WALLET_PUBLIC_KEY
+      },
+      rateLimitConfig: {
+        requestsPerMinute: 600,
+        windowMs: 60000
       }
-    });
+    }, tokenProvider, redisService, jupiterService);
   }
 
   async execute(args: string[]): Promise<CommandResult> {

@@ -26,6 +26,9 @@ interface RedisHealth {
 }
 
 export class RedisService {
+  static createInstance(arg0: { host: string; port: number; password: string | undefined; }): import("@elizaos/core").ICacheManager {
+    throw new Error('Method not implemented.');
+  }
   private static instance: RedisService;
   private readonly _client: Redis;
   

@@ -18,6 +18,9 @@ interface RedisConfig {
 }
 
 export class RedisService extends EventEmitter implements ICacheManager {
+  static createInstance(arg0: { host: string; port: number; password: string | undefined; }): ICacheManager {
+    throw new Error('Method not implemented.');
+  }
   private client: Redis;
   private isConnected: boolean = false;
   

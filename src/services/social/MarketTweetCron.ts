@@ -4,9 +4,16 @@ import { TradingService } from '../blockchain/trading.js';
 import { AgentTwitterClientService } from './agentTwitterClient.js';
 import { CONFIG } from '../../config/settings.js';
 import { MarketData, JupiterSwap } from '../../types/market.js';
-import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service.js';
+import { JupiterPriceV2Service, JupiterService } from '../blockchain/defi/JupiterPriceV2Service.js';
 import { HeliusService } from '../blockchain/heliusIntegration.js';
 import { elizaLogger } from "@ai16z/eliza";
+
+import { Connection, PublicKey } from '@solana/web3.js';
+import { TokenProvider } from '@/providers/token.js';
+import { WalletProvider } from '@/providers/wallet.js';
+import { RedisService } from '../market/data/RedisCache.js';
+
+
 
 interface MarketTweetOptions {
   tokenAddress: string;
@@ -37,24 +44,40 @@ export class MarketTweetCron {
     this.tradingService = tradingService;
     this.twitterClient = twitterClient;
     
+    // Ensure environment variables are defined
+    const redisHost = process.env.REDIS_HOST || 'localhost';
+    const redisPort = Number(process.env.REDIS_PORT) || 6379;
+    const redisPassword = process.env.REDIS_PASSWORD;
+    const solanaRpcUrl = process.env.SOLANA_RPC_URL || '';
+    const walletPublicKey = process.env.WALLET_PUBLIC_KEY || '';
+    const apiKey = process.env.API_KEY || '';
+
     // Initialize JupiterPriceV2Service with config
     this.jupiterService = new JupiterPriceV2Service({
       redis: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: Number(process.env.REDIS_PORT) || 6379,
-        password: process.env.REDIS_PASSWORD,
+        host: redisHost,
+        port: redisPort,
+        password: redisPassword,
         keyPrefix: 'jupiter-price:',
         enableCircuitBreaker: true
       },
       rpcConnection: {
-        url: process.env.SOLANA_RPC_URL,
-        walletPublicKey: process.env.WALLET_PUBLIC_KEY
+        url: solanaRpcUrl,
+        walletPublicKey: walletPublicKey
       },
       rateLimitConfig: {
         requestsPerMinute: 600,
         windowMs: 60000
       }
-    });
+    }, new TokenProvider('', new WalletProvider(new Connection(solanaRpcUrl), new PublicKey(walletPublicKey)), new RedisService({
+      host: redisHost,
+      port: redisPort,
+      password: redisPassword
+    }), { apiKey }), new RedisService({
+      host: redisHost,
+      port: redisPort,
+      password: redisPassword
+    }), new JupiterService());
     
     this.heliusService = new HeliusService(heliusApiKey);
   }

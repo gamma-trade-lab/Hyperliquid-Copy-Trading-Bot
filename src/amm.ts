@@ -1,7 +1,7 @@
 import { HumanMessage } from "@langchain/core/messages";
 import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatGroq } from "@langchain/groq"; // Updated import
 import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as readline from "readline";
@@ -34,8 +34,9 @@ const WALLET_DATA_FILE = "wallet_data.txt";
 
 async function initializeAgent() {
   try {
-    const llm = new ChatOpenAI({
-      modelName: "gpt-4o-mini",
+    const llm = new ChatGroq({ // Updated initialization
+      modelName: "gpt-4",
+      apiKey: process.env.GROQ_API_KEY,
       temperature: 0.3,
     });
 
@@ -48,8 +49,6 @@ async function initializeAgent() {
         console.error("Error reading wallet data:", error);
       }
     }
-
-    
 
     const solanaAgentKitInstance = new SolanaAgentKit(
       process.env.SOLANA_PRIVATE_KEY!,

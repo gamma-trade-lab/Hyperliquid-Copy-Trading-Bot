@@ -1,4 +1,3 @@
-import { Connection, PublicKey } from '@solana/web3.js';
 import { TwitterApi } from 'twitter-api-v2';
 import { Client as DiscordClient, Message } from 'discord.js';
 import Groq from "groq-sdk";
@@ -13,7 +12,7 @@ import { createInterface } from 'readline';
 import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext } from './services/blockchain/types';
 import { SocialMetrics } from './services/social';
 
-import { WalletProvider, walletProvider } from "./providers/wallet";
+
 import {
     IAgentRuntime,
     elizaLogger} from "@ai16z/eliza";
@@ -34,6 +33,7 @@ interface ServiceConfig {
   twitterService: any;
   tradingService?: TradingService;
   jupiterPriceService?: JupiterPriceV2Service;
+  jupiterPriceV2Service?: JupiterPriceV2Service;
   chatService?: any;
 }
 
@@ -117,45 +117,48 @@ async function initializeServices() {
     };
 
     const cache = new NodeCache();
-    const tokenProvider = new TokenProvider(
+    const tokenProviderInstance = new TokenProvider(
       tokenAddresses[0],
       walletProviderInstance,
       cacheAdapter,  // Use the adapter instead of raw cache
       { apiKey: CONFIG.SOLANA.RPC_URL } // Pass the correct configuration object
     );
 
-    // Initialize JupiterPriceV2Service
-    const jupiterPriceService = new JupiterPriceV2Service({
+    // Initialize JupiterService
+    const jupiterService = new JupiterService();
+
+    // Initialize JupiterPriceV2Service with all required arguments
+    const jupiterPriceV2Service = new JupiterPriceV2Service({
       redis: {
-        host: process.env.REDIS_HOST,
-        port: Number(process.env.REDIS_PORT),
-        password: process.env.REDIS_PASSWORD,
+        host: process.env.REDIS_HOST!,
+        //port: redisPort,
+        //password: redisPassword, // Add missing password argument
         keyPrefix: 'jupiter-price:',
         enableCircuitBreaker: true
+      },
+      rpcConnection: {
+        url: CONFIG.SOLANA.RPC_URL,
+        walletPublicKey: PublicKey.toString()
       },
       rateLimitConfig: {
         requestsPerMinute: 600,
         windowMs: 60000
-      },
-      rpcConnection: {
-        url: CONFIG.SOLANA.RPC_URL,
-        walletPublicKey: CONFIG.SOLANA.PUBLIC_KEY
       }
-    }, tokenProvider); // Pass the tokenProvider argument
+    }, tokenProviderInstance, redisService as unknown as RedisService, jupiterService); // Remove the extra cache argument
 
     // Initialize ChatService
     const chatService = new ChatService(
       aiService,
       twitterService,
-      jupiterPriceService,
-      tokenProvider // Add this argument
+      jupiterPriceV2Service!,
+      tokenProviderInstance // Add this argument
     );
 
     return {
       dataProcessor,
       aiService,
       twitterService,
-      jupiterPriceService,
+      jupiterPriceV2Service,
       chatService
     };
   } catch (error) {
@@ -995,12 +998,18 @@ import { TwitterService } from './services/social/twitter';
 import { aiService, AIService } from './services/ai/ai';
 import { CONFIG } from './config/settings';
 import { MarketDataProcessor } from './services/market/data/DataProcessor';
-import { JupiterPriceV2Service } from './services/blockchain/defi/JupiterPriceV2Service';
+import { JupiterPriceV2Service, JupiterService } from './services/blockchain/defi/JupiterPriceV2Service';
 import axios from 'axios';
 import { ChatService, Mode } from './services/chat';
 import { number, string } from 'yargs';
 import { tokenProvider, TokenProvider } from './providers/token';
 import NodeCache from 'node-cache';
+
+import { RedisService } from './services/market/data/RedisCache.js';
+
+import { WalletProvider } from './providers/wallet.js';
+import { Connection, PublicKey } from '@solana/web3.js';
+import { redisService } from './services/redis/redis-service';
 
 loadConfig();
 
@@ -1198,7 +1207,7 @@ async function selectMode(): Promise<Mode> {
 
 // Chat mode implementation
 async function startChat(this: MemeAgentInfluencer, services: ServiceConfig): Promise<void> {
-  const { aiService } = services;
+  const { aiService, jupiterPriceV2Service } = services; // Ensure jupiterPriceV2Service is included
   
   elizaLogger.info('Starting chat mode... Type "exit" to end.');
   
@@ -1227,23 +1236,6 @@ async function startChat(this: MemeAgentInfluencer, services: ServiceConfig): Pr
       baseUrl: 'https://api.twitter.com'
     }, aiService, dataProcessor);
   
-  const jupiterService = new JupiterPriceV2Service({
-    redis: {
-      host: process.env.REDIS_HOST,
-      port: Number(process.env.REDIS_PORT),
-      keyPrefix: 'jupiter-price:',
-      enableCircuitBreaker: true
-    },
-    rateLimitConfig: {
-      requestsPerMinute: 600,
-      windowMs: 60000
-    },
-    rpcConnection: {
-      url: CONFIG.SOLANA.RPC_URL,
-      walletPublicKey: CONFIG.SOLANA.PUBLIC_KEY
-    }
-  }, tokenProvider);
-  
   const walletProviderInstance = new WalletProvider(
     new Connection(CONFIG.SOLANA.RPC_URL),
     new PublicKey(CONFIG.SOLANA.PUBLIC_KEY)
@@ -1265,12 +1257,12 @@ async function startChat(this: MemeAgentInfluencer, services: ServiceConfig): Pr
   const chatService = new ChatService(
     aiService,
     twitterService,
-    jupiterService,
+    jupiterPriceV2Service!, // Ensure jupiterPriceV2Service is used here
     new TokenProvider(
       this.tokenAddress,
       walletProviderInstance,
       cacheAdapter,
-      { apiKey: CONFIG.SOLANA.RPC_URL }
+      { apiKey: CONFIG.SOLANA.RPC_URL } // Add the missing config argument
     )
   );
   await chatService.start();
@@ -1417,7 +1409,15 @@ async function main(this: any) {
             url: CONFIG.SOLANA.RPC_URL,
             walletPublicKey: CONFIG.SOLANA.PUBLIC_KEY
           }
-        }, tokenProvider),
+        }, new TokenProvider(
+          this.tokenAddress,
+          new WalletProvider(
+            new Connection(CONFIG.SOLANA.RPC_URL),
+            new PublicKey(CONFIG.SOLANA.PUBLIC_KEY)
+          ),
+          cacheAdapter,
+          { apiKey: CONFIG.SOLANA.RPC_URL }
+        ), (redisService as unknown) as RedisService, new JupiterService() ),
         new TokenProvider(
           this.tokenAddress,
           new WalletProvider(
