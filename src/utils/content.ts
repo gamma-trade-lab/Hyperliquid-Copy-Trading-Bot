@@ -1,8 +1,6 @@
 // src/utils/content.ts
 
-import { AIService } from '../services/ai.js';
-import { CONFIG } from '../../src/config/settings.js';
-import { aiService } from '../services/ai/ai.js';
+import { aiService } from '../services/ai/ai';
 
 interface ContentTemplate {
    type: 'meme' | 'announcement' | 'market_update' | 'community';
@@ -17,7 +15,7 @@ interface ContentGenParams {
    platform?: 'twitter' | 'discord';
 }
 
-export class ContentUtils {
+export class Content {
    private static templates: Record<string, ContentTemplate> = {
        price_update: {
            type: 'market_update',
@@ -168,30 +166,7 @@ export class ContentUtils {
    }
 }
 
-// Example usage
-async function example() {
-   // Generate price update content
-   const priceUpdate = await ContentUtils.generateContent({
-       type: 'market_update',
-       variables: {
-           price: '1.23',
-           currency: 'USD',
-           change: '+5.67',
-           volume: '1.5M'
-       },
-       sentiment: 'positive',
-       platform: 'twitter'
-   });
+export default Content;
 
-   // Generate meme content
-   const memeContent = await ContentUtils.generateContent({
-       type: 'meme',
-       sentiment: 'positive',
-       platform: 'discord'
-   });
+// Add any necessary exports here
 
-   console.log('Price Update:', priceUpdate);
-   console.log('Meme Content:', memeContent);
-}
-
-export default ContentUtils;

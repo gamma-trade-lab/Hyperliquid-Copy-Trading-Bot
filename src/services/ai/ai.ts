@@ -16,8 +16,16 @@
 import { Groq } from 'groq-sdk';
 import { randomBytes } from 'crypto';
 import { MarketAction } from '../../config/constants.js';
-import { DeepSeekProvider } from './providers/deepSeekProvider.js';
-import { LLMProvider, ChatRequest, ChatResponse, Tweet,  MarketAnalysis, IAIService } from './types.js';
+import { LLMProvider, ChatRequest, ChatResponse, Tweet,  MarketAnalysis, IAIService } from './types';
+
+class DeepSeekProvider implements LLMProvider {
+  constructor(private apiKey: string) {}
+
+  async chatCompletion(request: ChatRequest): Promise<ChatResponse> {
+    // Implement DeepSeek API call here
+    throw new Error('DeepSeek provider not implemented');
+  }
+}
 import CONFIG from '../../config/settings.js';
 import personalityConfig from '../../config/personality.js';
 import { Character } from '../../personality/types.js';

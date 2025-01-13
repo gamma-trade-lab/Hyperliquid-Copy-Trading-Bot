@@ -123,7 +123,7 @@ export class PumpFunSDK {
     buyer: Keypair,
     mint: PublicKey,
     buyAmountSol: bigint,
-    slippageBasisPoints: bigint = 500n,
+    slippageBasisPoints: bigint = BigInt(500),
     priorityFees?: PriorityFee,
     commitment: Commitment = DEFAULT_COMMITMENT,
     finality: Finality = DEFAULT_FINALITY
@@ -152,7 +152,7 @@ export class PumpFunSDK {
     seller: Keypair,
     mint: PublicKey,
     sellTokenAmount: bigint,
-    slippageBasisPoints: bigint = 500n,
+    slippageBasisPoints: bigint = BigInt(500),
     priorityFees?: PriorityFee,
     commitment: Commitment = DEFAULT_COMMITMENT,
     finality: Finality = DEFAULT_FINALITY
@@ -217,7 +217,7 @@ export class PumpFunSDK {
     buyer: PublicKey,
     mint: PublicKey,
     buyAmountSol: bigint,
-    slippageBasisPoints: bigint = 500n,
+    slippageBasisPoints: bigint = BigInt(500),
     commitment: Commitment = DEFAULT_COMMITMENT
   ) {
     let bondingCurveAccount = await this.getBondingCurveAccount(
@@ -295,7 +295,7 @@ export class PumpFunSDK {
     seller: PublicKey,
     mint: PublicKey,
     sellTokenAmount: bigint,
-    slippageBasisPoints: bigint = 500n,
+    slippageBasisPoints:  bigint = BigInt(500),
     commitment: Commitment = DEFAULT_COMMITMENT
   ) {
     let bondingCurveAccount = await this.getBondingCurveAccount(

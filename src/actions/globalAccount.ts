@@ -35,13 +35,13 @@ export class GlobalAccount {
   }
 
   getInitialBuyPrice(amount: bigint): bigint {
-    if (amount <= 0n) {
-      return 0n;
+    if (amount <= BigInt(0)) {
+      return BigInt(0);
     }
 
     let n = this.initialVirtualSolReserves * this.initialVirtualTokenReserves;
     let i = this.initialVirtualSolReserves + amount;
-    let r = n / i + 1n;
+    let r = n / i + BigInt(1);
     let s = this.initialVirtualTokenReserves - r;
     return s < this.initialRealTokenReserves
       ? s

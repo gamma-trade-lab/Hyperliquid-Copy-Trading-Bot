@@ -416,7 +416,7 @@ export class TradingEngine extends EventEmitter {
         slippage: route.slippageBps ? route.slippageBps / 10000 : 0,
         priceImpact: route.priceImpactPct || 0,
         fee: route.marketInfos.reduce((acc, info) => 
-          Number(acc) + Number(info.lpFee?.amount || 0n) + Number(info.platformFee?.amount || 0n), 0),
+          Number(acc) + Number(info.lpFee?.amount || BigInt(0)) + Number(info.platformFee?.amount || BigInt(0)), 0),
         route: route.marketInfos.map((info: any) => info.label),
         timestamp: Date.now()
       };

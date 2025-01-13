@@ -24,7 +24,7 @@ export class AMM {
         return new AMM(
             global.initialVirtualSolReserves,
             global.initialVirtualTokenReserves,
-            0n,
+            BigInt(0),
             global.initialRealTokenReserves,
             global.initialVirtualTokenReserves
         );
@@ -43,9 +43,9 @@ export class AMM {
     getBuyPrice(tokens: bigint): bigint {
         const product_of_reserves = this.virtualSolReserves * this.virtualTokenReserves;
         const new_virtual_token_reserves = this.virtualTokenReserves - tokens;
-        const new_virtual_sol_reserves = product_of_reserves / new_virtual_token_reserves + 1n;
-        const amount_needed = new_virtual_sol_reserves > this.virtualSolReserves ? new_virtual_sol_reserves - this.virtualSolReserves : 0n;
-        return amount_needed > 0n ? amount_needed : 0n;
+        const new_virtual_sol_reserves = product_of_reserves / new_virtual_token_reserves + BigInt(1);
+        const amount_needed = new_virtual_sol_reserves > this.virtualSolReserves ? new_virtual_sol_reserves - this.virtualSolReserves : BigInt(0);
+        return amount_needed > BigInt(0) ? amount_needed : BigInt(0);
     }
 
     applyBuy(token_amount: bigint): BuyResult {

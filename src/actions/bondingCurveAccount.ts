@@ -32,8 +32,8 @@ export class BondingCurveAccount {
       throw new Error("Curve is complete");
     }
 
-    if (amount <= 0n) {
-      return 0n;
+    if (amount <= BigInt(0)) {
+      return BigInt(0);
     }
 
     // Calculate the product of virtual reserves
@@ -43,7 +43,7 @@ export class BondingCurveAccount {
     let i = this.virtualSolReserves + amount;
 
     // Calculate the new virtual token reserves after the purchase
-    let r = n / i + 1n;
+    let r = n / i + BigInt(1);
 
     // Calculate the amount of tokens to be purchased
     let s = this.virtualTokenReserves - r;
@@ -57,8 +57,8 @@ export class BondingCurveAccount {
       throw new Error("Curve is complete");
     }
 
-    if (amount <= 0n) {
-      return 0n;
+    if (amount <= BigInt(0)) {
+      return BigInt(0);
     }
 
     // Calculate the proportional amount of virtual sol reserves to be received
@@ -66,15 +66,15 @@ export class BondingCurveAccount {
       (amount * this.virtualSolReserves) / (this.virtualTokenReserves + amount);
 
     // Calculate the fee amount in the same units
-    let a = (n * feeBasisPoints) / 10000n;
+    let a = (n * feeBasisPoints) / BigInt(10000);
 
     // Return the net amount after deducting the fee
     return n - a;
   }
 
   getMarketCapSOL(): bigint {
-    if (this.virtualTokenReserves === 0n) {
-      return 0n;
+    if (this.virtualTokenReserves === BigInt(0)) {
+      return BigInt(0);
     }
 
     return (
@@ -91,8 +91,8 @@ export class BondingCurveAccount {
     let totalVirtualValue = this.virtualSolReserves + totalSellValue;
     let totalVirtualTokens = this.virtualTokenReserves - this.realTokenReserves;
 
-    if (totalVirtualTokens === 0n) {
-      return 0n;
+    if (totalVirtualTokens === BigInt(0)) {
+      return BigInt(0);
     }
 
     return (this.tokenTotalSupply * totalVirtualValue) / totalVirtualTokens;
@@ -104,8 +104,8 @@ export class BondingCurveAccount {
     let totalSellValue =
       (solTokens * this.virtualSolReserves) /
         (this.virtualTokenReserves - solTokens) +
-      1n;
-    let fee = (totalSellValue * feeBasisPoints) / 10000n;
+      BigInt(1);
+    let fee = (totalSellValue * feeBasisPoints) / BigInt(10000);
     return totalSellValue + fee;
   }
 

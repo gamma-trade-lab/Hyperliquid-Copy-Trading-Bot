@@ -4,10 +4,9 @@ import Groq from "groq-sdk";
 import { MemorySaver } from "@langchain/langgraph";
 // Import services
 import { SocialService } from './services/social';
-import { ContentUtils } from './utils/content';
+import { Content } from './utils/content';
 import { Parser } from './utils/parser';
 import { TradingService } from './services/blockchain/trading';
-import { createInterface } from 'readline';
 // Types
 import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext } from './services/blockchain/types';
 import { SocialMetrics } from './services/social';
@@ -667,7 +666,7 @@ class MemeAgentInfluencer {
   private async startContentGeneration(): Promise<void> {
     const generateAndPost = async () => {
       try {
-        const content = await ContentUtils.generateContent({
+        const content = await Content.generateContent({
           type: 'market_update',
           variables: {
             tokenName: CONFIG.SOLANA.TOKEN_SETTINGS.NAME,
@@ -709,7 +708,7 @@ class MemeAgentInfluencer {
     const engage = async () => {
       try {
         const metrics: SocialMetrics = await this.socialService.getCommunityMetrics();
-        const content = await ContentUtils.generateContent({
+        const content = await Content.generateContent({
           type: 'community',
           variables: {
             followers: metrics.followers.toString(),
@@ -1001,8 +1000,7 @@ import { MarketDataProcessor } from './services/market/data/DataProcessor';
 import { JupiterPriceV2Service, JupiterService } from './services/blockchain/defi/JupiterPriceV2Service';
 import axios from 'axios';
 import { ChatService, Mode } from './services/chat';
-import { number, string } from 'yargs';
-import { tokenProvider, TokenProvider } from './providers/token';
+import { TokenProvider } from './providers/token';
 import NodeCache from 'node-cache';
 
 import { RedisService } from './services/market/data/RedisCache.js';
@@ -1488,3 +1486,4 @@ if (import.meta.url === new URL(process.argv[1], 'file:').href) {
     process.exit(1);
   });
 }
+
