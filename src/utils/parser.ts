@@ -1,6 +1,6 @@
 import { PublicKey } from '@solana/web3.js';
 import { elizaLogger } from "@ai16z/eliza";
-import { CONFIG } from '../config/settings';
+import { CONFIG } from '../config/settings.js';
 
 // Command Types
 export enum CommandType {

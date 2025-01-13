@@ -9,8 +9,8 @@ import {
 import { AIService } from '../ai/ai';
 import { elizaLogger } from "@ai16z/eliza";
 import { MarketUpdateData } from '@/types/market';
-import { MarketDataProcessor } from '../market/data/DataProcessor';
-import { PriceMonitor } from '../market/analysis/priceMonitor';
+import { MarketDataProcessor } from '../market/data/DataProcessor.js';
+import { PriceMonitor } from '../market/analysis/priceMonitor.js';
 import { JupiterPriceV2Service, TokenInfo } from '../blockchain/defi/JupiterPriceV2Service';
 import { HeliusService } from '../blockchain/heliusIntegration';
 

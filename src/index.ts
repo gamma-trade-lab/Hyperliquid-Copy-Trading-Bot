@@ -3,13 +3,13 @@ import { Client as DiscordClient, Message } from 'discord.js';
 import Groq from "groq-sdk";
 import { MemorySaver } from "@langchain/langgraph";
 // Import services
-import { SocialService } from './services/social';
-import { Content } from './utils/content';
-import { Parser } from './utils/parser';
-import { TradingService } from './services/blockchain/trading';
+import { SocialService } from './services/social/index.js';
+import { Content } from './utils/content.js';
+import { Parser } from './utils/parser.js';
+import { TradingService } from './services/blockchain/trading.js';
 // Types
-import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext } from './services/blockchain/types';
-import { SocialMetrics } from './services/social';
+import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext } from './services/blockchain/types.js';
+import { SocialMetrics } from './services/social/index.js';
 
 
 import {
@@ -17,7 +17,7 @@ import {
     elizaLogger} from "@ai16z/eliza";
 
 // Import mainCharacter from local file
-import { mainCharacter } from './mainCharacter';
+import { mainCharacter } from './mainCharacter.js';
 
 declare module "@langchain/langgraph" {
   interface MemorySaver {
@@ -993,21 +993,21 @@ class MemeAgentInfluencer {
 
 
 import { config as loadConfig } from 'dotenv';
-import { TwitterService } from './services/social/twitter';
-import { aiService, AIService } from './services/ai/ai';
-import { CONFIG } from './config/settings';
-import { MarketDataProcessor } from './services/market/data/DataProcessor';
-import { JupiterPriceV2Service, JupiterService } from './services/blockchain/defi/JupiterPriceV2Service';
+import { TwitterService } from './services/social/twitter.js';
+import { aiService, AIService } from './services/ai/ai.js';
+import { CONFIG } from './config/settings.js';
+import { MarketDataProcessor } from './services/market/data/DataProcessor.js';
+import { JupiterPriceV2Service, JupiterService } from './services/blockchain/defi/JupiterPriceV2Service.js';
 import axios from 'axios';
-import { ChatService, Mode } from './services/chat';
-import { TokenProvider } from './providers/token';
+import { ChatService, Mode } from './services/chat/index.js';
+import { TokenProvider } from './providers/token.js';
 import NodeCache from 'node-cache';
 
 import { RedisService } from './services/market/data/RedisCache.js';
 
 import { WalletProvider } from './providers/wallet.js';
 import { Connection, PublicKey } from '@solana/web3.js';
-import { redisService } from './services/redis/redis-service';
+import { redisService } from './services/redis/redis-service.js';
 
 loadConfig();
 

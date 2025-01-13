@@ -1,6 +1,6 @@
 // src/utils/content.ts
 
-import { aiService } from '../services/ai/ai';
+import { aiService } from '../services/ai/ai.js';
 
 interface ContentTemplate {
    type: 'meme' | 'announcement' | 'market_update' | 'community';

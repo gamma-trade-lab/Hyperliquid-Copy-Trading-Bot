@@ -1,10 +1,10 @@
 // src/services/blockchain/trading.ts
 
 import { Connection, PublicKey, TransactionError } from '@solana/web3.js';
-import { MarketDataProcessor } from '../market/data/DataProcessor';
-import { MarketData } from '../../types/market';
+import { MarketDataProcessor } from '../market/data/DataProcessor.js';
+import { MarketData } from '../../types/market.js';
 import { elizaLogger } from "@ai16z/eliza";
-import { SwapResult } from '../../types/jupiter';
+import { SwapResult } from '../../types/jupiter.js';
 import fetch from 'node-fetch';
 import txid from '../../utils/spl-token'
 interface TradeResult {
