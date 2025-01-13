@@ -1,7 +1,7 @@
 // services/market/data/DataProcessor.ts
 import { HeliusService } from '../../blockchain/heliusIntegration.js';
 import { JupiterPriceV2Service, JupiterService } from '../../blockchain/defi/JupiterPriceV2Service.js';
-import { JupiterPriceV2 } from '../../blockchain/defi/jupiterPriceV2';
+import { JupiterPriceV2 } from '../../blockchain/defi/jupiterPriceV2.js';
 import Redis from 'ioredis';
 import { elizaLogger } from "@ai16z/eliza";
 import * as zlib from 'zlib';
@@ -9,8 +9,9 @@ import { promisify } from 'util';
 import { PriceData } from '../../../types/market.js';
 import { TokenProvider } from '../../../providers/token.js';
 import { WalletProvider } from '../../../providers/wallet.js';
-import { Connection, PublicKey } from '@solana/web3.js';
 import { RedisService } from './RedisCache.js';
+import { Connection, PublicKey } from '@solana/web3.js';
+import bs58 from 'bs58';
 
 const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
@@ -58,11 +59,31 @@ export class MarketDataProcessor {
 
   constructor(
     heliusApiKey: string,
-    jupiterPriceUrl: string
+    _jupiterPriceUrl: string,
+    _defaultPublicKey: string = process.env.SOLANA_PUBLIC_KEY?.trim() || 'C7DjuqwXZ2kZ2D9RMDXv5HjiR7PVkLFJgnX7PKraPDaM' // Default public key parameter
   ) {
-    // Configure Redis to use TCP connection
-    this.redis = new Redis({
-      host: '127.0.0.1',  // Using IP instead of localhost
+    this.redis = this.configureRedis();
+    this.heliusService = new HeliusService(heliusApiKey);
+    this.jupiterService = this.configureJupiterService();
+    this.jupiterV2 = new JupiterPriceV2();
+
+    console.log('SOLANA_PUBLIC_KEY:', process.env.SOLANA_PUBLIC_KEY);
+
+    const publicKeyString = _defaultPublicKey;
+    elizaLogger.info(`Using provided SOLANA_PUBLIC_KEY in MarketDataProcessor: ${publicKeyString}`);
+    
+    if (!publicKeyString) {
+      elizaLogger.error('SOLANA_PUBLIC_KEY is not defined');
+      throw new Error('SOLANA_PUBLIC_KEY is not defined');
+    }
+
+    this.validatePublicKey(publicKeyString);
+    this.setupRedisHandlers();
+  }
+
+  private configureRedis(): Redis {
+    return new Redis({
+      host: '127.0.0.1',
       port: 6379,
       maxRetriesPerRequest: 3,
       retryStrategy: (times: number) => {
@@ -73,23 +94,36 @@ export class MarketDataProcessor {
       enableOfflineQueue: true,
       showFriendlyErrorStack: true
     });
+  }
 
-    this.heliusService = new HeliusService(heliusApiKey);
-    this.jupiterService = new JupiterPriceV2Service({
+  private configureJupiterService(): JupiterPriceV2Service {
+    return new JupiterPriceV2Service({
       redis: {
         host: '127.0.0.1',
         port: 6379
       }
-    }, new TokenProvider('', new WalletProvider(new Connection('https://api.mainnet-beta.solana.com'), new PublicKey('')), new RedisService({
+    }, new TokenProvider('', new WalletProvider(new Connection('https://api.mainnet-beta.solana.com'), new PublicKey('11111111111111111111111111111111')), new RedisService({
       host: '127.0.0.1',
       port: 6379
     }), { apiKey: '' }), new RedisService({
       host: '127.0.0.1',
       port: 6379
     }), new JupiterService());
-    this.jupiterV2 = new JupiterPriceV2();
+  }
 
-    this.setupRedisHandlers();
+  private validatePublicKey(publicKeyString: string): void {
+    try {
+      elizaLogger.info(`Attempting to validate PublicKey with: ${publicKeyString}`);
+      // Assuming a simple validation for the public key string format
+      if (!bs58.decode(publicKeyString)) {
+        throw new Error('Invalid PublicKey format');
+      }
+      elizaLogger.info(`Successfully validated PublicKey: ${publicKeyString}`);
+    } catch (error) {
+      elizaLogger.error(`Error validating PublicKey: ${publicKeyString}`);
+      elizaLogger.error(`Error details: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Invalid SOLANA_PUBLIC_KEY: ${publicKeyString}`);
+    }
   }
 
   private setupRedisHandlers(): void {
@@ -149,19 +183,16 @@ export class MarketDataProcessor {
     const cacheKey = `${this.CACHE_PREFIX}${tokenAddress}`;
     
     try {
-      // Try cache first
       const cached = await this.redis.get(cacheKey);
       if (cached && !this.circuitOpen) {
         return await this.decompressData<MarketData>(cached);
       }
 
-      // Get data from Jupiter
       const [priceData, extraInfo] = await Promise.all([
         this.jupiterService.getTokenPrice(tokenAddress),
         this.jupiterV2.getPrices([tokenAddress])
       ]);
 
-      // Get holder data from Helius
       const mintInfo = await this.heliusService.getMintAccountInfo(tokenAddress);
       if (mintInfo) {
         mintInfo.supply = BigInt(mintInfo.supply);
@@ -174,7 +205,6 @@ export class MarketDataProcessor {
         throw new Error('Failed to fetch holders classification');
       }
 
-      // Calculate market metrics
       if (!priceData) {
         throw new Error('Failed to fetch price data');
       }
@@ -202,7 +232,6 @@ export class MarketDataProcessor {
         topHolders: []
       };
 
-      // Cache the result
       await this.redis.set(
         cacheKey,
         await this.compressData(marketData),
@@ -217,7 +246,6 @@ export class MarketDataProcessor {
       elizaLogger.error('Error fetching market data:', error);
       this.handleError(error instanceof Error ? error : new Error(String(error)));
 
-      // Return cached data if available
       const cached = await this.redis.get(cacheKey);
       if (cached) {
         return await this.decompressData<MarketData>(cached);
@@ -232,9 +260,7 @@ export class MarketDataProcessor {
     return marketData.price;
   }
 
-  public async getHistoricalPrices(token: string, window: number): Promise<PriceData[]> {
-    // Implement the logic to fetch historical prices for the given token and window
-    // This is a placeholder implementation
+  public async getHistoricalPrices(_token: string, _window: number): Promise<PriceData[]> {
     return [];
   }
 
@@ -242,6 +268,7 @@ export class MarketDataProcessor {
     const window = 30; // Example window size of 30 days
     return await this.calculateAverageVolatility(token, window);
   }
+
   public async calculateAverageVolatility(tokenAddress: string, window: number): Promise<number> {
     const historicalPrices = await this.getHistoricalPrices(tokenAddress, window);
     if (historicalPrices.length < 2) return 0;
@@ -274,7 +301,6 @@ export class MarketDataProcessor {
 
       const { buyPriceImpactRatio, sellPriceImpactRatio } = prices.extraInfo.depth;
       
-      // Calculate volatility using price impact ratios
       const avgImpact = (
         Object.values(buyPriceImpactRatio.depth).reduce((a, b) => a + b, 0) +
         Object.values(sellPriceImpactRatio.depth).reduce((a, b) => a + b, 0)

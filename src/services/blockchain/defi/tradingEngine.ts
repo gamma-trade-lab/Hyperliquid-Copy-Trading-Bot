@@ -129,7 +129,8 @@ export class TradingEngine extends EventEmitter {
     };
     this.strategies.set(defaultStrategy.id, defaultStrategy);
     const heliusApiKey = process.env.HELIUS_API_KEY!; // Use API key from .env
-    this.dataProcessor = new MarketDataProcessor(heliusApiKey, 'https://tokens.jup.ag/tokens?tags=verified');
+    const publicKeyString = process.env.SOLANA_PUBLIC_KEY!; // Use public key from .env
+    this.dataProcessor = new MarketDataProcessor(heliusApiKey, 'https://tokens.jup.ag/tokens?tags=verified', publicKeyString);
     this.volatilityManager = new VolatilityManager(this.dataProcessor);
     this.sentimentAnalyzer = sentimentAnalyzer;
     this.jupiterPriceV2 = new JupiterPriceV2();

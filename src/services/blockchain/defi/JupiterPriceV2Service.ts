@@ -1,16 +1,16 @@
 import 'reflect-metadata';  // Add this at the top
 import { injectable, inject } from 'tsyringe'; // Use a proper DI container
-import { TokenProvider } from '../../../providers/token';
-import { RedisService } from '../../market/data/RedisCache';
+import { TokenProvider } from '../../../providers/token.js';
+import { RedisService } from '../../market/data/RedisCache.js';
 import { elizaLogger } from "@ai16z/eliza";
 import { Connection, PublicKey, PublicKeyInitData } from '@solana/web3.js';
-import { WalletProvider } from '../../../providers/wallet';
+import { WalletProvider } from '../../../providers/wallet.js';
 import { ICacheManager } from '@elizaos/core';
 import { Tool } from "@goat-sdk/core";
 import { SolanaWalletClient } from "@goat-sdk/wallet-solana";
 
 import { VersionedTransaction } from "@solana/web3.js";
-import { GetQuoteParameters } from './jupiterParameters';
+import { GetQuoteParameters } from './jupiterParameters.js';
 
 
 // Required interfaces

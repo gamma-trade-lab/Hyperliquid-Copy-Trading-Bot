@@ -93,9 +93,11 @@ export class SocialService {
     }, tokenProvider, redisService, new JupiterService());
 
     // Initialize data processor with price fetcher
+    const publicKeyString = process.env.SOLANA_PUBLIC_KEY!; // Use public key from .env
     this.dataProcessor = new MarketDataProcessor(
       config.helius.apiKey,
-      'https://tokens.jup.ag/tokens?tags=verified'
+      'https://tokens.jup.ag/tokens?tags=verified',
+      publicKeyString
     );
 
     if (config.twitter) {

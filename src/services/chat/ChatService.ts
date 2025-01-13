@@ -1,17 +1,17 @@
 import { createInterface } from 'readline';
-import { ChatHistoryManager } from './ChatHistoryManager';
-import { ModeManager } from './ModeManager';
-import { CommandHandler } from './CommandHandler';
+import { ChatHistoryManager } from './ChatHistoryManager.js';
+import { ModeManager } from './ModeManager.js';
+import { CommandHandler } from './CommandHandler.js';
 import { Mode, ModeConfig } from './types';
-import { MarketData, MarketAnalysis } from '@/types/market';
+import { MarketData, MarketAnalysis } from '@/types/market.js';
 import { elizaLogger } from "@ai16z/eliza";
-import { AIService } from '../ai/ai';
+import { AIService } from '../ai/ai.js';
 
-import { ServiceMarketAnalysis, CommandResult } from '@/types/chat';
-import { TwitterCommands } from './TwitterCommands';
-import { TwitterService } from '../social/twitter';
-import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service';
-import { TokenProvider } from '../../providers/token';
+import { ServiceMarketAnalysis, CommandResult } from '@/types/chat.js';
+import { TwitterCommands } from './TwitterCommands.js';
+import { TwitterService } from '../social/twitter.js';
+import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service.js';
+import { TokenProvider } from '../../providers/token.js';
 
 type MessageRole = 'user' | 'assistant' | 'system';
 type IntervalHandle = ReturnType<typeof setInterval>;

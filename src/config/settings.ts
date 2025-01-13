@@ -4,7 +4,7 @@ import { PublicKey } from '@solana/web3.js';
 import * as dotenv from 'dotenv';
 import { NetworkType } from './constants';
 import { elizaLogger } from "@ai16z/eliza";
-import { validateConfig } from '@/utils/config-validator';
+import { validateConfig } from '../utils/config-validator.js';
 
 dotenv.config();
 elizaLogger.info('Loaded .env file from:', process.cwd() + '/.env');
@@ -68,12 +68,24 @@ export interface SystemPrompts {
     };
 }
 
+// Validate SOLANA public key
+const solanaPublicKey = process.env.SOLANA_PUBLIC_KEY || '';
+elizaLogger.info(`SOLANA_PUBLIC_KEY: ${solanaPublicKey}`);
+try {
+    new PublicKey(solanaPublicKey);
+    elizaLogger.info(`Successfully validated SOLANA_PUBLIC_KEY: ${solanaPublicKey}`);
+} catch (error) {
+    elizaLogger.error(`Invalid SOLANA_PUBLIC_KEY: ${solanaPublicKey}`);
+    elizaLogger.error(`Error details: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(`Invalid SOLANA_PUBLIC_KEY: ${solanaPublicKey}`);
+}
+
 export const CONFIG = {
     SOLANA: {
         NETWORK: process.env.SOLANA_NETWORK as NetworkType,
         RPC_URL: process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
         PRIVATE_KEY: process.env.SOLANA_PRIVATE_KEY || '',
-        PUBLIC_KEY: process.env.SOLANA_PUBLIC_KEY || '',
+        PUBLIC_KEY: solanaPublicKey,
         helius: {
             API_KEY: process.env.HELIUS_API_KEY || '',
             BASE_URL: process.env.HELIUS_BASE_URL || 'https://api.helius.xyz',

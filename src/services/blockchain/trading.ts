@@ -26,7 +26,8 @@ export class TradingService {
 
   constructor(rpcUrl: string, heliusApiKey: string, jupiterPriceUrl: string, jupiterInstance: any) {
     this.connection = new Connection(rpcUrl, 'confirmed');
-    this.marketDataProcessor = new MarketDataProcessor(heliusApiKey, jupiterPriceUrl);
+    const publicKeyString = process.env.SOLANA_PUBLIC_KEY!; // Use public key from .env
+    this.marketDataProcessor = new MarketDataProcessor(heliusApiKey, jupiterPriceUrl, publicKeyString);
     this.jupiter = jupiterInstance;
   }
 

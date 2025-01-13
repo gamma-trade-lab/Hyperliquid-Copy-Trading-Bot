@@ -55,6 +55,7 @@ async function initializeServices() {
     const dataProcessor = new MarketDataProcessor(
       process.env.HELIUS_API_KEY!,
       'https://tokens.jup.ag/tokens?tags=verified',
+      CONFIG.SOLANA.PUBLIC_KEY
     );
 
     // Initialize AI service
@@ -1100,9 +1101,8 @@ async function startMemeAgent() {
 // Initialize base services
 const dataProcessor = new MarketDataProcessor(
   process.env.HELIUS_API_KEY!,
-  'https://tokens.jup.ag/tokens?tags=verified'
-  
-  //CONFIG.SOLANA.TOKEN_SETTINGS.ADDRESS
+  'https://tokens.jup.ag/tokens?tags=verified',
+  CONFIG.SOLANA.PUBLIC_KEY
 );
 
 // Initialize Twitter service
