@@ -4,7 +4,7 @@ import { ModeManager } from './ModeManager.js';
 import { CommandHandler } from './CommandHandler.js';
 import { Mode, ModeConfig } from './types';
 import { MarketData, MarketAnalysis } from '@/types/market.js';
-import { elizaLogger } from "@ai16z/eliza";
+import { elizaLogger, IAgentRuntime, ICacheManager, Memory, State } from "@ai16z/eliza"; // Remove ExtendedMemory import
 import { AIService } from '../ai/ai.js';
 
 import { ServiceMarketAnalysis, CommandResult } from '@/types/chat.js';
@@ -12,6 +12,8 @@ import { TwitterCommands } from './TwitterCommands.js';
 import { TwitterService } from '../social/twitter.js';
 import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service.js';
 import { TokenProvider } from '../../providers/token.js';
+import { Connection, PublicKey } from '@solana/web3.js';
+
 
 type MessageRole = 'user' | 'assistant' | 'system';
 type IntervalHandle = ReturnType<typeof setInterval>;
@@ -33,6 +35,10 @@ declare module '../ai/ai' {
   }
 }
 
+interface ExtendedMemory extends Memory {
+  tokenAddress: string;
+}
+
 export class ChatService {
   private history: ChatHistoryManager;
   private modeManager: ModeManager;
@@ -44,6 +50,9 @@ export class ChatService {
   private twitterCommands: TwitterCommands;
   private isRunning: boolean = false;
   private autoModeInterval: IntervalHandle | null = null;
+  private connection: Connection;
+  private walletKey: PublicKey;
+  private cacheManager: ICacheManager;
   
   private readonly readline = createInterface({
     input: process.stdin,
@@ -54,19 +63,28 @@ export class ChatService {
     aiService: AIService,
     twitterService: TwitterService,
     jupiterService: JupiterPriceV2Service,
-    tokenProvider: TokenProvider // Add this argument
+    tokenProvider: TokenProvider,
+    connection: Connection, // Ensure this argument is included
+    walletKey: PublicKey, // Ensure this argument is included
+    cacheManager: ICacheManager // Ensure this argument is included
   ) {
     this.aiService = aiService;
     this.twitterService = twitterService;
     this.jupiterService = jupiterService;
-    this.tokenProvider = tokenProvider; // Assign this argument
+    this.tokenProvider = tokenProvider;
+    this.connection = connection;
+    this.walletKey = walletKey;
+    this.cacheManager = cacheManager;
     
     this.history = new ChatHistoryManager();
     this.modeManager = new ModeManager();
     this.commandHandler = new CommandHandler(
       this.modeManager,
       twitterService,
-      jupiterService
+      jupiterService,
+      connection,
+      walletKey,
+      cacheManager
     );
     
     this.twitterCommands = new TwitterCommands(
@@ -308,30 +326,33 @@ export class ChatService {
     }
   }
 
-  private async processInput(input: string): Promise<void> {
+  async processInput(input: string): Promise<string> {
     try {
-      const commandResult = await this.commandHandler.handleCommand(input);
-      
-      if (commandResult === false) {
-        this.recordMessage('user', input);
-        
-        const response = await this.aiService.generateResponse({
-          content: input,
-          platform: 'terminal',
-          author: 'user'
-        });
-        
-        if (response) {
-          this.recordMessage('assistant', response);
-          console.log('\nJENNA:', response);
-        } else {
-          console.log('\nSorry, there was an error. Please try again.');
-        }
-      }
+        const runtime = this.getRuntime();
+        const message = this.parseInput(input);
+        const state = this.getState();
+        const commandHandler = new CommandHandler(this.modeManager, this.twitterService, this.jupiterService, this.connection, this.walletKey, this.cacheManager);
+        return await commandHandler.execute(runtime, message as ExtendedMemory, state); // Ensure Memory is cast to ExtendedMemory
     } catch (error) {
-      elizaLogger.error('Error processing input:', error instanceof Error ? error.message : String(error));
-      console.log('\nError processing your input. Please try again.');
+        elizaLogger.error(`Error processing input:`, error);
+        throw error;
     }
+  }
+
+  // Define the missing methods
+  private getRuntime(): IAgentRuntime {
+    // Implement the logic to get the runtime
+    return {} as IAgentRuntime;
+  }
+
+  private parseInput(input: string): Memory {
+    // Implement the logic to parse the input
+    return {} as Memory;
+  }
+
+  private getState(): State {
+    // Implement the logic to get the state
+    return {} as State;
   }
 
   public async start(): Promise<void> {

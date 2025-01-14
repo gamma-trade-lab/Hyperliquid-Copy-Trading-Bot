@@ -18,16 +18,19 @@ import { WalletProvider, Item } from "./wallet.js";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { getWalletKey } from "../utils/keypairUtils.js";
 import { elizaLogger } from "@ai16z/eliza";
-import { CONFIG } from '../config/settings';
-
-interface BirdeyeResponse<T> {
-    success: boolean;
-    data: T;
-    error?: string;
-}
+import { CONFIG } from '../config/settings.js';
+import { Tool } from "@goat-sdk/core";
+import {
+    GetOhlcvPairParameters,
+    GetOhlcvParameters,
+    GetTokenHistoryPriceParameters,
+    GetTokenPriceParameters,
+    GetTokenSecurityParameters,
+    GetTrendingTokensParameters,
+    SearchTokenParameters,
+} from "./parameters.js"; // Import parameters
 
 const PROVIDER_CONFIG = {
-    BIRDEYE_API: "https://public-api.birdeye.so/defi/tokenlist?sort_by=v24hUSD&sort_type=desc&offset=0&limit=50&min_liquidity=100",
     MAX_RETRIES: 3,
     RETRY_DELAY: 2000,
     DEFAULT_RPC: "https://api.mainnet-beta.solana.com",
@@ -36,12 +39,10 @@ const PROVIDER_CONFIG = {
         BTC: "qfnqNqs3nCAHjnyCgLRDbBtq4p2MtHZxw8YjSyYhPoL",
         ETH: "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs"
     },
-    TOKEN_SECURITY_ENDPOINT: "/token/security?address=",
-    TOKEN_TRADE_DATA_ENDPOINT: "/token/trade?address=",
     HEADERS: {
         'Accept': 'application/json',
         'x-chain': 'solana',
-        'X-API-KEY': '***' // Will be set during runtime
+        'X-API-KEY': process.env.BIRDEYE_API_KEY || '182c935d970d43a9b8e556ad0b931596' // Load from .env
     }
 };
 
@@ -56,6 +57,7 @@ interface TokenTradeResponse {
 }
 
 export class TokenProvider {
+    private tokenAddress: string; // Remove readonly modifier
     private readonly BASE_URL = 'https://public-api.birdeye.so';
     private readonly DEFAULT_HEADERS = {
         'accept': 'application/json',
@@ -76,12 +78,20 @@ export class TokenProvider {
     config: any;
 
     constructor(
-        private tokenAddress: string,
+        tokenAddress: string,
         public walletProvider: WalletProvider,
         private cacheManager: ICacheManager,
-        config: { apiKey: string }
+        config: { apiKey: string; retryAttempts?: number; retryDelay?: number; timeout?: number }
     ) {
+        this.tokenAddress = tokenAddress;
         this.apiKey = config.apiKey;
+        this.config = {
+            retryAttempts: config.retryAttempts ?? 3,
+            retryDelay: config.retryDelay ?? 2000,
+            timeout: config.timeout ?? 10000,
+            ...config
+        };
+        elizaLogger.info(`TokenProvider initialized with config: ${JSON.stringify(this.config)}`);
         this.validateApiKey();
         this.cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
     }
@@ -125,23 +135,30 @@ export class TokenProvider {
     }
 
     private async fetchWithRetry<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
-        const maxRetries = this.config.retryAttempts || 3;
-        const baseDelay = this.config.retryDelay || 2000;
-        const timeout = this.config.timeout || 10000;
-
+        const { retryAttempts, retryDelay, timeout } = this.config;
+        elizaLogger.info(`Using config - retryAttempts: ${retryAttempts}, retryDelay: ${retryDelay}, timeout: ${timeout}`);
+    
+        if (retryAttempts === undefined) {
+            throw new Error('retryAttempts is undefined');
+        }
+    
+        const maxRetries = retryAttempts ?? 3;
+        const baseDelay = retryDelay ?? 2000;
+        const requestTimeout = timeout ?? 10000;
+    
         // Build URL with parameters
         const queryParams = new URLSearchParams(params).toString();
         const url = `${this.BASE_URL}${endpoint}${queryParams ? '?' + queryParams : ''}`;
-
+    
         let lastError: Error | null = null;
-
+    
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 elizaLogger.info(`API Request Attempt ${attempt} to: ${url}`);
                 
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), timeout);
-
+                const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
+    
                 const response = await fetch(url, {
                     method: 'GET',
                     headers: new Headers({
@@ -150,32 +167,32 @@ export class TokenProvider {
                     }),
                     signal: controller.signal
                 });
-
+    
                 clearTimeout(timeoutId);
-
+    
                 // Check response content type
                 const contentType = response.headers.get('content-type');
                 if (contentType?.includes('text/html')) {
                     throw new Error('Invalid API response: received HTML instead of JSON');
                 }
-
+    
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
                 }
-
+    
                 const data = await response.json();
                 
                 if (!data.success) {
                     throw new Error(data.error || 'API request failed');
                 }
-
+    
                 return data as T;
-
+    
             } catch (error) {
                 lastError = error as Error;
                 elizaLogger.warn(`Attempt ${attempt} failed:`, error);
-
+    
                 if (attempt < maxRetries) {
                     const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), 10000);
                     elizaLogger.info(`Waiting ${delay}ms before retrying...`);
@@ -183,7 +200,7 @@ export class TokenProvider {
                 }
             }
         }
-
+    
         throw lastError || new Error('Request failed after all retry attempts');
     }
 
@@ -339,9 +356,7 @@ export class TokenProvider {
             };
 
             for (const token of tokens) {
-                const response = await this.fetchWithRetry<PriceResponse>(
-                    `${PROVIDER_CONFIG.BIRDEYE_API}/defi/price?address=${token}`
-                );
+                const response = await this.fetchWithRetry<PriceResponse>(`/defi/multi_price?&addresses=${token}`);
 
                 if (response?.success && response?.data?.value) {
                     const price = response.data.value.toString();
@@ -436,8 +451,7 @@ export class TokenProvider {
             top10HolderPercent: number;
         }
 
-        const url = `${PROVIDER_CONFIG.BIRDEYE_API}${PROVIDER_CONFIG.TOKEN_SECURITY_ENDPOINT}${this.tokenAddress}`;
-        const response = await this.fetchWithRetry<SecurityResponse>(url);
+        const response = await this.fetchWithRetry<SecurityResponse>(`/defi/token_security?address=${this.tokenAddress}`);
 
         if (!response?.success || !response?.data) {
             throw new Error("No token security data available");
@@ -532,16 +546,8 @@ export class TokenProvider {
             };
         }
 
-        const url = `${PROVIDER_CONFIG.BIRDEYE_API}${PROVIDER_CONFIG.TOKEN_TRADE_DATA_ENDPOINT}${this.tokenAddress}`;
-        const options = {
-            method: "GET",
-            headers: {
-                accept: "application/json",
-                "X-API-KEY": settings.BIRDEYE_API_KEY || "",
-            } as Record<string, string>,
-        };
-
-        const response = await this.fetchWithRetry<TokenTradeResponse>(url);
+        const endpoint = `/defi/token_trades?address=${this.tokenAddress}`;
+        const response = await this.fetchWithRetry<TokenTradeResponse>(endpoint);
 
         if (!response?.success || !response?.data) {
             throw new Error("No token trade data available");

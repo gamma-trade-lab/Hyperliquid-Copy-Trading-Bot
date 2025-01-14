@@ -48,7 +48,7 @@ export class MarketCommand {
         requestsPerMinute: 600,
         windowMs: 60000
       }
-    }, tokenProvider, redisService, jupiterService);
+    }, tokenProvider, redisService);
   }
 
   async execute(args: string[]): Promise<CommandResult> {

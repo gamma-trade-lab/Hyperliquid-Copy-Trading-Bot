@@ -108,7 +108,7 @@ export class MarketDataProcessor {
     }), { apiKey: '' }), new RedisService({
       host: '127.0.0.1',
       port: 6379
-    }), new JupiterService());
+    }));
   }
 
   private validatePublicKey(publicKeyString: string): void {

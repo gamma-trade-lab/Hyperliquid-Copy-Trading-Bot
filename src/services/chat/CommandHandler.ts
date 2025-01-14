@@ -1,9 +1,16 @@
 import { Mode, Command, CommandResult } from '@/types/chat';
 import { ModeManager } from './ModeManager';
-import { elizaLogger } from "@ai16z/eliza";
+import { elizaLogger, settings, State } from "@ai16z/eliza";
 import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service';
 import { TwitterService } from '../social';
+import { IAgentRuntime, ICacheManager, Memory } from '@elizaos/core';
+import { TokenProvider } from '../../providers/token.js';
+import { WalletProvider } from '../../providers/wallet.js';
+import { Connection, PublicKey } from '@solana/web3.js';
 
+interface ExtendedMemory extends Memory {
+  tokenAddress: string;
+}
 
 export class CommandHandler {
   private commands: Map<string, Command>;
@@ -11,16 +18,25 @@ export class CommandHandler {
   private aliases: Map<string, string>;
   private twitterService: TwitterService;
   private jupiterService: JupiterPriceV2Service;
-// Current Issue: Not handling all error cases and missing proper formatting
+  private connection: Connection;
+  private walletKey: PublicKey;
+  private cacheManager: ICacheManager;
+
   constructor(
     modeManager: ModeManager,
     twitterService: TwitterService,
-    jupiterService: JupiterPriceV2Service
+    jupiterService: JupiterPriceV2Service,
+    connection: Connection,
+    walletKey: PublicKey,
+    cacheManager: ICacheManager
   ) {
     this.commands = new Map();
     this.modeManager = modeManager;
     this.twitterService = twitterService;
     this.jupiterService = jupiterService;
+    this.connection = connection;
+    this.walletKey = walletKey;
+    this.cacheManager = cacheManager;
     this.aliases = new Map([
       ['post', 'tweet'],
       ['send', 'tweet'],
@@ -316,4 +332,20 @@ public async handleCommand(input: string): Promise<boolean> {
     this.commands.clear();
     this.registerDefaultCommands();
   }
+
+  async execute(runtime: IAgentRuntime, { tokenAddress }: ExtendedMemory, state?: State): Promise<string> {
+    try {
+        const walletProvider = new WalletProvider(this.connection, this.walletKey);
+        const tokenProvider = new TokenProvider(
+            tokenAddress,
+            walletProvider,
+            this.cacheManager,
+            { apiKey: settings.BIRDEYE_API_KEY || '', retryAttempts: 3, retryDelay: 2000, timeout: 10000 }
+        );
+        return await tokenProvider.getFormattedTokenReport();
+    } catch (error) {
+        elizaLogger.error(`Error executing command for ${tokenAddress}:`, error);
+        throw error;
+    }
+}
 }

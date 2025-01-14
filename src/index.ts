@@ -1,3 +1,4 @@
+import dotenv from 'dotenv';
 import { TwitterApi } from 'twitter-api-v2';
 import { Client as DiscordClient, Message } from 'discord.js';
 import Groq from "groq-sdk";
@@ -25,6 +26,7 @@ declare module "@langchain/langgraph" {
   }
 }
 
+dotenv.config();
 loadConfig();
 interface ServiceConfig {
   dataProcessor: any;
@@ -144,14 +146,17 @@ async function initializeServices() {
         requestsPerMinute: 600,
         windowMs: 60000
       }
-    }, tokenProviderInstance, redisService as unknown as RedisService, jupiterService); // Remove the extra cache argument
+    }, tokenProviderInstance, redisService as unknown as RedisService); // Remove the extra cache argument
 
     // Initialize ChatService
     const chatService = new ChatService(
       aiService,
       twitterService,
       jupiterPriceV2Service!,
-      tokenProviderInstance // Add this argument
+      tokenProviderInstance, // Add this argument
+      new Connection(CONFIG.SOLANA.RPC_URL), // Add this argument
+      new PublicKey(CONFIG.SOLANA.PUBLIC_KEY), // Add this argument
+      cacheAdapter // Add this argument
     );
 
     return {
@@ -1261,7 +1266,10 @@ async function startChat(this: MemeAgentInfluencer, services: ServiceConfig): Pr
       walletProviderInstance,
       cacheAdapter,
       { apiKey: CONFIG.SOLANA.RPC_URL } // Add the missing config argument
-    )
+    ),
+    new Connection(CONFIG.SOLANA.RPC_URL), // Add this argument
+    new PublicKey(CONFIG.SOLANA.PUBLIC_KEY), // Add this argument
+    cacheAdapter // Add this argument
   );
   await chatService.start();
 }
@@ -1415,7 +1423,7 @@ async function main(this: any) {
           ),
           cacheAdapter,
           { apiKey: CONFIG.SOLANA.RPC_URL }
-        ), (redisService as unknown) as RedisService, new JupiterService() ),
+        ), (redisService as unknown) as RedisService),
         new TokenProvider(
           this.tokenAddress,
           new WalletProvider(
@@ -1424,7 +1432,10 @@ async function main(this: any) {
           ),
           cacheAdapter,
           { apiKey: CONFIG.SOLANA.RPC_URL }
-        )
+        ),
+        new Connection(CONFIG.SOLANA.RPC_URL), // Add this argument
+        new PublicKey(CONFIG.SOLANA.PUBLIC_KEY), // Add this argument
+        cacheAdapter // Add this argument
       )
     };
     await cleanup(emptyServices);

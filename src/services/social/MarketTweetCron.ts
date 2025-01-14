@@ -77,7 +77,7 @@ export class MarketTweetCron {
       host: redisHost,
       port: redisPort,
       password: redisPassword
-    }), new JupiterService());
+    }));
     
     this.heliusService = new HeliusService(heliusApiKey);
   }

@@ -90,7 +90,7 @@ export class SocialService {
         url: process.env.SOLANA_RPC_URL || '',
         walletPublicKey: process.env.SOLANA_PUBLIC_KEY || ''
       }
-    }, tokenProvider, redisService, new JupiterService());
+    }, tokenProvider, redisService, );
 
     // Initialize data processor with price fetcher
     const publicKeyString = process.env.SOLANA_PUBLIC_KEY!; // Use public key from .env
