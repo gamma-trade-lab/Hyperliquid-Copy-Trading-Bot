@@ -1,54 +1,33 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service';
 import { elizaLogger } from "@ai16z/eliza";
 import { CommandResult } from '../../types/chat';
 import { TokenProvider } from '../../providers/token';
 import { RedisService } from '../market/data/RedisCache';
-import { JupiterService } from '../blockchain/defi/JupiterPriceV2Service';
 import { WalletProvider } from '../../providers/wallet';
 
 export class MarketCommand {
-  private jupiterService: JupiterPriceV2Service;
   private connection: Connection;
+  private walletProvider: WalletProvider;
+  private tokenProvider: TokenProvider;
 
   constructor(config: { rpcUrl: string }) {
     this.connection = new Connection(config.rpcUrl);
     if (!process.env.WALLET_PUBLIC_KEY) {
       throw new Error('WALLET_PUBLIC_KEY environment variable is not set');
     }
-    const walletProvider = new WalletProvider(this.connection, new PublicKey(process.env.WALLET_PUBLIC_KEY));
-    const tokenProvider = new TokenProvider('tokenAddress', walletProvider, new RedisService({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
-      password: process.env.REDIS_PASSWORD,
-      keyPrefix: 'jupiter-price:',
-      enableCircuitBreaker: true
-    }), { apiKey: process.env.API_KEY || '' });
-    const redisService = new RedisService({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
-      password: process.env.REDIS_PASSWORD,
-      keyPrefix: 'jupiter-price:',
-      enableCircuitBreaker: true
-    });
-    const jupiterService = new JupiterService();
-    this.jupiterService = new JupiterPriceV2Service({
-      redis: {
+    this.walletProvider = new WalletProvider(this.connection, new PublicKey(process.env.WALLET_PUBLIC_KEY));
+    this.tokenProvider = new TokenProvider(
+      'tokenAddress',
+      this.walletProvider,
+      new RedisService({
         host: process.env.REDIS_HOST || 'localhost',
         port: Number(process.env.REDIS_PORT) || 6379,
         password: process.env.REDIS_PASSWORD,
         keyPrefix: 'jupiter-price:',
         enableCircuitBreaker: true
-      },
-      rpcConnection: {
-        url: config.rpcUrl,
-        walletPublicKey: process.env.WALLET_PUBLIC_KEY
-      },
-      rateLimitConfig: {
-        requestsPerMinute: 600,
-        windowMs: 60000
-      }
-    }, tokenProvider, redisService);
+      }),
+      { apiKey: '', retryAttempts: 3, retryDelay: 2000, timeout: 10000 }
+    );
   }
 
   async execute(args: string[]): Promise<CommandResult> {
@@ -56,17 +35,26 @@ export class MarketCommand {
       if (!args.length) {
         return {
           success: false,
-          message: 'Please specify a token symbol (e.g., market SOL)'
+          message: 'Please specify a token symbol (e.g., market BTC)'
         };
       }
 
       const symbol = args[0].toUpperCase();
-      const marketData = await this.jupiterService.getMarketMetrics(symbol);
+      const tokenAddress = await this.tokenProvider.getTokenAddressFromTicker(symbol);
+      if (!tokenAddress) {
+        return {
+          success: false,
+          message: `Token address not found for symbol: ${symbol}`
+        };
+      }
+
+      this.tokenProvider.setTokenAddress(tokenAddress);
+      const tokenReport = await this.tokenProvider.getFormattedTokenReport();
 
       return {
         success: true,
-        data: marketData,
-        message: this.formatMarketData(symbol, marketData)
+        data: tokenReport,
+        message: tokenReport
       };
     } catch (error) {
       elizaLogger.error('Market command error:', error);
@@ -87,7 +75,8 @@ export class MarketCommand {
         };
       }
 
-      const metrics = await this.jupiterService.getMarketMetrics(symbol);
+      this.tokenProvider.setTokenAddress(symbol);
+      const metrics = await this.tokenProvider.getFormattedTokenReport();
       return {
         success: true,
         data: metrics,
@@ -112,7 +101,8 @@ export class MarketCommand {
         };
       }
 
-      const metrics = await this.jupiterService.getMarketMetrics(symbol);
+      this.tokenProvider.setTokenAddress(symbol);
+      const metrics = await this.tokenProvider.getFormattedTokenReport();
       const tweet = this.formatTweetContent(symbol, metrics);
 
       return {

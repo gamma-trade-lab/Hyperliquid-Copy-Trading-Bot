@@ -1,16 +1,9 @@
-import { Mode, Command, CommandResult } from '@/types/chat';
-import { ModeManager } from './ModeManager';
-import { elizaLogger, settings, State } from "@ai16z/eliza";
-import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service';
-import { TwitterService } from '../social';
-import { IAgentRuntime, ICacheManager, Memory } from '@elizaos/core';
-import { TokenProvider } from '../../providers/token.js';
-import { WalletProvider } from '../../providers/wallet.js';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { Mode, Command, CommandResult } from '@/types/chat.js';
+import { ModeManager } from './ModeManager.js';
+import { elizaLogger } from "@ai16z/eliza";
+import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service.js';
+import { TwitterService } from '../social/index.js';
 
-interface ExtendedMemory extends Memory {
-  tokenAddress: string;
-}
 
 export class CommandHandler {
   private commands: Map<string, Command>;
@@ -18,25 +11,16 @@ export class CommandHandler {
   private aliases: Map<string, string>;
   private twitterService: TwitterService;
   private jupiterService: JupiterPriceV2Service;
-  private connection: Connection;
-  private walletKey: PublicKey;
-  private cacheManager: ICacheManager;
-
+// Current Issue: Not handling all error cases and missing proper formatting
   constructor(
     modeManager: ModeManager,
     twitterService: TwitterService,
-    jupiterService: JupiterPriceV2Service,
-    connection: Connection,
-    walletKey: PublicKey,
-    cacheManager: ICacheManager
+    jupiterService: JupiterPriceV2Service
   ) {
     this.commands = new Map();
     this.modeManager = modeManager;
     this.twitterService = twitterService;
     this.jupiterService = jupiterService;
-    this.connection = connection;
-    this.walletKey = walletKey;
-    this.cacheManager = cacheManager;
     this.aliases = new Map([
       ['post', 'tweet'],
       ['send', 'tweet'],
@@ -227,44 +211,6 @@ export class CommandHandler {
         }
       }
     });
-
-    // Tweet command validation
-    this.registerCommand({
-      name: 'tweet',
-      description: 'Post a tweet',
-      execute: async (args: string[]): Promise<CommandResult> => {
-        try {
-          if (!args.length) {
-            return {
-              success: false,
-              message: 'Please provide tweet content'
-            };
-          }
-    
-          const content = args.join(' ');
-          if (content.length > 280) {
-            return {
-              success: false,
-              message: 'Tweet exceeds 280 characters'
-            };
-          }
-    
-          elizaLogger.info('Attempting to post tweet:', { content });
-          await this.twitterService.postTweetWithRetry(content);
-    
-          return {
-            success: true,
-            message: 'Tweet posted successfully'
-          };
-        } catch (error) {
-          elizaLogger.error('Failed to post tweet:', error);
-          return {
-            success: false,
-            message: `Failed to post tweet: ${error instanceof Error ? error.message : 'Unknown error'}`
-          };
-        }
-      }
-    });
   }
 
   // Add request timeout handling
@@ -332,20 +278,4 @@ public async handleCommand(input: string): Promise<boolean> {
     this.commands.clear();
     this.registerDefaultCommands();
   }
-
-  async execute(runtime: IAgentRuntime, { tokenAddress }: ExtendedMemory, state?: State): Promise<string> {
-    try {
-        const walletProvider = new WalletProvider(this.connection, this.walletKey);
-        const tokenProvider = new TokenProvider(
-            tokenAddress,
-            walletProvider,
-            this.cacheManager,
-            { apiKey: settings.BIRDEYE_API_KEY || '', retryAttempts: 3, retryDelay: 2000, timeout: 10000 }
-        );
-        return await tokenProvider.getFormattedTokenReport();
-    } catch (error) {
-        elizaLogger.error(`Error executing command for ${tokenAddress}:`, error);
-        throw error;
-    }
-}
 }

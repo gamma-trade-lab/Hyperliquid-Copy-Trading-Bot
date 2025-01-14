@@ -176,11 +176,10 @@ async function handler(runtime: IAgentRuntime, message: Memory) {
             );
             rec.contractAddress = tokenAddress;
             if (!tokenAddress) {
-                // try to search for the symbol and return the contract address with they highest liquidity and market cap
-                const result = await tokenProvider.searchDexScreenerData(
-                    rec.ticker
-                );
-                const tokenAddress = result?.baseToken?.address;
+                // try to search for the symbol and return the contract address with the highest liquidity and market cap
+                const result = await tokenProvider.searchDexScreenerData(rec.ticker);
+                // Ensure the correct property is accessed on the DexScreenerPair object
+                const tokenAddress = result?.[0]?.baseToken?.address;
                 rec.contractAddress = tokenAddress;
                 if (!tokenAddress) {
                     console.warn("Could not find contract address for token");

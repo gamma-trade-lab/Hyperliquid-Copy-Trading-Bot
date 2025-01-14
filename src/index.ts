@@ -153,10 +153,7 @@ async function initializeServices() {
       aiService,
       twitterService,
       jupiterPriceV2Service!,
-      tokenProviderInstance, // Add this argument
-      new Connection(CONFIG.SOLANA.RPC_URL), // Add this argument
-      new PublicKey(CONFIG.SOLANA.PUBLIC_KEY), // Add this argument
-      cacheAdapter // Add this argument
+       // Add this argument
     );
 
     return {
@@ -1261,15 +1258,7 @@ async function startChat(this: MemeAgentInfluencer, services: ServiceConfig): Pr
     aiService,
     twitterService,
     jupiterPriceV2Service!, // Ensure jupiterPriceV2Service is used here
-    new TokenProvider(
-      this.tokenAddress,
-      walletProviderInstance,
-      cacheAdapter,
-      { apiKey: CONFIG.SOLANA.RPC_URL } // Add the missing config argument
-    ),
-    new Connection(CONFIG.SOLANA.RPC_URL), // Add this argument
-    new PublicKey(CONFIG.SOLANA.PUBLIC_KEY), // Add this argument
-    cacheAdapter // Add this argument
+    // Add this argument
   );
   await chatService.start();
 }
@@ -1424,18 +1413,7 @@ async function main(this: any) {
           cacheAdapter,
           { apiKey: CONFIG.SOLANA.RPC_URL }
         ), (redisService as unknown) as RedisService),
-        new TokenProvider(
-          this.tokenAddress,
-          new WalletProvider(
-            new Connection(CONFIG.SOLANA.RPC_URL),
-            new PublicKey(CONFIG.SOLANA.PUBLIC_KEY)
-          ),
-          cacheAdapter,
-          { apiKey: CONFIG.SOLANA.RPC_URL }
-        ),
-        new Connection(CONFIG.SOLANA.RPC_URL), // Add this argument
-        new PublicKey(CONFIG.SOLANA.PUBLIC_KEY), // Add this argument
-        cacheAdapter // Add this argument
+        // Add this argument
       )
     };
     await cleanup(emptyServices);

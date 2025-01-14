@@ -2,42 +2,18 @@ import { createInterface } from 'readline';
 import { ChatHistoryManager } from './ChatHistoryManager.js';
 import { ModeManager } from './ModeManager.js';
 import { CommandHandler } from './CommandHandler.js';
-import { Mode, ModeConfig } from './types';
-import { MarketData, MarketAnalysis } from '@/types/market.js';
-import { elizaLogger, IAgentRuntime, ICacheManager, Memory, State } from "@ai16z/eliza"; // Remove ExtendedMemory import
+import { Mode, ModeConfig } from './types.js';
+import { elizaLogger } from "@ai16z/eliza";
 import { AIService } from '../ai/ai.js';
 
 import { ServiceMarketAnalysis, CommandResult } from '@/types/chat.js';
 import { TwitterCommands } from './TwitterCommands.js';
 import { TwitterService } from '../social/twitter.js';
 import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service.js';
-import { TokenProvider } from '../../providers/token.js';
-import { Connection, PublicKey } from '@solana/web3.js';
 
 
 type MessageRole = 'user' | 'assistant' | 'system';
 type IntervalHandle = ReturnType<typeof setInterval>;
-
-interface MarketTweetData {
-  topic: string;
-  price: string;
-  volume: string;
-  priceChange: string;
-}
-
-interface IAIService extends AIService {
-  generateMarketTweet(data: MarketTweetData): Promise<string | null>;
-}
-
-declare module '../ai/ai' {
-  interface AIService {
-    generateMarketTweet(data: MarketTweetData): Promise<string | null>;
-  }
-}
-
-interface ExtendedMemory extends Memory {
-  tokenAddress: string;
-}
 
 export class ChatService {
   private history: ChatHistoryManager;
@@ -46,13 +22,9 @@ export class ChatService {
   private aiService: AIService;
   private twitterService: TwitterService;
   private jupiterService: JupiterPriceV2Service;
-  private tokenProvider: TokenProvider;
   private twitterCommands: TwitterCommands;
   private isRunning: boolean = false;
   private autoModeInterval: IntervalHandle | null = null;
-  private connection: Connection;
-  private walletKey: PublicKey;
-  private cacheManager: ICacheManager;
   
   private readonly readline = createInterface({
     input: process.stdin,
@@ -62,29 +34,18 @@ export class ChatService {
   constructor(
     aiService: AIService,
     twitterService: TwitterService,
-    jupiterService: JupiterPriceV2Service,
-    tokenProvider: TokenProvider,
-    connection: Connection, // Ensure this argument is included
-    walletKey: PublicKey, // Ensure this argument is included
-    cacheManager: ICacheManager // Ensure this argument is included
+    jupiterService: JupiterPriceV2Service
   ) {
     this.aiService = aiService;
     this.twitterService = twitterService;
     this.jupiterService = jupiterService;
-    this.tokenProvider = tokenProvider;
-    this.connection = connection;
-    this.walletKey = walletKey;
-    this.cacheManager = cacheManager;
     
     this.history = new ChatHistoryManager();
     this.modeManager = new ModeManager();
     this.commandHandler = new CommandHandler(
       this.modeManager,
       twitterService,
-      jupiterService,
-      connection,
-      walletKey,
-      cacheManager
+      jupiterService
     );
     
     this.twitterCommands = new TwitterCommands(
@@ -208,13 +169,7 @@ export class ChatService {
           description: 'Get latest market data',
           execute: async (args: string[]): Promise<void> => {
             try {
-              const symbol = args[0]?.toUpperCase();
-              if (!symbol) {
-                console.log('Please provide a token symbol');
-                return;
-              }
-
-              const marketData = await this.getMarketData(symbol);
+              const marketData = await this.aiService.getMarketMetrics();
               if (!marketData) {
                 console.log('Failed to fetch market data');
                 return;
@@ -230,13 +185,7 @@ export class ChatService {
           description: 'Analyze current market conditions',
           execute: async (args: string[]): Promise<void> => {
             try {
-              const symbol = args[0]?.toUpperCase();
-              if (!symbol) {
-                console.log('Please provide a token symbol');
-                return;
-              }
-
-              const marketData = await this.getMarketData(symbol);
+              const marketData = await this.aiService.getMarketMetrics();
               if (!marketData) {
                 console.log('Failed to fetch market data');
                 return;
@@ -251,31 +200,6 @@ export class ChatService {
               console.log('\nMarket Analysis:', analysis);
             } catch (error) {
               console.log('Error analyzing market');
-            }
-          }
-        },
-        {
-          name: 'tweet',
-          description: 'Post a tweet with market data',
-          execute: async (args: string[]): Promise<void> => {
-            try {
-              const symbol = args[0]?.toUpperCase();
-              if (!symbol) {
-                console.log('Please provide a token symbol');
-                return;
-              }
-
-              const tweetContent = await this.generateMarketDataTweet(symbol);
-
-              if (tweetContent === null) {
-                console.log('Failed to generate tweet content');
-                return;
-              }
-
-              await this.twitterService.postTweetWithRetry(tweetContent);
-              console.log('Tweet posted successfully!');
-            } catch (error) {
-              console.log('Error posting tweet');
             }
           }
         }
@@ -326,33 +250,30 @@ export class ChatService {
     }
   }
 
-  async processInput(input: string): Promise<string> {
+  private async processInput(input: string): Promise<void> {
     try {
-        const runtime = this.getRuntime();
-        const message = this.parseInput(input);
-        const state = this.getState();
-        const commandHandler = new CommandHandler(this.modeManager, this.twitterService, this.jupiterService, this.connection, this.walletKey, this.cacheManager);
-        return await commandHandler.execute(runtime, message as ExtendedMemory, state); // Ensure Memory is cast to ExtendedMemory
+      const commandResult = await this.commandHandler.handleCommand(input);
+      
+      if (commandResult === false) {
+        this.recordMessage('user', input);
+        
+        const response = await this.aiService.generateResponse({
+          content: input,
+          platform: 'terminal',
+          author: 'user'
+        });
+        
+        if (response) {
+          this.recordMessage('assistant', response);
+          console.log('\nJENNA:', response);
+        } else {
+          console.log('\nSorry, there was an error. Please try again.');
+        }
+      }
     } catch (error) {
-        elizaLogger.error(`Error processing input:`, error);
-        throw error;
+      elizaLogger.error('Error processing input:', error instanceof Error ? error.message : String(error));
+      console.log('\nError processing your input. Please try again.');
     }
-  }
-
-  // Define the missing methods
-  private getRuntime(): IAgentRuntime {
-    // Implement the logic to get the runtime
-    return {} as IAgentRuntime;
-  }
-
-  private parseInput(input: string): Memory {
-    // Implement the logic to parse the input
-    return {} as Memory;
-  }
-
-  private getState(): State {
-    // Implement the logic to get the state
-    return {} as State;
   }
 
   public async start(): Promise<void> {
@@ -400,61 +321,5 @@ export class ChatService {
     this.readline.close();
     console.log('\nGoodbye! JENNA shutting down...');
     process.exit(0);
-  }
-
-  private async getMarketData(symbol: string): Promise<MarketData | null> {
-    try {
-      this.tokenProvider.setTokenAddress(symbol);
-      const tokenData = await this.tokenProvider.getProcessedTokenData();
-      const marketMetrics = await this.jupiterService.getMarketMetrics(symbol);
-
-      return {
-        price: marketMetrics.price,
-        volume24h: marketMetrics.volume24h,
-        priceChange24h: marketMetrics.priceChange24h,
-        marketCap: marketMetrics.marketCap,
-        lastUpdate: marketMetrics.lastUpdate,
-        tokenAddress: marketMetrics.tokenAddress,
-        topHolders: marketMetrics.topHolders,
-        volatility: marketMetrics.volatility,
-        holders: marketMetrics.holders,
-        onChainActivity: marketMetrics.onChainActivity,
-      };
-    } catch (error) {
-      elizaLogger.error(`Failed to fetch market data for ${symbol}:`, error);
-      return null;
-    }
-  }
-
-  private async generateMarketTweet(data: MarketTweetData): Promise<string | null> {
-    try {
-      const tweetContent = await this.aiService.generateMarketTweet(data);
-      return tweetContent;
-    } catch (error) {
-      elizaLogger.error('Error generating market tweet:', error);
-      return null;
-    }
-  }
-
-  // Helper method to generate market data tweet
-  public async generateMarketDataTweet(symbol: string): Promise<string | null> {
-    try {
-      const marketData = await this.getMarketData(symbol);
-      if (!marketData) {
-        return null;
-      }
-
-      const tweetData: MarketTweetData = {
-        topic: symbol,
-        price: marketData.price.toString(),
-        volume: marketData.volume24h.toString(),
-        priceChange: marketData.priceChange24h?.toString() || '0'
-      };
-
-      return this.generateMarketTweet(tweetData);
-    } catch (error) {
-      elizaLogger.error('Error generating market data tweet:', error);
-      return null;
-    }
   }
 }

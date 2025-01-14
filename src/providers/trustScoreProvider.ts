@@ -451,7 +451,7 @@ export class TrustScoreManager {
         const buySol = data.buy_amount / parseFloat(solPrice);
         const buy_value_usd = data.buy_amount * processedData.tradeData.price;
         const token = await this.tokenProvider.fetchTokenTradeData();
-        const tokenCodex = await this.tokenProvider.fetchTokenCodex();
+        //const tokenCodex = await this.tokenProvider.fetchTokenCodex();
         const tokenPrice = token.price;
         tokensBalance = buy_value_usd / tokenPrice;
 
@@ -503,21 +503,20 @@ export class TrustScoreManager {
             priceChange24h: processedData.tradeData.price_change_24h_percent,
             volumeChange24h: processedData.tradeData.volume_24h,
             trade_24h_change: processedData.tradeData.trade_24h_change_percent ?? 0,
-            liquidity:
-                processedData.dexScreenerData.pairs[0]?.liquidity.usd || 0,
+            liquidity: processedData.dexScreenerData.pairs[0]?.liquidity.usd || 0,
             liquidityChange24h: 0,
             holderChange24h: processedData.tradeData.unique_wallet_24h_change_percent ?? 0,
             rugPull: false,
-            isScam: tokenCodex.isScam,
+            //isScam: tokenCodex.isScam,
             marketCapChange24h: 0,
             sustainedGrowth: false,
             rapidDump: false,
             suspiciousVolume: false,
             validationTrust: 0,
             balance: tokensBalance,
-            initialMarketCap:
-                processedData.dexScreenerData.pairs[0]?.marketCap || 0,
+            initialMarketCap: processedData.dexScreenerData.pairs[0]?.marketCap || 0,
             lastUpdated: new Date(),
+            isScam: false
         });
 
         if (data.is_simulation) {

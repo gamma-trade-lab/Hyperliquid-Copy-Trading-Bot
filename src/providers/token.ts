@@ -1,34 +1,26 @@
 import { ICacheManager, settings } from "@elizaos/core";
-import { IAgentRuntime, Memory, Provider, State } from "@elizaos/core";
+import { IAgentRuntime } from "@elizaos/core";
 import {
     DexScreenerData,
     DexScreenerPair,
-    HolderData,
     ProcessedTokenData,
     TokenSecurityData,
     TokenTradeData,
     CalculatedBuyAmounts,
-    Prices,
-    TokenCodex,
 } from "../types/token.js";
 import NodeCache from "node-cache";
 import * as path from "path";
 import { toBN } from "../utils/bignumber.js";
 import { WalletProvider, Item } from "./wallet.js";
-import { Connection, PublicKey } from "@solana/web3.js";
-import { getWalletKey } from "../utils/keypairUtils.js";
+import { PublicKey } from "@solana/web3.js";
 import { elizaLogger } from "@ai16z/eliza";
-import { CONFIG } from '../config/settings.js';
 import { Tool } from "@goat-sdk/core";
 import {
-    GetOhlcvPairParameters,
-    GetOhlcvParameters,
-    GetTokenHistoryPriceParameters,
-    GetTokenPriceParameters,
-    GetTokenSecurityParameters,
-    GetTrendingTokensParameters,
-    SearchTokenParameters,
-} from "./parameters.js"; // Import parameters
+    GetPairsByChainAndPairParameters,
+    SearchPairsParameters,
+    GetTokenPairsParameters
+} from "./dexParameters.js"; // Import dexParameters
+import { JupiterTokenData } from "solana-agent-kit";
 
 const PROVIDER_CONFIG = {
     MAX_RETRIES: 3,
@@ -41,8 +33,7 @@ const PROVIDER_CONFIG = {
     },
     HEADERS: {
         'Accept': 'application/json',
-        'x-chain': 'solana',
-        'X-API-KEY': process.env.BIRDEYE_API_KEY || '182c935d970d43a9b8e556ad0b931596' // Load from .env
+        'x-chain': 'solana'
     }
 };
 
@@ -57,28 +48,22 @@ interface TokenTradeResponse {
 }
 
 export class TokenProvider {
+    
     private tokenAddress: string; // Remove readonly modifier
-    private readonly BASE_URL = 'https://public-api.birdeye.so';
     private readonly DEFAULT_HEADERS = {
         'accept': 'application/json',
         'x-chain': 'solana'
     };
     private readonly ENDPOINTS = {
-        PRICE: '/defi/price',
-        TOKEN_LIST: '/defi/tokenlist',
-        TOKEN_INFO: '/defi/token_info',
-        TOKEN_SECURITY: '/defi/token_security', 
-        TOKEN_TRADE_DATA: '/defi/token_trades'
+        DEX_SCREENER: '/defi/dexscreener'
     };
     private cache: NodeCache;
     private cacheKey: string = "solana/tokens";
-    private NETWORK_ID = 1399811149;
-    private GRAPHQL_ENDPOINT = "https://graph.codex.io/graphql";
     private apiKey: string;
     config: any;
 
     constructor(
-        tokenAddress: string,
+        tokenAddress: string = PROVIDER_CONFIG.TOKEN_ADDRESSES.SOL, // Default to SOL if no address is provided
         public walletProvider: WalletProvider,
         private cacheManager: ICacheManager,
         config: { apiKey: string; retryAttempts?: number; retryDelay?: number; timeout?: number }
@@ -98,6 +83,9 @@ export class TokenProvider {
 
     // Add a method to set the token address dynamically
     public setTokenAddress(tokenAddress: string): void {
+        if (!tokenAddress) {
+            throw new Error("Token address is required");
+        }
         this.tokenAddress = tokenAddress;
     }
 
@@ -134,7 +122,7 @@ export class TokenProvider {
         await this.writeToCache(cacheKey, data);
     }
 
-    private async fetchWithRetry<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
+    private async fetchWithRetry<T>(url: string): Promise<T> {
         const { retryAttempts, retryDelay, timeout } = this.config;
         elizaLogger.info(`Using config - retryAttempts: ${retryAttempts}, retryDelay: ${retryDelay}, timeout: ${timeout}`);
     
@@ -146,19 +134,14 @@ export class TokenProvider {
         const baseDelay = retryDelay ?? 2000;
         const requestTimeout = timeout ?? 10000;
     
-        // Build URL with parameters
-        const queryParams = new URLSearchParams(params).toString();
-        const url = `${this.BASE_URL}${endpoint}${queryParams ? '?' + queryParams : ''}`;
-    
         let lastError: Error | null = null;
     
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                elizaLogger.info(`API Request Attempt ${attempt} to: ${url}`);
-                
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
     
+                elizaLogger.info(`Attempting to fetch URL: ${url}, Attempt: ${attempt}`);
                 const response = await fetch(url, {
                     method: 'GET',
                     headers: new Headers({
@@ -174,6 +157,10 @@ export class TokenProvider {
                 const contentType = response.headers.get('content-type');
                 if (contentType?.includes('text/html')) {
                     throw new Error('Invalid API response: received HTML instead of JSON');
+                }
+    
+                if (response.status === 404) {
+                    throw new Error('Resource not found (404)');
                 }
     
                 if (!response.ok) {
@@ -206,10 +193,6 @@ export class TokenProvider {
 
     // Add API key validation helper
     private validateApiKey(): void {
-        if (!settings.BIRDEYE_API_KEY) {
-            throw new Error('BIRDEYE_API_KEY is required. Please set it in your environment variables.');
-        }
-    
         if (!settings.HELIUS_API_KEY) {
             throw new Error('HELIUS_API_KEY is required for holder data. Please set it in your environment variables.');
         }
@@ -239,149 +222,44 @@ export class TokenProvider {
         }
     }
 
-    async fetchTokenCodex(): Promise<TokenCodex> {
+    async fetchDexScreenerData(): Promise<DexScreenerData> {
+        if (!this.tokenAddress) {
+            throw new Error("Token address is required");
+        }
+        const url = `https://api.dexscreener.com/token-profiles/latest/v1`;
         try {
-            const cacheKey = `token_${this.tokenAddress}`;
-            const cachedData = this.getCachedData(cacheKey);
-            if (cachedData) {
-                console.log(
-                    `Returning cached token data for ${this.tokenAddress}.`
-                );
-                return cachedData ?? {
-                    id: '',
-                    address: this.tokenAddress,
-                    cmcId: null,
-                    decimals: 0,
-                    name: '',
-                    symbol: '',
-                    totalSupply: '0',
-                    circulatingSupply: '0',
-                    imageThumbUrl: '',
-                    blueCheckmark: false,
-                    isScam: false
-                };
-            }
-            const query = `
-            query Token($address: String!, $networkId: Int!) {
-              token(input: { address: $address, networkId: $networkId }) {
-                id
-                address
-                cmcId
-                decimals
-                name
-                symbol
-                totalSupply
-                isScam
-                info {
-                  circulatingSupply
-                  imageThumbUrl
-                }
-                explorerData {
-                  blueCheckmark
-                  description
-                  tokenType
-                }
-              }
-            }
-          `;
-
-            const variables = {
-                address: this.tokenAddress,
-                networkId: this.NETWORK_ID, // Replace with your network ID
-            };
-
-            const response = await fetch(this.GRAPHQL_ENDPOINT, {
-                method: "POST",
+            console.log(`Fetching latest token profiles from DexScreener`);
+            const response = await fetch(url, {
+                method: 'GET',
                 headers: {
-                    "Content-Type": "application/json",
-                    ...(settings.CODEX_API_KEY ? { Authorization: settings.CODEX_API_KEY } : {})
-                },
-                body: JSON.stringify({
-                    query,
-                    variables,
-                }),
-            }).then((res) => res.json() as Promise<any>);
-
-            const token = (response as any)?.data?.data?.token;
-
-            if (!token) {
-                throw new Error(`No data returned for token ${tokenAddress}`);
-            }
-
-            this.setCachedData(cacheKey, token);
-
-            return {
-                id: token.id,
-                address: token.address,
-                cmcId: token.cmcId,
-                decimals: token.decimals,
-                name: token.name,
-                symbol: token.symbol,
-                totalSupply: token.totalSupply,
-                circulatingSupply: token.info?.circulatingSupply,
-                imageThumbUrl: token.info?.imageThumbUrl,
-                blueCheckmark: token.explorerData?.blueCheckmark,
-                isScam: token.isScam ? true : false,
-            };
-        } catch (error) {
-            console.error(
-                "Error fetching token data from Codex:",
-                (error as Error).message
-            );
-            return {} as TokenCodex;
-        }
-    }
-
-    async fetchPrices(): Promise<Prices> {
-        try {
-            const cacheKey = "prices";
-            const cachedData = await this.getCachedData(cacheKey);
-            if (cachedData) {
-                console.log("Returning cached prices.");
-                return cachedData;
-            }
-
-            interface PriceResponse {
-                success: any;
-                data: any;
-                value: number;
-            }
-
-            const { SOL, BTC, ETH } = PROVIDER_CONFIG.TOKEN_ADDRESSES;
-            const tokens = [SOL, BTC, ETH];
-            const prices: Prices = {
-                solana: { usd: "0" },
-                bitcoin: { usd: "0" },
-                ethereum: { usd: "0" },
-            };
-
-            for (const token of tokens) {
-                const response = await this.fetchWithRetry<PriceResponse>(`/defi/multi_price?&addresses=${token}`);
-
-                if (response?.success && response?.data?.value) {
-                    const price = response.data.value.toString();
-                    prices[
-                        token === SOL
-                            ? "solana"
-                            : token === BTC
-                              ? "bitcoin"
-                              : "ethereum"
-                    ].usd = price;
-                } else {
-                    console.warn(`No price data available for token: ${token}`);
+                    'Accept': 'application/json'
                 }
+            });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
             }
-            await this.setCachedData(cacheKey, prices);
-            return prices;
+            const data = await response.json();
+
+            // Assuming the response structure matches DexScreenerData
+            const dexData: DexScreenerData = {
+                schemaVersion: "1.0.0",
+                pairs: data.pairs || [],
+            };
+
+            return dexData;
         } catch (error) {
-            console.error("Error fetching prices:", error);
-            throw error;
+            console.error(`Error fetching DexScreener data:`, error);
+            return {
+                schemaVersion: "1.0.0",
+                pairs: [],
+            };
         }
     }
+
     async calculateBuyAmounts(): Promise<CalculatedBuyAmounts> {
         const dexScreenerData = await this.fetchDexScreenerData();
-        const prices = await this.fetchPrices();
-        const solPrice = toBN(prices.solana.usd);
+        const solPrice = toBN("0"); // Placeholder for SOL price
 
         if (!dexScreenerData || dexScreenerData.pairs.length === 0) {
             return { none: 0, low: 0, medium: 0, high: 0 };
@@ -394,10 +272,7 @@ export class TokenProvider {
             return { none: 0, low: 0, medium: 0, high: 0 };
         }
 
-        if (liquidity.usd === 0) {
-            return { none: 0, low: 0, medium: 0, high: 0 };
-        }
-        if (marketCap < 100000) {
+        if (liquidity.usd === 0 || marketCap < 100000) {
             return { none: 0, low: 0, medium: 0, high: 0 };
         }
 
@@ -431,6 +306,10 @@ export class TokenProvider {
     }
 
     async fetchTokenSecurity(): Promise<TokenSecurityData> {
+        if (!this.tokenAddress) {
+            throw new Error("Token address is required");
+        }
+
         const cacheKey = `tokenSecurity_${this.tokenAddress}`;
         const cachedData = await this.getCachedData(cacheKey);
         if (cachedData) {
@@ -440,859 +319,305 @@ export class TokenProvider {
             return cachedData;
         }
 
-        interface SecurityResponse {
-            success: any;
-            data: any;
-            ownerBalance: string;
-            creatorBalance: string;
-            ownerPercentage: number;
-            creatorPercentage: number;
-            top10HolderBalance: string;
-            top10HolderPercent: number;
-        }
+        const url = `https://api.helius.xyz/v0/tokens/${this.tokenAddress}/security`;
+        const response = await this.fetchWithRetry<TokenSecurityData>(url);
 
-        const response = await this.fetchWithRetry<SecurityResponse>(`/defi/token_security?address=${this.tokenAddress}`);
-
-        if (!response?.success || !response?.data) {
+        if (!response) {
             throw new Error("No token security data available");
         }
 
-        const security: TokenSecurityData = {
-            ownerBalance: response.data.ownerBalance,
-            creatorBalance: response.data.creatorBalance,
-            ownerPercentage: response.data.ownerPercentage,
-            creatorPercentage: response.data.creatorPercentage,
-            top10HolderBalance: response.data.top10HolderBalance,
-            top10HolderPercent: response.data.top10HolderPercent,
-        };
-        await this.setCachedData(cacheKey, security);
+        await this.setCachedData(cacheKey, response);
         console.log(`Token security data cached for ${this.tokenAddress}.`);
 
-        return security;
+        return response;
     }
 
     async fetchTokenTradeData(): Promise<TokenTradeData> {
+        if (!this.tokenAddress) {
+            throw new Error("Token address is required");
+        }
+
         const cacheKey = `tokenTradeData_${this.tokenAddress}`;
         const cachedData = await this.getCachedData(cacheKey);
         if (cachedData) {
             console.log(
                 `Returning cached token trade data for ${this.tokenAddress}.`
             );
-            return cachedData ?? {
-                address: this.tokenAddress,
-                holder: { total: 0, changes: [] },
-                market: { price: 0, volume: 0 },
-                last_trade_unix_time: 0,
-                last_trade_human_time: '',
-                price: 0,
-                history_30m_price: 0,
-                price_change_30m_percent: 0,
-                history_1h_price: 0,
-                price_change_1h_percent: 0,
-                history_2h_price: 0,
-                price_change_2h_percent: 0,
-                history_4h_price: 0,
-                price_change_4h_percent: 0,
-                history_6h_price: 0,
-                price_change_6h_percent: 0,
-                history_8h_price: 0,
-                price_change_8h_percent: 0,
-                history_12h_price: 0,
-                price_change_12h_percent: 0,
-                history_24h_price: 0,
-                price_change_24h_percent: 0,
-                unique_wallet_30m: 0,
-                unique_wallet_history_30m: 0,
-                unique_wallet_30m_change_percent: 0,
-                unique_wallet_1h: 0,
-                unique_wallet_history_1h: 0,
-                unique_wallet_1h_change_percent: 0,
-                unique_wallet_2h: 0,
-                unique_wallet_history_2h: 0,
-                unique_wallet_2h_change_percent: 0,
-                unique_wallet_4h: 0,
-                unique_wallet_history_4h: 0,
-                unique_wallet_4h_change_percent: 0,
-                unique_wallet_8h: 0,
-                unique_wallet_history_8h: 0,
-                unique_wallet_8h_change_percent: 0,
-                unique_wallet_24h: 0,
-                unique_wallet_history_24h: 0,
-                unique_wallet_24h_change_percent: 0,
-                trade_30m: 0,
-                trade_history_30m: 0,
-                trade_30m_change_percent: 0,
-                sell_30m: 0,
-                sell_history_30m: 0,
-                sell_30m_change_percent: 0,
-                buy_30m: 0,
-                buy_history_30m: 0,
-                buy_30m_change_percent: 0,
-                volume_30m: 0,
-                volume_30m_usd: 0,
-                volume_history_30m: 0,
-                volume_history_30m_usd: 0,
-                volume_30m_change_percent: 0,
-                volume_buy_30m: 0,
-                volume_buy_30m_usd: 0,
-                volume_buy_history_30m: 0,
-                volume_buy_history_30m_usd: 0,
-                volume_buy_30m_change_percent: 0,
-                volume_sell_30m: 0,
-                volume_sell_30m_usd: 0,
-                volume_sell_history_30m: 0,
-                volume_sell_history_30m_usd: 0,
-                volume_sell_30m_change_percent: 0
-            };
+            return cachedData;
         }
 
-        const endpoint = `/defi/token_trades?address=${this.tokenAddress}`;
-        const response = await this.fetchWithRetry<TokenTradeResponse>(endpoint);
+        const url = `https://api.helius.xyz/v0/tokens/${this.tokenAddress}/trades`;
+        const response = await this.fetchWithRetry<TokenTradeData>(url);
 
-        if (!response?.success || !response?.data) {
+        if (!response) {
             throw new Error("No token trade data available");
         }
 
-        const tradeData: TokenTradeData = {
-            address: response.data.address,
-            holder: response.data.holder,
-            market: response.data.market,
-            last_trade_unix_time: response.data.last_trade_unix_time,
-            last_trade_human_time: response.data.last_trade_human_time,
-            price: response.data.price,
-            history_30m_price: response.data.history_30m_price,
-            price_change_30m_percent: response.data.price_change_30m_percent,
-            history_1h_price: response.data.history_1h_price,
-            price_change_1h_percent: response.data.price_change_1h_percent,
-            history_2h_price: response.data.history_2h_price,
-            price_change_2h_percent: response.data.price_change_2h_percent,
-            history_4h_price: response.data.history_4h_price,
-            price_change_4h_percent: response.data.price_change_4h_percent,
-            history_6h_price: response.data.history_6h_price,
-            price_change_6h_percent: response.data.price_change_6h_percent,
-            history_8h_price: response.data.history_8h_price,
-            price_change_8h_percent: response.data.price_change_8h_percent,
-            history_12h_price: response.data.history_12h_price,
-            price_change_12h_percent: response.data.price_change_12h_percent,
-            history_24h_price: response.data.history_24h_price,
-            price_change_24h_percent: response.data.price_change_24h_percent,
-            unique_wallet_30m: response.data.unique_wallet_30m,
-            unique_wallet_history_30m: response.data.unique_wallet_history_30m,
-            unique_wallet_30m_change_percent:
-                response.data.unique_wallet_30m_change_percent,
-            unique_wallet_1h: response.data.unique_wallet_1h,
-            unique_wallet_history_1h: response.data.unique_wallet_history_1h,
-            unique_wallet_1h_change_percent:
-                response.data.unique_wallet_1h_change_percent,
-            unique_wallet_2h: response.data.unique_wallet_2h,
-            unique_wallet_history_2h: response.data.unique_wallet_history_2h,
-            unique_wallet_2h_change_percent:
-                response.data.unique_wallet_2h_change_percent,
-            unique_wallet_4h: response.data.unique_wallet_4h,
-            unique_wallet_history_4h: response.data.unique_wallet_history_4h,
-            unique_wallet_4h_change_percent:
-                response.data.unique_wallet_4h_change_percent,
-            unique_wallet_8h: response.data.unique_wallet_8h,
-            unique_wallet_history_8h: response.data.unique_wallet_history_8h,
-            unique_wallet_8h_change_percent:
-                response.data.unique_wallet_8h_change_percent,
-            unique_wallet_24h: response.data.unique_wallet_24h,
-            unique_wallet_history_24h: response.data.unique_wallet_history_24h,
-            unique_wallet_24h_change_percent:
-                response.data.unique_wallet_24h_change_percent,
-            trade_30m: response.data.trade_30m,
-            trade_history_30m: response.data.trade_history_30m,
-            trade_30m_change_percent: response.data.trade_30m_change_percent,
-            sell_30m: response.data.sell_30m,
-            sell_history_30m: response.data.sell_history_30m,
-            sell_30m_change_percent: response.data.sell_30m_change_percent,
-            buy_30m: response.data.buy_30m,
-            buy_history_30m: response.data.buy_history_30m,
-            buy_30m_change_percent: response.data.buy_30m_change_percent,
-            volume_30m: response.data.volume_30m,
-            volume_30m_usd: response.data.volume_30m_usd,
-            volume_history_30m: response.data.volume_history_30m,
-            volume_history_30m_usd: response.data.volume_history_30m_usd,
-            volume_30m_change_percent: response.data.volume_30m_change_percent,
-            volume_buy_30m: response.data.volume_buy_30m,
-            volume_buy_30m_usd: response.data.volume_buy_30m_usd,
-            volume_buy_history_30m: response.data.volume_buy_history_30m,
-            volume_buy_history_30m_usd: response.data.volume_buy_history_30m_usd,
-            volume_buy_30m_change_percent:
-                response.data.volume_buy_30m_change_percent,
-            volume_sell_30m: response.data.volume_sell_30m,
-            volume_sell_30m_usd: response.data.volume_sell_30m_usd,
-            volume_sell_history_30m: response.data.volume_sell_history_30m,
-            volume_sell_history_30m_usd: response.data.volume_sell_history_30m_usd,
-            volume_sell_30m_change_percent:
-                response.data.volume_sell_30m_change_percent,
-            trade_1h: response.data.trade_1h,
-            trade_history_1h: response.data.trade_history_1h,
-            trade_1h_change_percent: response.data.trade_1h_change_percent,
-            sell_1h: response.data.sell_1h,
-            sell_history_1h: response.data.sell_history_1h,
-            sell_1h_change_percent: response.data.sell_1h_change_percent,
-            buy_1h: response.data.buy_1h,
-            buy_history_1h: response.data.buy_history_1h,
-            buy_1h_change_percent: response.data.buy_1h_change_percent,
-            volume_1h: response.data.volume_1h,
-            volume_1h_usd: response.data.volume_1h_usd,
-            volume_history_1h: response.data.volume_history_1h,
-            volume_history_1h_usd: response.data.volume_history_1h_usd,
-            volume_1h_change_percent: response.data.volume_1h_change_percent,
-            volume_buy_1h: response.data.volume_buy_1h,
-            volume_buy_1h_usd: response.data.volume_buy_1h_usd,
-            volume_buy_history_1h: response.data.volume_buy_history_1h,
-            volume_buy_history_1h_usd: response.data.volume_buy_history_1h_usd,
-            volume_buy_1h_change_percent:
-                response.data.volume_buy_1h_change_percent,
-            volume_sell_1h: response.data.volume_sell_1h,
-            volume_sell_1h_usd: response.data.volume_sell_1h_usd,
-            volume_sell_history_1h: response.data.volume_sell_history_1h,
-            volume_sell_history_1h_usd: response.data.volume_sell_history_1h_usd,
-            volume_sell_1h_change_percent:
-                response.data.volume_sell_1h_change_percent,
-            trade_2h: response.data.trade_2h,
-            trade_history_2h: response.data.trade_history_2h,
-            trade_2h_change_percent: response.data.trade_2h_change_percent,
-            sell_2h: response.data.sell_2h,
-            sell_history_2h: response.data.sell_history_2h,
-            sell_2h_change_percent: response.data.sell_2h_change_percent,
-            buy_2h: response.data.buy_2h,
-            buy_history_2h: response.data.buy_history_2h,
-            buy_2h_change_percent: response.data.buy_2h_change_percent,
-            volume_2h: response.data.volume_2h,
-            volume_2h_usd: response.data.volume_2h_usd,
-            volume_history_2h: response.data.volume_history_2h,
-            volume_history_2h_usd: response.data.volume_history_2h_usd,
-            volume_2h_change_percent: response.data.volume_2h_change_percent,
-            volume_buy_2h: response.data.volume_buy_2h,
-            volume_buy_2h_usd: response.data.volume_buy_2h_usd,
-            volume_buy_history_2h: response.data.volume_buy_history_2h,
-            volume_buy_history_2h_usd: response.data.volume_buy_history_2h_usd,
-            volume_buy_2h_change_percent:
-                response.data.volume_buy_2h_change_percent,
-            volume_sell_2h: response.data.volume_sell_2h,
-            volume_sell_2h_usd: response.data.volume_sell_2h_usd,
-            volume_sell_history_2h: response.data.volume_sell_history_2h,
-            volume_sell_history_2h_usd: response.data.volume_sell_history_2h_usd,
-            volume_sell_2h_change_percent:
-                response.data.volume_sell_2h_change_percent,
-            trade_4h: response.data.trade_4h,
-            trade_history_4h: response.data.trade_history_4h,
-            trade_4h_change_percent: response.data.trade_4h_change_percent,
-            sell_4h: response.data.sell_4h,
-            sell_history_4h: response.data.sell_history_4h,
-            sell_4h_change_percent: response.data.sell_4h_change_percent,
-            buy_4h: response.data.buy_4h,
-            buy_history_4h: response.data.buy_history_4h,
-            buy_4h_change_percent: response.data.buy_4h_change_percent,
-            volume_4h: response.data.volume_4h,
-            volume_4h_usd: response.data.volume_4h_usd,
-            volume_history_4h: response.data.volume_history_4h,
-            volume_history_4h_usd: response.data.volume_history_4h_usd,
-            volume_4h_change_percent: response.data.volume_4h_change_percent,
-            volume_buy_4h: response.data.volume_buy_4h,
-            volume_buy_4h_usd: response.data.volume_buy_4h_usd,
-            volume_buy_history_4h: response.data.volume_buy_history_4h,
-            volume_buy_history_4h_usd: response.data.volume_buy_history_4h_usd,
-            volume_buy_4h_change_percent:
-                response.data.volume_buy_4h_change_percent,
-            volume_sell_4h: response.data.volume_sell_4h,
-            volume_sell_4h_usd: response.data.volume_sell_4h_usd,
-            volume_sell_history_4h: response.data.volume_sell_history_4h,
-            volume_sell_history_4h_usd: response.data.volume_sell_history_4h_usd,
-            volume_sell_4h_change_percent:
-                response.data.volume_sell_4h_change_percent,
-            trade_8h: response.data.trade_8h,
-            trade_history_8h: response.data.trade_history_8h,
-            trade_8h_change_percent: response.data.trade_8h_change_percent,
-            sell_8h: response.data.sell_8h,
-            sell_history_8h: response.data.sell_history_8h,
-            sell_8h_change_percent: response.data.sell_8h_change_percent,
-            buy_8h: response.data.buy_8h,
-            buy_history_8h: response.data.buy_history_8h,
-            buy_8h_change_percent: response.data.buy_8h_change_percent,
-            volume_8h: response.data.volume_8h,
-            volume_8h_usd: response.data.volume_8h_usd,
-            volume_history_8h: response.data.volume_history_8h,
-            volume_history_8h_usd: response.data.volume_history_8h_usd,
-            volume_8h_change_percent: response.data.volume_8h_change_percent,
-            volume_buy_8h: response.data.volume_buy_8h,
-            volume_buy_8h_usd: response.data.volume_buy_8h_usd,
-            volume_buy_history_8h: response.data.volume_buy_history_8h,
-            volume_buy_history_8h_usd: response.data.volume_buy_history_8h_usd,
-            volume_buy_8h_change_percent:
-                response.data.volume_buy_8h_change_percent,
-            volume_sell_8h: response.data.volume_sell_8h,
-            volume_sell_8h_usd: response.data.volume_sell_8h_usd,
-            volume_sell_history_8h: response.data.volume_sell_history_8h,
-            volume_sell_history_8h_usd: response.data.volume_sell_history_8h_usd,
-            volume_sell_8h_change_percent:
-                response.data.volume_sell_8h_change_percent,
-            trade_24h: response.data.trade_24h,
-            trade_history_24h: response.data.trade_history_24h,
-            trade_24h_change_percent: response.data.trade_24h_change_percent,
-            sell_24h: response.data.sell_24h,
-            sell_history_24h: response.data.sell_history_24h,
-            sell_24h_change_percent: response.data.sell_24h_change_percent,
-            buy_24h: response.data.buy_24h,
-            buy_history_24h: response.data.buy_history_24h,
-            buy_24h_change_percent: response.data.buy_24h_change_percent,
-            volume_24h: response.data.volume_24h,
-            volume_24h_usd: response.data.volume_24h_usd,
-            volume_history_24h: response.data.volume_history_24h,
-            volume_history_24h_usd: response.data.volume_history_24h_usd,
-            volume_24h_change_percent: response.data.volume_24h_change_percent,
-            volume_buy_24h: response.data.volume_buy_24h,
-            volume_buy_24h_usd: response.data.volume_buy_24h_usd,
-            volume_buy_history_24h: response.data.volume_buy_history_24h,
-            volume_buy_history_24h_usd: response.data.volume_buy_history_24h_usd,
-            volume_buy_24h_change_percent:
-                response.data.volume_buy_24h_change_percent,
-            volume_sell_24h: response.data.volume_sell_24h,
-            volume_sell_24h_usd: response.data.volume_sell_24h_usd,
-            volume_sell_history_24h: response.data.volume_sell_history_24h,
-            volume_sell_history_24h_usd: response.data.volume_sell_history_24h_usd,
-            volume_sell_24h_change_percent:
-                response.data.volume_sell_24h_change_percent,
-        };
-        this.setCachedData(cacheKey, tradeData);
-        return tradeData;
+        await this.setCachedData(cacheKey, response);
+        console.log(`Token trade data cached for ${this.tokenAddress}.`);
+
+        return response;
     }
 
-    async fetchDexScreenerData(): Promise<DexScreenerData> {
-        const cacheKey = `dexScreenerData_${this.tokenAddress}`;
-        const cachedData = this.getCachedData(cacheKey);
-        if (cachedData) {
-            console.log("Returning cached DexScreener data.");
-            return cachedData;
-        }
+    // Add a method to get a formatted token report
+    public async getFormattedTokenReport(): Promise<string> {
+        const dexScreenerData = await this.fetchDexScreenerData();
+        const buyAmounts = await this.calculateBuyAmounts();
+        const tokenSecurity = await this.fetchTokenSecurity();
+        const tokenTradeData = await this.fetchTokenTradeData();
 
-        const url = `https://api.dexscreener.com/latest/dex/search?q=${this.tokenAddress}`;
+        return `
+        Token Report for ${this.tokenAddress}:
+        - Market Cap: ${dexScreenerData.pairs[0]?.marketCap || 'N/A'}
+        - Liquidity: ${dexScreenerData.pairs[0]?.liquidity?.usd || 'N/A'}
+        - Buy Amounts: Low: ${buyAmounts.low}, Medium: ${buyAmounts.medium}, High: ${buyAmounts.high}
+        - Security: Owner Balance: ${tokenSecurity.ownerBalance}, Creator Balance: ${tokenSecurity.creatorBalance}
+        - Last Trade: ${tokenTradeData.last_trade_human_time}, Price: $${tokenTradeData.price}
+        `;
+    }
+
+    // Add a method to search DexScreener data
+    public async searchDexScreenerData(query: string): Promise<DexScreenerPair[] | null> {
+        const url = `https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(query)}`;
         try {
-            console.log(
-                `Fetching DexScreener data for token: ${this.tokenAddress}`
-            );
-            const response = await fetch(url);
+            console.log(`Searching DexScreener data for query: ${query}`);
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorText = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
             }
             const data = await response.json() as { schemaVersion: string; pairs: DexScreenerPair[] };
 
-            if (!data || !data.pairs) {
-                throw new Error("No DexScreener data available");
-            }
-
-            const dexData: DexScreenerData = {
-                schemaVersion: (data as any).schemaVersion || "1.0.0",
-                pairs: data.pairs || [],
-            };
-
-            // Cache the result
-            this.setCachedData(cacheKey, dexData);
-
-            return dexData;
-        } catch (error) {
-            console.error(`Error fetching DexScreener data:`, error);
-            return {
-                schemaVersion: "1.0.0",
-                pairs: [],
-            };
-        }
-    }
-
-    async searchDexScreenerData(
-        symbol: string
-    ): Promise<DexScreenerPair | null> {
-        const cacheKey = `dexScreenerData_search_${symbol}`;
-        const cachedData = await this.getCachedData(cacheKey);
-        if (cachedData) {
-            console.log("Returning cached search DexScreener data.");
-            return this.getHighestLiquidityPair(cachedData);
-        }
-
-        const url = `https://api.dexscreener.com/latest/dex/search?q=${symbol}`;
-        try {
-            console.log(`Fetching DexScreener data for symbol: ${symbol}`);
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const data = await response.json() as { pairs?: DexScreenerPair[] };
-
-            if (!data?.pairs?.length) {
+            if (!data || !data.pairs || data.pairs.length === 0) {
                 return null;
             }
 
-            const dexData: DexScreenerData = {
-                schemaVersion: (data as any).schemaVersion || "1.0.0",
-                pairs: data.pairs
-            };
-
-            // Cache the result
-            this.setCachedData(cacheKey, dexData);
-
-            // Return the pair with the highest liquidity and market cap
-            return this.getHighestLiquidityPair(dexData);
+            return data.pairs;
         } catch (error) {
-            console.error(`Error fetching DexScreener data:`, error);
+            console.error(`Error searching DexScreener data:`, error);
             return null;
         }
     }
-    getHighestLiquidityPair(dexData: DexScreenerData): DexScreenerPair | null {
-        if (dexData.pairs.length === 0) {
-            return null;
-        }
 
-        // Sort pairs by both liquidity and market cap to get the highest one
-        return dexData.pairs.sort((a, b) => {
-            const liquidityDiff = b.liquidity.usd - a.liquidity.usd;
-            if (liquidityDiff !== 0) {
-                return liquidityDiff; // Higher liquidity comes first
+    // Add a method to determine if a token should be traded
+    public async shouldTradeToken(): Promise<boolean> {
+        const tokenSecurity = await this.fetchTokenSecurity();
+        const tradeData = await this.fetchTokenTradeData();
+
+        // Example logic: trade if token has recent trade activity within last 24 hours
+        return tradeData.last_trade_unix_time > Date.now() - 24 * 60 * 60 * 1000;
+    }
+
+    async fetchLatestBoostedTokens(): Promise<any> {
+        const url = `https://api.dexscreener.com/token-boosts/latest/v1`;
+        try {
+            console.log(`Fetching latest boosted tokens from DexScreener`);
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
             }
-            return b.marketCap - a.marketCap; // If liquidity is equal, higher market cap comes first
-        })[0];
-    }
-
-    async analyzeHolderDistribution(
-        tradeData: TokenTradeData
-    ): Promise<string> {
-        // Define the time intervals to consider (e.g., 30m, 1h, 2h)
-        const intervals = [
-            {
-                period: "30m",
-                change: tradeData.unique_wallet_30m_change_percent,
-            },
-            { period: "1h", change: tradeData.unique_wallet_1h_change_percent },
-            { period: "2h", change: tradeData.unique_wallet_2h_change_percent },
-            { period: "4h", change: tradeData.unique_wallet_4h_change_percent },
-            { period: "8h", change: tradeData.unique_wallet_8h_change_percent },
-            {
-                period: "24h",
-                change: tradeData.unique_wallet_24h_change_percent,
-            },
-        ];
-
-        // Calculate the average change percentage
-        const validChanges = intervals
-            .map((interval) => interval.change)
-            .filter(
-                (change) => change !== null && change !== undefined
-            ) as number[];
-
-        if (validChanges.length === 0) {
-            return "stable";
-        }
-
-        const averageChange =
-            validChanges.reduce((acc, curr) => acc + curr, 0) /
-            validChanges.length;
-
-        const increaseThreshold = 10; // e.g., average change > 10%
-        const decreaseThreshold = -10; // e.g., average change < -10%
-
-        if (averageChange > increaseThreshold) {
-            return "increasing";
-        } else if (averageChange < decreaseThreshold) {
-            return "decreasing";
-        } else {
-            return "stable";
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error(`Error fetching latest boosted tokens:`, error);
+            return null;
         }
     }
 
-    async fetchHolderList(): Promise<HolderData[]> {
-        const cacheKey = `holderList_${this.tokenAddress}`;
-        const cachedData = this.getCachedData(cacheKey);
+    async fetchTokenOrders(chainId: string, tokenAddress: string): Promise<any> {
+        const url = `https://api.dexscreener.com/orders/v1/${chainId}/${tokenAddress}`;
+        try {
+            console.log(`Fetching orders for token ${tokenAddress} on chain ${chainId} from DexScreener`);
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+            }
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error(`Error fetching token orders:`, error);
+            return null;
+        }
+    }
+
+    async fetchPairsByTokenAddresses(tokenAddresses: string): Promise<any> {
+        const url = `https://api.dexscreener.com/latest/dex/tokens/${tokenAddresses}`;
+        try {
+            console.log(`Fetching pairs for token addresses: ${tokenAddresses} from DexScreener`);
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+            }
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error(`Error fetching pairs by token addresses:`, error);
+            return null;
+        }
+    }
+
+    public async getProcessedTokenData(): Promise<ProcessedTokenData> {
+        if (!this.tokenAddress) {
+            throw new Error("Token address is required");
+        }
+      
+        const cacheKey = `processedTokenData_${this.tokenAddress}`;
+        const cachedData = await this.getCachedData(cacheKey);
         if (cachedData) {
-            console.log("Returning cached holder list.");
-            return cachedData;
+          console.log(`Returning cached processed token data for ${this.tokenAddress}.`);
+          return cachedData;
         }
+      
+        const url = `https://api.helius.xyz/v0/tokens/${this.tokenAddress}/processed`;
+        const response = await this.fetchWithRetry<ProcessedTokenData>(url);
+      
+        if (!response) {
+          throw new Error("No processed token data available");
+        }
+      
+        await this.setCachedData(cacheKey, response);
+        console.log(`Processed token data cached for ${this.tokenAddress}.`);
+      
+        return response;
+      }
 
-        const allHoldersMap = new Map<string, number>();
-        let page = 1;
-        const limit = 1000;
-        let cursor;
-        //HELIOUS_API_KEY needs to be added
-        const url = `https://mainnet.helius-rpc.com/?api-key=${settings.HELIUS_API_KEY || ""}`;
-        console.log({ url });
-
+    public async getTokenAddressFromTicker(ticker: string): Promise<string | null> {
         try {
-            while (true) {
-                interface FetchParams {
-                    limit: number;
-                    displayOptions: Record<string, unknown>;
-                    mint: string;
-                    cursor?: string;
-                }
-                const params: FetchParams = {
-                    limit: limit,
-                    displayOptions: {},
-                    mint: this.tokenAddress,
-                    cursor: cursor ?? undefined,
-                };
-                if (cursor != undefined) {
-                    params.cursor = cursor;
-                }
-                console.log(`Fetching holders - Page ${page}`);
-                if (page > 2) {
-                    break;
-                }
-                const response = await fetch(url, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "x-chain": "solana",
-                    },
-                    body: JSON.stringify({
-                        jsonrpc: "2.0",
-                        id: "helius-test",
-                        method: "getTokenAccounts",
-                        params: params,
-                    }),
-                });
+            const response = await fetch(`https://api.dexscreener.com/latest/dex/search?q=${ticker}`, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
 
-                const data = await response.json();
-
-                const responseData = data as { result?: { token_accounts?: any[] } };
-                if (!responseData?.result?.token_accounts?.length) {
-                    console.log(
-                        `No more holders found. Total pages fetched: ${page - 1}`
-                    );
-                    break;
-                }
-
-                interface HeliusTokenAccount {
-                    owner: string;
-                    amount: string;
-                }
-
-                interface HeliusResponse {
-                    result: {
-                        token_accounts: HeliusTokenAccount[];
-                        cursor?: string;
-                    };
-                }
-
-                const accounts = responseData.result.token_accounts;
-                console.log(
-                    `Processing ${accounts.length} holders from page ${page}`
-                );
-
-                accounts.forEach((account: HeliusTokenAccount) => {
-                    const owner = account.owner;
-                    const balance = parseFloat(account.amount);
-
-                    if (allHoldersMap.has(owner)) {
-                        const existingBalance = allHoldersMap.get(owner) ?? 0;
-                        allHoldersMap.set(owner, existingBalance + balance);
-                    } else {
-                        allHoldersMap.set(owner, balance);
-                    }
-                });
-                
-                const typedData = data as HeliusResponse;
-                cursor = typedData.result?.cursor ?? null;
-                page++;
+            const data = await response.json();
+            if (data && data.pairs && data.pairs.length > 0) {
+                return data.pairs[0].baseToken.address;
+            } else {
+                return null;
             }
-
-            const holders: HolderData[] = Array.from(
-                allHoldersMap.entries()
-            ).map(([address, balance]) => ({
-                address,
-                balance: balance.toString(),
-            }));
-
-            console.log(`Total unique holders fetched: ${holders.length}`);
-
-            // Cache the result
-            this.setCachedData(cacheKey, holders);
-
-            return holders;
-        } catch (error) {
-            console.error("Error fetching holder list from Helius:", error);
-            throw new Error("Failed to fetch holder list from Helius.");
-        }
-    }
-
-    async filterHighValueHolders(
-        tradeData: TokenTradeData
-    ): Promise<Array<{ holderAddress: string; balanceUsd: string }>> {
-        const holdersData = await this.fetchHolderList();
-
-        const tokenPriceUsd = toBN(tradeData.price);
-
-        const highValueHolders = holdersData
-            .filter((holder) => {
-                const balanceUsd = toBN(holder.balance).multipliedBy(
-                    tokenPriceUsd
-                );
-                return balanceUsd.isGreaterThan(5);
-            })
-            .map((holder) => ({
-                holderAddress: holder.address,
-                balanceUsd: toBN(holder.balance)
-                    .multipliedBy(tokenPriceUsd)
-                    .toFixed(2),
-            }));
-
-        return highValueHolders;
-    }
-
-    async checkRecentTrades(tradeData: TokenTradeData): Promise<boolean> {
-        return toBN(tradeData.volume_24h_usd).isGreaterThan(0);
-    }
-
-    async countHighSupplyHolders(
-        securityData: TokenSecurityData
-    ): Promise<number> {
-        try {
-            const ownerBalance = toBN(securityData.ownerBalance);
-            const totalSupply = ownerBalance.plus(securityData.creatorBalance);
-
-            const highSupplyHolders = await this.fetchHolderList();
-            const highSupplyHoldersCount = highSupplyHolders.filter(
-                (holder) => {
-                    const balance = toBN(holder.balance);
-                    return balance.dividedBy(totalSupply).isGreaterThan(0.02);
-                }
-            ).length;
-            return highSupplyHoldersCount;
-        } catch (error) {
-            console.error("Error counting high supply holders:", error);
-            return 0;
-        }
-    }
-
-    async getProcessedTokenData(): Promise<ProcessedTokenData> {
-        try {
-            console.log(
-                `Fetching security data for token: ${this.tokenAddress}`
-            );
-            const security = await this.fetchTokenSecurity();
-
-            const tokenCodex = await this.fetchTokenCodex();
-
-            console.log(`Fetching trade data for token: ${this.tokenAddress}`);
-            const tradeData = await this.fetchTokenTradeData();
-
-            console.log(
-                `Fetching DexScreener data for token: ${this.tokenAddress}`
-            );
-            const dexData = await this.fetchDexScreenerData();
-
-            console.log(
-                `Analyzing holder distribution for token: ${this.tokenAddress}`
-            );
-            const holderDistributionTrend =
-                await this.analyzeHolderDistribution(tradeData);
-
-            console.log(
-                `Filtering high-value holders for token: ${this.tokenAddress}`
-            );
-            const highValueHolders =
-                await this.filterHighValueHolders(tradeData);
-
-            console.log(
-                `Checking recent trades for token: ${this.tokenAddress}`
-            );
-            const recentTrades = await this.checkRecentTrades(tradeData);
-
-            console.log(
-                `Counting high-supply holders for token: ${this.tokenAddress}`
-            );
-            const highSupplyHoldersCount =
-                await this.countHighSupplyHolders(security);
-
-            console.log(
-                `Determining DexScreener listing status for token: ${this.tokenAddress}`
-            );
-            const isDexScreenerListed = dexData.pairs.length > 0;
-            const isDexScreenerPaid = dexData.pairs.some(
-                (pair) => pair.boosts && pair.boosts.active > 0
-            );
-
-            const processedData: ProcessedTokenData = {
-                security,
-                tradeData,
-                holderDistributionTrend,
-                highValueHolders,
-                recentTrades,
-                highSupplyHoldersCount,
-                dexScreenerData: dexData,
-                isDexScreenerListed,
-                isDexScreenerPaid,
-                tokenCodex,
-            };
-
-            // console.log("Processed token data:", processedData);
-            return processedData;
-        } catch (error) {
-            console.error("Error processing token data:", error);
-            throw error;
-        }
-    }
-
-    async shouldTradeToken(): Promise<boolean> {
-        try {
-            const tokenData = await this.getProcessedTokenData();
-            const { tradeData, security, dexScreenerData } = tokenData;
-            const { ownerBalance, creatorBalance } = security;
-            const { liquidity, marketCap } = dexScreenerData.pairs[0];
-            const liquidityUsd = toBN(liquidity.usd);
-            const marketCapUsd = toBN(marketCap);
-            const totalSupply = toBN(ownerBalance).plus(creatorBalance);
-            const top10HolderPercent = toBN(tradeData.volume_24h_usd).dividedBy(
-                totalSupply
-            );
-            const priceChange24hPercent = toBN(
-                tradeData.price_change_24h_percent
-            );
-            const priceChange12hPercent = toBN(
-                tradeData.price_change_12h_percent
-            );
-            const uniqueWallet24h = tradeData.unique_wallet_24h;
-            const volume24hUsd = toBN(tradeData.volume_24h_usd);
-            const volume24hUsdThreshold = 1000;
-            const priceChange24hPercentThreshold = 10;
-            const priceChange12hPercentThreshold = 5;
-            const top10HolderPercentThreshold = 0.05;
-            const uniqueWallet24hThreshold = 100;
-            const isTop10Holder = top10HolderPercent.gte(
-                top10HolderPercentThreshold
-            );
-            const isVolume24h = volume24hUsd.gte(volume24hUsdThreshold);
-            const isPriceChange24h = priceChange24hPercent.gte(
-                priceChange24hPercentThreshold
-            );
-            const isPriceChange12h = priceChange12hPercent.gte(
-                priceChange12hPercentThreshold
-            );
-            const isUniqueWallet24h =
-                uniqueWallet24h >= uniqueWallet24hThreshold;
-            const isLiquidityTooLow = liquidityUsd.lt(1000);
-            const isMarketCapTooLow = marketCapUsd.lt(100000);
-            return (
-                isTop10Holder ||
-                isVolume24h ||
-                isPriceChange24h ||
-                isPriceChange12h ||
-                isUniqueWallet24h ||
-                isLiquidityTooLow ||
-                isMarketCapTooLow
-            );
-        } catch (error) {
-            console.error("Error processing token data:", error);
-            throw error;
-        }
-    }
-
-    formatTokenData(data: ProcessedTokenData): string {
-        let output = `**Token Security and Trade Report**\n`;
-        output += `Token Address: ${this.tokenAddress}\n\n`;
-
-        // Security Data
-        output += `**Ownership Distribution:**\n`;
-        output += `- Owner Balance: ${data.security.ownerBalance}\n`;
-        output += `- Creator Balance: ${data.security.creatorBalance}\n`;
-        output += `- Owner Percentage: ${data.security.ownerPercentage}%\n`;
-        output += `- Creator Percentage: ${data.security.creatorPercentage}%\n`;
-        output += `- Top 10 Holders Balance: ${data.security.top10HolderBalance}\n`;
-        output += `- Top 10 Holders Percentage: ${data.security.top10HolderPercent}%\n\n`;
-
-        // Trade Data
-        output += `**Trade Data:**\n`;
-        output += `- Holders: ${data.tradeData.holder}\n`;
-        output += `- Unique Wallets (24h): ${data.tradeData.unique_wallet_24h}\n`;
-        output += `- Price Change (24h): ${data.tradeData.price_change_24h_percent}%\n`;
-        output += `- Price Change (12h): ${data.tradeData.price_change_12h_percent}%\n`;
-        output += `- Volume (24h USD): $${toBN(data.tradeData.volume_24h_usd).toFixed(2)}\n`;
-        output += `- Current Price: $${toBN(data.tradeData.price).toFixed(2)}\n\n`;
-
-        // Holder Distribution Trend
-        output += `**Holder Distribution Trend:** ${data.holderDistributionTrend}\n\n`;
-
-        // High-Value Holders
-        output += `**High-Value Holders (>$5 USD):**\n`;
-        if (data.highValueHolders.length === 0) {
-            output += `- No high-value holders found or data not available.\n`;
-        } else {
-            data.highValueHolders.forEach((holder) => {
-                output += `- ${holder.holderAddress}: $${holder.balanceUsd}\n`;
-            });
-        }
-        output += `\n`;
-
-        // Recent Trades
-        output += `**Recent Trades (Last 24h):** ${data.recentTrades ? "Yes" : "No"}\n\n`;
-
-        // High-Supply Holders
-        output += `**Holders with >2% Supply:** ${data.highSupplyHoldersCount}\n\n`;
-
-        // DexScreener Status
-        output += `**DexScreener Listing:** ${data.isDexScreenerListed ? "Yes" : "No"}\n`;
-        if (data.isDexScreenerListed) {
-            output += `- Listing Type: ${data.isDexScreenerPaid ? "Paid" : "Free"}\n`;
-            output += `- Number of DexPairs: ${data.dexScreenerData.pairs.length}\n\n`;
-            output += `**DexScreener Pairs:**\n`;
-            data.dexScreenerData.pairs.forEach((pair, index) => {
-                output += `\n**Pair ${index + 1}:**\n`;
-                output += `- DEX: ${pair.dexId}\n`;
-                output += `- URL: ${pair.url}\n`;
-                output += `- Price USD: $${toBN(pair.priceUsd).toFixed(6)}\n`;
-                output += `- Volume (24h USD): $${toBN(pair.volume.h24).toFixed(2)}\n`;
-                output += `- Boosts Active: ${pair.boosts && pair.boosts.active}\n`;
-                output += `- Liquidity USD: $${toBN(pair.liquidity.usd).toFixed(2)}\n`;
-            });
-        }
-        output += `\n`;
-
-        console.log("Formatted token data:", output);
-        return output;
-    }
-
-    async getFormattedTokenReport(): Promise<string> {
-        try {
-            console.log("Generating formatted token report...");
-            const processedData = await this.getProcessedTokenData();
-            return this.formatTokenData(processedData);
-        } catch (error) {
-            console.error("Error generating token report:", error);
-            return "Unable to fetch token information. Please try again later.";
+        } catch (error: any) {
+            throw new Error(`Error fetching token address: ${error.message}`);
         }
     }
 }
 
-const tokenAddress = PROVIDER_CONFIG.TOKEN_ADDRESSES.SOL; // or BTC, ETH as needed
+export class DexscreenerService {
+    private readonly baseUrl = "https://api.dexscreener.com/latest/dex";
 
-const connection = new Connection(PROVIDER_CONFIG.DEFAULT_RPC);
-const tokenProvider: Provider = {
-    get: async (
-        runtime: IAgentRuntime,
-        _message: Memory,
-        _state?: State
-    ): Promise<string> => {
+    private async fetchDexscreener(url: string, action: string) {
         try {
-            const walletKey = await getWalletKey(runtime, false, { requirePrivateKey: false, publicKeyString: '' });
-            if (!walletKey.publicKey) {
-                throw new Error('Failed to get wallet public key');
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP status ${response.status}`);
             }
-
-            const walletProvider = new WalletProvider(connection, walletKey.publicKey);
-
-            const provider = new TokenProvider(
-                tokenAddress,
-                walletProvider,
-                runtime.cacheManager,
-                { apiKey: settings.BIRDEYE_API_KEY || '' }
-            );
- 
-            return provider.getFormattedTokenReport();
+            return await response.json();
         } catch (error) {
-            console.error("Error fetching token data:", error);
-            return "Unable to fetch token information. Please try again later.";
+            throw new Error(`Failed to ${action}: ${error}`);
         }
-    },
-};
+    }
 
-export { tokenProvider };
+    @Tool({
+        name: "dexscreener.get_pairs_by_chain_and_pair",
+        description: "Fetch pairs by chainId and pairId from Dexscreener",
+    })
+    async getPairsByChainAndPair(parameters: GetPairsByChainAndPairParameters) {
+        const url = `${this.baseUrl}/pairs/${parameters.chainId}/${parameters.pairId}`;
+        return this.fetchDexscreener(url, "fetch pairs");
+    }
+
+    @Tool({
+        name: "dexscreener.search_pairs",
+        description: "Search for DEX pairs matching a query string on Dexscreener",
+    })
+    async searchPairs(parameters: SearchPairsParameters) {
+        const url = `${this.baseUrl}/search?q=${encodeURIComponent(parameters.query)}`;
+        return this.fetchDexscreener(url, "search pairs");
+    }
+
+    @Tool({
+        name: "dexscreener.get_token_pairs_by_token_address",
+        description: "Get all DEX pairs for given token addresses (up to 30) from Dexscreener",
+    })
+    async get_token_pairs_by_token_address(parameters: GetTokenPairsParameters) {
+        if (parameters.tokenAddresses.length > 30) {
+            throw new Error("Maximum of 30 token addresses allowed per request");
+        }
+        const addresses = parameters.tokenAddresses.join(",");
+        const url = `${this.baseUrl}/tokens/${addresses}`;
+        return this.fetchDexscreener(url, "get token pairs");
+    }
+}
+
+// Add utility functions to fetch token data by address and ticker
+export async function getTokenDataByAddress(mint: PublicKey): Promise<JupiterTokenData | undefined> {
+    try {
+        if (!mint) {
+            throw new Error("Mint address is required");
+        }
+        const response = await fetch(`https://tokens.jup.ag/token/${mint}`, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+        const token = (await response.json()) as JupiterTokenData;
+        return token;
+    } catch (error: any) {
+        throw new Error(`Error fetching token data: ${error.message}`);
+    }
+}
+
+export async function getTokenAddressFromTicker(ticker: string): Promise<string | null> {
+    try {
+        const response = await fetch(`https://api.dexscreener.com/latest/dex/search?q=${ticker}`, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+
+        const data = await response.json();
+        if (data && data.pairs && data.pairs.length > 0) {
+            return data.pairs[0].baseToken.address;
+        } else {
+            return null;
+        }
+    } catch (error: any) {
+        throw new Error(`Error fetching token address: ${error.message}`);
+    }
+}
+
+export async function getTokenDataByTicker(
+  ticker: string,
+): Promise<JupiterTokenData | undefined> {
+  const address = await getTokenAddressFromTicker(ticker);
+  if (!address) {
+    throw new Error(`Token address not found for ticker: ${ticker}`);
+  }
+  return getTokenDataByAddress(new PublicKey(address));
+}
+
