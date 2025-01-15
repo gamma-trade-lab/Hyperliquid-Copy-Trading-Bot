@@ -105,6 +105,87 @@ export class AIService implements IAIService {
   private contextMemory: Map<string, string[]> = new Map();
   private maxMemoryItems: number = 10;
 
+  readonly sentimentPrompts = {
+    positive: [
+      'bullish',
+      'growth',
+      'adoption',
+      'partnership',
+      'success',
+      'upgrade',
+      'innovation',
+      'launch',
+      'breakthrough'
+    ],
+    negative: [
+      'bearish',
+      'decline',
+      'risk',
+      'concern',
+      'failure',
+      'hack',
+      'crash',
+      'scam',
+      'delay'
+    ]
+  };
+
+  async generateName(): Promise<string> {
+    try {
+      const prompt = `
+        Generate a creative and memorable name for a new cryptocurrency token.
+        The name should be:
+        - Unique and catchy
+        - Easy to remember
+        - Not similar to existing major tokens
+        - Maximum 15 characters
+        
+        Provide just the name, no explanation.
+      `;
+
+      const completion = await this.groq.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'mixtral-8x7b-32768',
+        temperature: 0.9,
+      });
+
+      return completion.choices[0]?.message?.content?.trim() || "TokenName";
+    } catch (error) {
+      console.error('Error generating name:', error);
+      return "TokenName";
+    }
+  }
+
+  async generateNarrative(template: any): Promise<string> {
+    try {
+      const prompt = `
+        Create a compelling narrative for a cryptocurrency token with the following attributes:
+        Name: ${template.name || 'Unknown'}
+        Type: ${template.type || 'Token'}
+        Key Features: ${template.features?.join(', ') || 'Standard features'}
+        
+        Generate a concise, engaging description that:
+        - Highlights unique value propositions
+        - Explains key use cases
+        - Emphasizes competitive advantages
+        - Maintains professional tone
+        - Keeps it under 280 characters for Twitter
+      `;
+
+      const completion = await this.groq.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'mixtral-8x7b-32768',
+        temperature: 0.7,
+      });
+
+      return completion.choices[0]?.message?.content?.trim() || 
+        "A revolutionary digital asset designed for the future of finance.";
+    } catch (error) {
+      console.error('Error generating narrative:', error);
+      return "A revolutionary digital asset designed for the future of finance.";
+    }
+  }
+
   /**
    * Initializes the AI service with the specified configuration
    * Supports multiple LLM providers (DeepSeek and Groq)
@@ -151,6 +232,8 @@ export class AIService implements IAIService {
     this.config = config;
     this.personality = personalityConfig;
   }
+  groq: any;
+ 
 
   /**
    * Generates an AI response based on the given context
@@ -236,7 +319,13 @@ export class AIService implements IAIService {
               confidence: 0.5,
               action: "HOLD",
               metrics: metrics,
-              shouldUpdate: undefined
+              shouldUpdate: undefined,
+              summary: '',
+              sentiment: '',
+              keyPoints: [],
+              recommendation: null,
+              reasons: [],
+              riskLevel: ''
             },
             prompt = `Analyze this market data and respond with ONLY valid JSON matching this exact format: ${JSON.stringify(formatExample, null, 2)}
 
@@ -297,7 +386,13 @@ Market metrics:
         confidence: analysis.confidence,
         action: analysis.action,
         metrics: metrics,
-        shouldUpdate: analysis.shouldUpdate || false
+        shouldUpdate: analysis.shouldUpdate || false,
+        summary: analysis.summary || '',
+        sentiment: analysis.sentiment || '',
+        keyPoints: analysis.keyPoints || [],
+        recommendation: analysis.recommendation || null,
+        reasons: analysis.reasons || [],
+        riskLevel: analysis.riskLevel || ''
       };
     } catch (error) {
       console.error('Error analyzing market:', error);
@@ -315,7 +410,13 @@ Market metrics:
         confidence: 0,
         action: 'HOLD',
         metrics: metrics,
-        shouldUpdate: false
+        shouldUpdate: false,
+        summary: '',
+        sentiment: '',
+        keyPoints: [],
+        recommendation: null,
+        reasons: [],
+        riskLevel: 'low'
       };
     }
   }

@@ -165,6 +165,12 @@ export class JupiterService {
 
 @injectable()
 export class JupiterPriceV2Service {
+  getPriceData() {
+      throw new Error('Method not implemented.');
+  }
+  getTopTokensByVolume(arg0: number) {
+    throw new Error('Method not implemented.');
+  }
   private readonly SOLANA_PUBLIC_KEY: PublicKey = new PublicKey(
     process.env.SOLANA_PUBLIC_KEY || 'C7DjuqwXZ2kZ2D9RMDXv5HjiR7PVkLFJgnX7PKraPDaM'
   );

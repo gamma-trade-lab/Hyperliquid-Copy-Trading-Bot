@@ -3,24 +3,33 @@ import { ModeManager } from './ModeManager.js';
 import { elizaLogger } from "@ai16z/eliza";
 import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service.js';
 import { TwitterService } from '../social/index.js';
-
+import { AIService } from '../ai/ai.js';
 
 export class CommandHandler {
   private commands: Map<string, Command>;
   private modeManager: ModeManager;
   private aliases: Map<string, string>;
   private twitterService: TwitterService;
-  private jupiterService: JupiterPriceV2Service;
-// Current Issue: Not handling all error cases and missing proper formatting
+  private jupiterService: JupiterPriceV2Service; 
+  private aiService: AIService;
+
   constructor(
-    modeManager: ModeManager,
     twitterService: TwitterService,
-    jupiterService: JupiterPriceV2Service
+    jupiterService: JupiterPriceV2Service,
+    aiService: AIService
   ) {
     this.commands = new Map();
-    this.modeManager = modeManager;
     this.twitterService = twitterService;
     this.jupiterService = jupiterService;
+    this.aiService = aiService;
+
+    // Initialize ModeManager with required services
+    this.modeManager = new ModeManager(
+      this.twitterService,
+      this.aiService,
+      this.jupiterService
+    );
+
     this.aliases = new Map([
       ['post', 'tweet'],
       ['send', 'tweet'],
@@ -28,6 +37,7 @@ export class CommandHandler {
       ['show', 'market'],
       ['get', 'market']
     ]);
+
     this.registerDefaultCommands();
   }
 
@@ -175,13 +185,14 @@ export class CommandHandler {
           elizaLogger.info(`Fetching market data for ${symbol}`);
     
           const tokenInfo = await this.jupiterService.getTokenInfo(symbol);
-          if (!tokenInfo) {
+          if (!tokenInfo || !tokenInfo.address) {
             return {
               success: false,
               message: `Token ${symbol} not found or not verified`
             };
           }
     
+          this.jupiterService.setTokenAddress(tokenInfo.address);
           const marketData = await this.jupiterService.getMarketMetrics(symbol);
           if (!marketData) {
             return {

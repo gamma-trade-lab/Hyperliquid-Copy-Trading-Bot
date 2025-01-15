@@ -1,165 +1,182 @@
-import { Connection, PublicKey } from '@solana/web3.js';
+import { Command, CommandResult } from '@/types/chat.js';
+import { JupiterPriceV2Service } from '../blockchain/defi/JupiterPriceV2Service.js';
 import { elizaLogger } from "@ai16z/eliza";
-import { CommandResult } from '../../types/chat';
-import { TokenProvider } from '../../providers/token';
-import { RedisService } from '../market/data/RedisCache';
-import { WalletProvider } from '../../providers/wallet';
+import { getTokenAddressFromTicker } from '../../providers/token.js';
+import { AIService } from '../ai';
 
 export class MarketCommand {
-  private connection: Connection;
-  private walletProvider: WalletProvider;
-  private tokenProvider: TokenProvider;
+  constructor(
+    private jupiterService: JupiterPriceV2Service,
+    private aiService: AIService
+  ) {}
 
-  constructor(config: { rpcUrl: string }) {
-    this.connection = new Connection(config.rpcUrl);
-    if (!process.env.WALLET_PUBLIC_KEY) {
-      throw new Error('WALLET_PUBLIC_KEY environment variable is not set');
-    }
-    this.walletProvider = new WalletProvider(this.connection, new PublicKey(process.env.WALLET_PUBLIC_KEY));
-    this.tokenProvider = new TokenProvider(
-      'tokenAddress',
-      this.walletProvider,
-      new RedisService({
-        host: process.env.REDIS_HOST || 'localhost',
-        port: Number(process.env.REDIS_PORT) || 6379,
-        password: process.env.REDIS_PASSWORD,
-        keyPrefix: 'jupiter-price:',
-        enableCircuitBreaker: true
-      }),
-      { apiKey: '', retryAttempts: 3, retryDelay: 2000, timeout: 10000 }
-    );
+  getCommand(): Command {
+    return {
+      name: 'market',
+      description: 'Get market data for any token',
+      execute: async (args: string[]): Promise<CommandResult> => {
+        try {
+          if (!args.length) {
+            return {
+              success: false,
+              message: 'Please specify a token symbol (e.g., market SOL)'
+            };
+          }
+
+          const symbol = args[0].toUpperCase();
+          elizaLogger.info(`Fetching market data for ${symbol}`);
+
+          // First get the token address from DexScreener
+          const tokenAddress = await getTokenAddressFromTicker(symbol);
+          if (!tokenAddress) {
+            return {
+              success: false,
+              message: `Could not find token ${symbol} on DexScreener`
+            };
+          }
+
+          // Set the token address in Jupiter service
+          this.jupiterService.setTokenAddress(tokenAddress);
+
+          // Get market data with error handling
+          elizaLogger.info(`Fetching market data for token ${symbol} (${tokenAddress})`);
+          let marketData;
+          try {
+            marketData = await this.jupiterService.getMarketData(symbol);
+          } catch (error) {
+            elizaLogger.error(`Error fetching market data:`, error);
+            return {
+              success: false,
+              message: `Error fetching market data for ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`
+            };
+          }
+          
+          if (!marketData) {
+            elizaLogger.warn(`No market data returned for ${symbol}`);
+            return {
+              success: false,
+              message: `No market data available for ${symbol}. Token might be too new or have no liquidity.`
+            };
+          }
+          
+          elizaLogger.info(`Successfully fetched market data for ${symbol}`);
+
+          // Get AI analysis
+          elizaLogger.info(`Generating AI analysis for ${symbol}`);
+          const analysis = await this.generateMarketAnalysis(symbol, marketData);
+
+          // Format and display the combined output
+          console.log(`\n${symbol} Market Analysis:`);
+          console.log(`\nMarket Data:`);
+          console.log(`Price: ${marketData.price.toFixed(4)}`);
+          console.log(`24h Change: ${marketData.priceChange24h.toFixed(2)}%`);
+          console.log(`24h Volume: ${this.formatNumber(marketData.volume24h)}`);
+          console.log(`Market Cap: ${this.formatNumber(marketData.marketCap)}`);
+          console.log(`Token Address: ${tokenAddress}`);
+          
+          console.log(`\nAI Analysis:`);
+          console.log(analysis.summary);
+          console.log(`\nRisk Level: ${analysis.riskLevel}`);
+          console.log(`Market Sentiment: ${analysis.sentiment}`);
+          if (analysis.keyPoints.length > 0) {
+            console.log(`\nKey Points:`);
+            analysis.keyPoints.forEach(point => console.log(`• ${point}`));
+          }
+          if (analysis.recommendation) {
+            console.log(`\nRecommendation: ${analysis.recommendation}`);
+          }
+
+          return {
+            success: true,
+            data: {
+              symbol,
+              price: marketData.price,
+              priceChange24h: marketData.priceChange24h,
+              volume24h: marketData.volume24h,
+              marketCap: marketData.marketCap,
+              address: tokenAddress
+            },
+            message: 'Market data retrieved successfully'
+          };
+
+        } catch (error) {
+          elizaLogger.error(`Error fetching market data for ${args[0]}:`, error);
+          return {
+            success: false,
+            message: error instanceof Error ? error.message : 'Unknown error fetching market data'
+          };
+        }
+      }
+    };
   }
 
-  async execute(args: string[]): Promise<CommandResult> {
+  private formatNumber(num: number): string {
+    if (num >= 1e9) {
+      return (num / 1e9).toFixed(2) + 'B';
+    }
+    if (num >= 1e6) {
+      return (num / 1e6).toFixed(2) + 'M';
+    }
+    if (num >= 1e3) {
+      return (num / 1e3).toFixed(2) + 'K';
+    }
+    return num.toFixed(2);
+  }
+
+  private async generateMarketAnalysis(symbol: string, marketData: any) {
     try {
-      if (!args.length) {
-        return {
-          success: false,
-          message: 'Please specify a token symbol (e.g., market BTC)'
-        };
-      }
+      // Prepare market context for AI analysis
+      const context = {
+        symbol,
+        currentPrice: marketData.price,
+        priceChange24h: marketData.priceChange24h,
+        volume24h: marketData.volume24h,
+        marketCap: marketData.marketCap,
+        timestamp: Date.now()
+      };
 
-      const symbol = args[0].toUpperCase();
-      const tokenAddress = await this.tokenProvider.getTokenAddressFromTicker(symbol);
-      if (!tokenAddress) {
-        return {
-          success: false,
-          message: `Token address not found for symbol: ${symbol}`
-        };
-      }
+      // Generate AI analysis using market context
+      const prompt = `
+        Analyze the following market data for ${symbol}:
+        - Current Price: ${context.currentPrice}
+        - 24h Price Change: ${context.priceChange24h}%
+        - 24h Volume: ${this.formatNumber(context.volume24h)}
+        - Market Cap: ${this.formatNumber(context.marketCap)}
 
-      this.tokenProvider.setTokenAddress(tokenAddress);
-      const tokenReport = await this.tokenProvider.getFormattedTokenReport();
+        Provide a concise analysis including:
+        1. Overall market sentiment
+        2. Key market indicators and their implications
+        3. Potential risks and opportunities
+        4. Trade recommendation based on current market conditions
+        5. Key points for investors to consider
+      `;
 
+      const analysis = await this.aiService.analyzeMarket(prompt);
+
+      // Process and structure the AI response
       return {
-        success: true,
-        data: tokenReport,
-        message: tokenReport
+        summary: analysis.summary || "AI analysis not available",
+        sentiment: analysis.sentiment || "NEUTRAL",
+        riskLevel: this.calculateRiskLevel(marketData),
+        keyPoints: analysis.keyPoints || [],
+        recommendation: analysis.recommendation || null
       };
     } catch (error) {
-      elizaLogger.error('Market command error:', error);
+      elizaLogger.error('Error generating AI analysis:', error);
       return {
-        success: false,
-        message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        summary: "AI analysis temporarily unavailable",
+        sentiment: "NEUTRAL",
+        riskLevel: "MEDIUM",
+        keyPoints: [],
+        recommendation: null
       };
     }
   }
 
-  async analyze(args: string[]): Promise<CommandResult> {
-    try {
-      const symbol = args[0]?.toUpperCase();
-      if (!symbol) {
-        return {
-          success: false,
-          message: 'Please specify a token to analyze'
-        };
-      }
-
-      this.tokenProvider.setTokenAddress(symbol);
-      const metrics = await this.tokenProvider.getFormattedTokenReport();
-      return {
-        success: true,
-        data: metrics,
-        message: this.formatAnalysis(symbol, metrics)
-      };
-    } catch (error) {
-      elizaLogger.error('Analysis error:', error);
-      return {
-        success: false,
-        message: `Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      };
-    }
-  }
-
-  async generateMarketTweet(args: string[]): Promise<CommandResult> {
-    try {
-      const symbol = args[0]?.toUpperCase();
-      if (!symbol) {
-        return {
-          success: false,
-          message: 'Please specify a token for the tweet'
-        };
-      }
-
-      this.tokenProvider.setTokenAddress(symbol);
-      const metrics = await this.tokenProvider.getFormattedTokenReport();
-      const tweet = this.formatTweetContent(symbol, metrics);
-
-      return {
-        success: true,
-        data: { tweet, metrics },
-        message: tweet
-      };
-    } catch (error) {
-      elizaLogger.error('Tweet generation error:', error);
-      return {
-        success: false,
-        message: `Tweet generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      };
-    }
-  }
-
-  private formatMarketData(symbol: string, data: any): string {
-    return `
-${symbol} Market Data:
-Price: $${data.price.toFixed(4)}
-24h Change: ${data.priceChange24h.toFixed(2)}%
-Volume: $${data.volume24h.toLocaleString()}
-Market Cap: $${data.marketCap.toLocaleString()}
-Confidence: ${data.confidenceLevel}
-`;
-  }
-
-  private formatAnalysis(symbol: string, metrics: any): string {
-    return `
-${symbol} Market Analysis:
-Current Price: $${metrics.price.toFixed(4)}
-24h Performance: ${metrics.priceChange24h > 0 ? '📈' : '📉'} ${metrics.priceChange24h.toFixed(2)}%
-Volume Analysis: ${this.analyzeVolume(metrics.volume24h)}
-Market Cap Rank: ${this.analyzeMarketCap(metrics.marketCap)}
-Confidence Level: ${metrics.confidenceLevel.toUpperCase()}
-`;
-  }
-
-  private formatTweetContent(symbol: string, metrics: any): string {
-    return `
-${symbol} Market Update 🚀
-💰 Price: $${metrics.price.toFixed(4)}
-📊 24h: ${metrics.priceChange24h > 0 ? '↗️' : '↘️'} ${metrics.priceChange24h.toFixed(2)}%
-📈 Vol: $${(metrics.volume24h / 1000000).toFixed(2)}M
-#${symbol} #Crypto
-`;
-  }
-
-  private analyzeVolume(volume: number): string {
-    if (volume > 1000000) return 'High 🔥';
-    if (volume > 100000) return 'Moderate 📊';
-    return 'Low 📉';
-  }
-
-  private analyzeMarketCap(marketCap: number): string {
-    if (marketCap > 1000000000) return 'Large Cap 🔵';
-    if (marketCap > 100000000) return 'Mid Cap 🟡';
-    return 'Small Cap 🟢';
+  private calculateRiskLevel(marketData: any): string {
+    const volatility = Math.abs(marketData.priceChange24h);
+    if (volatility > 20) return "HIGH";
+    if (volatility > 10) return "MEDIUM";
+    return "LOW";
   }
 }

@@ -70,6 +70,8 @@ export interface MarketAnalysis {
 }
 
 export interface MarketUpdateData {
+  lastUpdate: number;
+  symbol: any;
   tokenAddress(tokenAddress: any): unknown;
   price: number;
   volume24h: number;

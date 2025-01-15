@@ -9,8 +9,17 @@ import { Content } from './utils/content.js';
 import { Parser } from './utils/parser.js';
 import { TradingService } from './services/blockchain/trading.js';
 // Types
-import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext } from './services/blockchain/types.js';
+import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext, MarketMetrics  } from './services/blockchain/types.js';
 import { SocialMetrics } from './services/social/index.js';
+import { StateGraph } from "@langchain/langgraph";
+import { solanaAgentState } from "./utils/state.js";
+import { generalistNode } from "./agents/generalAgent.js";
+import { transferSwapNode } from "./agents/transferOrSwap.js";
+import { managerNode } from "./agents/manager.js";
+import { readNode } from "./agents/readAgent.js";
+import { START, END } from "@langchain/langgraph";
+import { managerRouter } from "./utils/route.js";
+import { HumanMessage } from "@langchain/core/messages";
 
 
 import {
@@ -731,16 +740,64 @@ class MemeAgentInfluencer {
   }
 
   private async analyzeMarket(): Promise<MarketAnalysis> {
-    const marketData = await this.tradingService.getMarketData(this.tokenAddress);
-    const aiAnalysis = await this.aiService.analyzeMarket(marketData);
-    
-    // Return a properly formatted MarketAnalysis object
-    return {
-      shouldTrade: aiAnalysis.shouldTrade,
-      confidence: aiAnalysis.confidence,
-      action: aiAnalysis.action,
-      metrics: aiAnalysis.metrics
-    };
+    try {
+      const marketData = await this.tradingService.getMarketData(this.tokenAddress);
+      if (!marketData) {
+        throw new Error('Failed to fetch market data');
+      }
+  
+      const aiAnalysis = await this.aiService.analyzeMarket(marketData);
+
+      const metrics: MarketMetrics = {
+        price: marketData.price || 0,
+        volume24h: marketData.volume24h || 0,
+        marketCap: marketData.marketCap || 0,
+        confidence: aiAnalysis.confidence || 0,
+        onChainData: marketData.onChainActivity || {},
+        volatility: marketData.volatility?.currentVolatility || 0,
+        momentum: marketData.volatility?.adjustmentFactor || 0,
+        strength: marketData.volatility?.averageVolatility || 0
+      };
+
+      return {
+        summary: aiAnalysis.summary || '',
+        sentiment: aiAnalysis.sentiment || 'NEUTRAL',
+        keyPoints: aiAnalysis.keyPoints || [],
+        recommendation: aiAnalysis.recommendation || null,
+        shouldTrade: aiAnalysis.shouldTrade || false,
+        confidence: aiAnalysis.confidence || 0,
+        action: aiAnalysis.action || 'HOLD',
+        reasons: aiAnalysis.reasons || [],
+        riskLevel: (aiAnalysis.riskLevel === 'LOW' || aiAnalysis.riskLevel === 'HIGH' ? 
+                   aiAnalysis.riskLevel : 'MEDIUM') as 'LOW' | 'MEDIUM' | 'HIGH',
+        metrics: metrics  // Now includes all required properties
+      };
+    } catch (error) {
+      console.error('Error in market analysis:', error);
+      
+      // Return fallback object with complete metrics
+      return {
+        summary: 'Error analyzing market',
+        sentiment: 'NEUTRAL',
+        keyPoints: [],
+        recommendation: null,
+        shouldTrade: false,
+        confidence: 0,
+        action: 'HOLD',
+        reasons: ['Error analyzing market'],
+        riskLevel: 'MEDIUM',
+        metrics: {
+          price: 0,
+          volume24h: 0,
+          marketCap: 0,
+          confidence: 0,
+          onChainData: {},
+          volatility: 0,
+          momentum: 0,
+          strength: 0
+        }
+      };
+    }
   }
 
   private async executeTrade(analysis: MarketAnalysis): Promise<TradeResult> {
@@ -1011,6 +1068,7 @@ import { RedisService } from './services/market/data/RedisCache.js';
 import { WalletProvider } from './providers/wallet.js';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { redisService } from './services/redis/redis-service.js';
+//import { MarketMetrics } from './types/market.js';
 
 loadConfig();
 
@@ -1467,6 +1525,24 @@ async function cleanup(services: ServiceConfig) {
     elizaLogger.error('Error during cleanup:', error);
   }
 }
+const workflow = new StateGraph(solanaAgentState)
+  .addNode("generalist", generalistNode)
+  .addNode("manager", managerNode)
+  .addNode("transferSwap", transferSwapNode)
+  .addNode("read", readNode)
+  .addEdge(START, "manager")
+  .addConditionalEdges("manager", managerRouter)
+  .addEdge("generalist", END)
+  .addEdge("transferSwap", END)
+  .addEdge("read", END);
+
+export const graph = workflow.compile();
+
+const result = await graph.invoke({
+  messages: [new HumanMessage("what is the price of SOL")],
+});
+
+console.log(result);
 
 // Start the application
 if (import.meta.url === new URL(process.argv[1], 'file:').href) {
@@ -1475,4 +1551,3 @@ if (import.meta.url === new URL(process.argv[1], 'file:').href) {
     process.exit(1);
   });
 }
-

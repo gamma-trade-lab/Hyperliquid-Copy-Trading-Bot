@@ -306,3 +306,7 @@ export interface CalculatedBuyAmounts {
     medium: number;
     high: number;
 }
+
+export interface Token {
+    symbol: string;
+}

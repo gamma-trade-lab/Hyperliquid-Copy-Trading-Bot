@@ -16,7 +16,7 @@ export class GroqAIService implements IAIService {
   async setCharacterConfig(config: Character): Promise<void> {
     this.characterConfig = config;
   }
-  private groq: Groq;
+  groq: Groq;
   private twitter: TwitterApi;
   private systemPrompt: string;
 
@@ -63,6 +63,88 @@ export class GroqAIService implements IAIService {
     - Engaging and culturally relevant
     - Limited to 280 characters for tweets`;
   }
+  sentimentPrompts: { positive: string[]; negative: string[]; } = {
+    positive: [
+      'bullish',
+      'growth',
+      'adoption',
+      'partnership',
+      'success',
+      'upgrade',
+      'innovation',
+      'launch',
+      'breakthrough'
+    ],
+    negative: [
+      'bearish',
+      'decline',
+      'risk',
+      'concern',
+      'failure',
+      'hack',
+      'crash',
+      'scam',
+      'delay'
+    ]
+  };
+
+  async generateName(): Promise<string> {
+    try {
+      const prompt = `
+        Generate a creative and memorable name for a new cryptocurrency token.
+        The name should be:
+        - Unique and catchy
+        - Easy to remember
+        - Not similar to existing major tokens
+        - Maximum 15 characters
+        
+        Provide just the name, no explanation.
+      `;
+
+      const completion = await this.groq.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'mixtral-8x7b-32768',
+        temperature: 0.9,
+      });
+
+      return completion.choices[0]?.message?.content?.trim() || "TokenName";
+    } catch (error) {
+      console.error('Error generating name:', error);
+      return "TokenName";
+    }
+  }
+
+  async generateNarrative(template: any): Promise<string> {
+    try {
+      const prompt = `
+        Create a compelling narrative for a cryptocurrency token with the following attributes:
+        Name: ${template.name || 'Unknown'}
+        Type: ${template.type || 'Token'}
+        Key Features: ${template.features?.join(', ') || 'Standard features'}
+        
+        Generate a concise, engaging description that:
+        - Highlights unique value propositions
+        - Explains key use cases
+        - Emphasizes competitive advantages
+        - Maintains professional tone
+        - Keeps it under 280 characters for Twitter
+      `;
+
+      const completion = await this.groq.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'mixtral-8x7b-32768',
+        temperature: 0.7,
+      });
+
+      return completion.choices[0]?.message?.content?.trim() || 
+        "A revolutionary digital asset designed for the future of finance.";
+    } catch (error) {
+      console.error('Error generating narrative:', error);
+      return "A revolutionary digital asset designed for the future of finance.";
+    }
+  }
+
+  
 
   async generateTweet(context: {
     marketCondition: string;

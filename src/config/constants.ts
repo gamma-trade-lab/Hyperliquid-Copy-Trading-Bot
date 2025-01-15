@@ -31,7 +31,8 @@ export enum MarketAction {
     VOLUME_UPDATE = 'volume_update',
     MARKET_ALERT = 'market_alert',
     TREND_UPDATE = 'trend_update',
-    UPDATE = "UPDATE"
+    UPDATE = "UPDATE",
+    ALERT = "ALERT"
 }
 
 export enum MarketCondition {
@@ -84,6 +85,17 @@ export const DEFAULT_TRANSACTION_OPTIONS = {
     skipPreflight: false,
     maxSignatureFee: 5000 // lamports
 } as const;
+
+export const DEFAULT_OPTIONS = {
+  maxRetries: 3,
+  minContextSlot: 0,
+  skipPreflight: false,
+  maxSignatureFee: 5000, // lamports
+  SLIPPAGE_BPS: 50 // basis points
+} as const;
+
+export const JUP_API = "https://api.jup.ag/v1";
+export const JUP_REFERRAL_ADDRESS = "HAiQr2kZNUer8vWGS9KPFqcAFta5wCKsXj4DMohPzu8H";
 
 export const AUTOMATION = {
 

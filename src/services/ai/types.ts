@@ -47,6 +47,12 @@ export interface Tweet {
 }
 
 export interface MarketAnalysis {
+  summary: string;
+  sentiment: string;
+  keyPoints: never[];
+  recommendation: null;
+  reasons: never[];
+  riskLevel: string;
   shouldUpdate: any;
   shouldTrade: boolean;
   confidence: number;
@@ -67,36 +73,45 @@ export { MarketData };
 
   // src/services/ai/types.ts
 export interface IAIService {
+  groq: any;
+  sentimentPrompts: {
+    positive: string[];
+    negative: string[];
+  };
   generateResponse(params: {
     content: string;
     author: string;
     channel?: string;
     platform: string;
+    messageId?: string;
+    contentType?: 'community' | 'market' | 'meme' | 'general';
+    context?: {
+      [key: string]: any;
+      traits?: string[];
+      metrics?: any;
+      marketCondition?: string;
+    };
   }): Promise<string>;
-  
   generateMarketUpdate(params: {
     action: MarketAction;
     data: MarketData;
     platform: string;
   }): Promise<string>;
-  
   analyzeMarket(data: MarketData): Promise<MarketAnalysis>;
-  
   shouldEngageWithContent(params: {
     text: string;
     author: string;
     platform: string;
   }): Promise<boolean>;
-  
   determineEngagementAction(tweet: any): Promise<{
     type: 'reply' | 'retweet' | 'like' | 'ignore';
     content?: string;
     confidence?: number;
   }>;
-
   generateMarketAnalysis(): Promise<string>;
-  
   setCharacterConfig(config: Character): Promise<void>;
+  generateName(): Promise<string>;
+  generateNarrative(template: any): Promise<string>;
 }
 
 export interface TweetGenerationError extends Error {

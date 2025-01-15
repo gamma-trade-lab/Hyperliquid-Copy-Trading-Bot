@@ -41,11 +41,15 @@ export class ChatService {
     this.jupiterService = jupiterService;
     
     this.history = new ChatHistoryManager();
-    this.modeManager = new ModeManager();
-    this.commandHandler = new CommandHandler(
-      this.modeManager,
+    this.modeManager = new ModeManager(
       twitterService,
+      aiService,
       jupiterService
+    );
+    this.commandHandler = new CommandHandler(
+      twitterService,
+      jupiterService,
+      aiService
     );
     
     this.twitterCommands = new TwitterCommands(

@@ -25,18 +25,31 @@ export interface WalletService {
     };
   }
   
+  export interface MarketMetrics {
+    confidence: number;
+    onChainData: any;
+    price: number;
+    volume24h: number;
+    marketCap: number;
+    volatility: number;
+    momentum: number;
+    strength: number;
+  }
+
   export interface MarketAnalysis {
+    summary: string;
+    sentiment: string;
+    keyPoints: never[];
+    recommendation: null;
     shouldTrade: boolean;
     confidence: number;
     action: 'BUY' | 'SELL' | 'HOLD';
-    metrics?: {
-      price: number;
-      volume24h: number;
-      marketCap: number;
-    };
+    reasons: string[];
+    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+    metrics: MarketMetrics;
   }
   
-  export interface TradeResult {
+  export interface TradeResult { 
     success: boolean;
     signature?: string;
     error?: string;

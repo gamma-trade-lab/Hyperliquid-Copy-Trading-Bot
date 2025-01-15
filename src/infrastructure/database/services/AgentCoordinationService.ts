@@ -58,7 +58,13 @@ export class AgentCoordinationService {
               shouldTrade: false,
               confidence: 0.5,
               action: 'HOLD',
-              metrics: data
+              metrics: data,
+              summary: 'No market analysis available',
+              sentiment: 'neutral',
+              keyPoints: [],
+              recommendation: null,
+              reasons: [],
+              riskLevel: 'medium'
             };
           },
           shouldEngageWithContent: async () => false,
@@ -66,7 +72,11 @@ export class AgentCoordinationService {
             type: 'ignore',
             confidence: 0
           }),
-          generateMarketAnalysis: async () => 'Market analysis not available'
+          generateMarketAnalysis: async () => 'Market analysis not available',
+          groq: null,
+          sentimentPrompts: { positive: [], negative: [] },
+          generateName: async () => 'DefaultName',
+          generateNarrative: async () => 'Default narrative'
         };
       }
       
@@ -122,7 +132,9 @@ export class AgentCoordinationService {
             topHolders: [],
             tokenAddress: function (tokenAddress: any): unknown {
               throw new Error('Function not implemented.');
-            }
+            },
+            lastUpdate: 0,
+            symbol: undefined
           });
         } catch (error) {
           this.logger.error('Error in autonomous posting:', error);
