@@ -1,6 +1,6 @@
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
-import { getModel } from "@/utils/model.js";
+import { getModel } from "../utils/model.js";
 import { SolanaAgentState, solanaAgentState } from "@/utils/state.js";
 import { Tool } from "@langchain/core/tools";
 import { elizaLogger } from "@ai16z/eliza";

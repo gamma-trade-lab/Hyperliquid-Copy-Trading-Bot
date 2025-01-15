@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import { TwitterApi } from 'twitter-api-v2';
 import { Client as DiscordClient, Message } from 'discord.js';
 import Groq from "groq-sdk";
-import { MemorySaver } from "@langchain/langgraph";
+import { Annotation, MemorySaver, StateGraphArgs } from "@langchain/langgraph";
 // Import services
 import { SocialService } from './services/social/index.js';
 import { Content } from './utils/content.js';
@@ -12,14 +12,15 @@ import { TradingService } from './services/blockchain/trading.js';
 import { TokenInfo, MarketAnalysis, TradeResult, AgentCommand, CommandContext, MarketMetrics  } from './services/blockchain/types.js';
 import { SocialMetrics } from './services/social/index.js';
 import { StateGraph } from "@langchain/langgraph";
-import { solanaAgentState } from "./utils/state.js";
+import { SolanaAgentState, solanaAgentState } from "./utils/state.js";
 import { generalistNode } from "./agents/generalAgent.js";
 import { transferSwapNode } from "./agents/transferOrSwap.js";
 import { managerNode } from "./agents/manager.js";
 import { readNode } from "./agents/readAgent.js";
 import { START, END } from "@langchain/langgraph";
 import { managerRouter } from "./utils/route.js";
-import { HumanMessage } from "@langchain/core/messages";
+import { BaseMessage, HumanMessage } from "@langchain/core/messages";
+
 
 
 import {
@@ -28,6 +29,8 @@ import {
 
 // Import mainCharacter from local file
 import { mainCharacter } from './mainCharacter.js';
+
+
 
 declare module "@langchain/langgraph" {
   interface MemorySaver {
@@ -1525,25 +1528,91 @@ async function cleanup(services: ServiceConfig) {
     elizaLogger.error('Error during cleanup:', error);
   }
 }
-const workflow = new StateGraph(solanaAgentState)
-  .addNode("generalist", generalistNode)
-  .addNode("manager", managerNode)
-  .addNode("transferSwap", transferSwapNode)
-  .addNode("read", readNode)
-  .addEdge(START, "manager")
-  .addConditionalEdges("manager", managerRouter)
-  .addEdge("generalist", END)
-  .addEdge("transferSwap", END)
-  .addEdge("read", END);
 
-export const graph = workflow.compile();
+interface GraphState {
+  messages: BaseMessage[];
+}
 
-const result = await graph.invoke({
-  messages: [new HumanMessage("what is the price of SOL")],
-});
+const createWorkflow = () => {
+  try {
+    const workflow = new StateGraph<GraphState>({
+            channels: {
+              messages: {
+                value: (current: BaseMessage[], action: any) => [...current, action],
+                default: () => [] as BaseMessage[]
+              }
+            }
+        });
+    return workflow;
+  } catch (error) {
+    elizaLogger.error('Error creating workflow:', error);
+    throw error;
+  }
+};
 
-console.log(result);
+// Create the graph
+const createGraph = () => {
+  try {
+    // Initialize graph with proper channel structure
+    const workflow = new StateGraph<GraphState>({
+        channels: {
+          messages: {
+            value: (current: BaseMessage[], action: any) => [...current, action],
+            default: () => [] as BaseMessage[]
+          }
+        }
+    });
 
+    // Add a normal node first
+    workflow.addConditionalEdges(
+      START,
+      async (state: GraphState) => {
+        elizaLogger.info('Processing initial state');
+        return END;
+      }
+    );
+
+    return workflow.compile();
+  } catch (error) {
+    elizaLogger.error('Workflow creation error:', error);
+    throw error;
+  }
+};
+
+// Create and export the compiled graph
+export const graph = createWorkflow().compile();
+
+// Invoke graph with proper typing
+export const invokeGraph = async (message: string) => {
+  try {
+    elizaLogger.info('Invoking graph with message:', message);
+    return await graph.invoke({
+      update: {
+        messages: [new HumanMessage(message)]
+      }
+    });
+  } catch (error) {
+    elizaLogger.error('Graph invocation error:', error);
+    return {
+      messages: [],
+      error: error as Error
+    };
+  }
+};
+
+// Export process function
+export const processGraphMessage = async (message: string) => {
+  try {
+    elizaLogger.info('Processing message:', message);
+    return await invokeGraph(message);
+  } catch (error) {
+    elizaLogger.error('Message processing error:', error);
+    return {
+      messages: [],
+      error: error as Error
+    };
+  }
+};
 // Start the application
 if (import.meta.url === new URL(process.argv[1], 'file:').href) {
   main().catch(error => {

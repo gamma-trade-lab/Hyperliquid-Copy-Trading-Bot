@@ -106,3 +106,21 @@ export const AUTOMATION = {
     COMMUNITY_ENGAGEMENT_INTERVAL: 60000
 
   } as const ;
+
+export const CONFIG = {
+  AI: {
+    GROQ: {
+      API_KEY: process.env.GROQ_API_KEY || '',
+      MODEL: 'mixtral-8x7b-32768',
+      MAX_TOKENS: 4096,
+      DEFAULT_TEMPERATURE: 0.7,
+      THREAD_ID: 'jenna_v1', // Add THREAD_ID property
+      SYSTEM_PROMPTS: {
+        MARKET_ANALYSIS: 'Analyze the following market data and provide insights:',
+        TRADE_DECISION: 'Based on the market analysis, recommend trading actions:',
+        CONTENT_GENERATION: 'Generate market commentary based on the following data:',
+        MEME_GENERATION: 'Create engaging crypto meme content based on market data:'
+      }
+    }
+  },
+};

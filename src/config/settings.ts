@@ -169,6 +169,7 @@ export const CONFIG = {
             MODEL: 'mixtral-8x7b-32768',
             MAX_TOKENS: parseInt(process.env.GROQ_MAX_TOKENS || '1000', 10),
             DEFAULT_TEMPERATURE: parseFloat(process.env.GROQ_DEFAULT_TEMPERATURE || '0.7'),
+            THREAD_ID: 'jenna_v1', // Add THREAD_ID property
             SYSTEM_PROMPTS: {
                 MARKET_ANALYSIS: 'Analyze the following market data and provide insights:',
                 TRADE_DECISION: 'Based on the market analysis, recommend trading actions:',
