@@ -38,9 +38,11 @@ import {
   calculateWithSlippageSell,
   sendTx,
 } from "./util.js";
-import { PumpFun, IDL } from "../IDL/index.js";
+
 import { fetch } from "undici";
 import { createAssociatedTokenAccountInstruction, getAccount, getAssociatedTokenAddress } from "@/utils/spl-token";
+import { IDL } from "pumpdotfun-sdk/dist/cjs/IDL/index.js";
+import { PumpFun } from "pumpdotfun-sdk/dist/cjs/IDL/pump-fun.js";
 
 
 const PROGRAM_ID = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";

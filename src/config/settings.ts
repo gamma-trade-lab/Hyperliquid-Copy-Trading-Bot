@@ -1,13 +1,18 @@
 // src/config/settings.ts
 
+
+
 import { PublicKey } from '@solana/web3.js';
 import * as dotenv from 'dotenv';
+
+
+
+import { validateConfig } from '../utils/config-validator';
 import { NetworkType } from './constants';
-import { elizaLogger } from "@ai16z/eliza";
-import { validateConfig } from '../utils/config-validator.js';
+import { logger } from '../utils/logger';
 
 dotenv.config();
-elizaLogger.info('Loaded .env file from:', process.cwd() + '/.env');
+logger.info('Loaded .env file from:', process.cwd() + '/.env');
 
 /**
  * Get required environment variable with optional default value
@@ -17,7 +22,7 @@ function getRequiredEnvVar(key: string, defaultValue?: string): string {
     
     if (!value) {
         if (defaultValue !== undefined) {
-            elizaLogger.warn(`Environment variable ${key} not found, using default value`);
+            logger.warn(`Environment variable ${key} not found, using default value`);
             return defaultValue;
         }
         throw new Error(`Required environment variable ${key} is not set`);
@@ -70,13 +75,13 @@ export interface SystemPrompts {
 
 // Validate SOLANA public key
 const solanaPublicKey = process.env.SOLANA_PUBLIC_KEY || '';
-elizaLogger.info(`SOLANA_PUBLIC_KEY: ${solanaPublicKey}`);
+logger.info(`SOLANA_PUBLIC_KEY: ${solanaPublicKey}`);
 try {
     new PublicKey(solanaPublicKey);
-    elizaLogger.info(`Successfully validated SOLANA_PUBLIC_KEY: ${solanaPublicKey}`);
+    logger.info(`Successfully validated SOLANA_PUBLIC_KEY: ${solanaPublicKey}`);
 } catch (error) {
-    elizaLogger.error(`Invalid SOLANA_PUBLIC_KEY: ${solanaPublicKey}`);
-    elizaLogger.error(`Error details: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    logger.error(`Invalid SOLANA_PUBLIC_KEY: ${solanaPublicKey}`);
+    logger.error(`Error details: ${error instanceof Error ? error.message : 'Unknown error'}`);
     throw new Error(`Invalid SOLANA_PUBLIC_KEY: ${solanaPublicKey}`);
 }
 

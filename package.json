@@ -5,7 +5,8 @@
   "scripts": {
     "build": "npx tsc && npx rollup -c",
     "start": "node dist/index.js",
-    "dev": "npx tsc && npx rollup -c -w"
+    "dev": "npx tsc && npx rollup -c -w",
+    "rebuild": "npm rebuild"
   },
   "keywords": [],
   "author": "",
@@ -18,7 +19,7 @@
     "@ai16z/adapter-sqlite": "0.1.6",
     "@ai16z/client-direct": "0.1.6-alpha.4",
     "@ai16z/client-discord": "0.1.6",
-    "@ai16z/eliza": "0.1.6-alpha.4",
+    "@ai16z/eliza": "0.1.6",
     "@ai16z/plugin-0g": "0.1.6-alpha.4",
     "@ai16z/plugin-image-generation": "0.1.6-alpha.4",
     "@ai16z/plugin-node": "0.1.6",

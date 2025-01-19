@@ -1,5 +1,5 @@
 import CONFIG from "../../src/config/settings";
-import { MarketAnalysis, MarketMetrics } from "./blockchain/types.js";
+import { MarketAnalysis, MarketMetrics } from "../../src/services/blockchain/types.js";
 import { elizaLogger } from "@ai16z/eliza";
 import Groq from "groq-sdk";
 

@@ -1,62 +1,95 @@
-// src/utils/config-validator.ts
-import { PublicKey } from '@solana/web3.js';
-import { NetworkType } from '../config/constants.js';
-import { elizaLogger } from "@ai16z/eliza";
+import {logger} from './logger';
 
-export function validatePrivateKey(privateKey: string): boolean {
-  try {
-    if (privateKey.startsWith('[') && privateKey.endsWith(']')) {
-      const numbers = JSON.parse(privateKey);
-      return Array.isArray(numbers) && 
-             numbers.length === 64 && 
-             numbers.every(n => typeof n === 'number' && n >= 0 && n <= 255);
-    }
-    return false;
-  } catch {
-    return false;
-  }
+interface ValidationError {
+    path: string[];
+    message: string;
 }
 
-function isValidPublicKey(key: string): boolean {
-  try {
-    new PublicKey(key);
-    return true;
-  } catch {
-    return false;
-  }
-}
+export function validateConfig(config: any): void {
+    const errors: ValidationError[] = [];
 
-export function validateConfig(config: any, path = ''): void {
-  if (path === 'SOLANA') {
-    // Validate Solana configuration
-    if (!config.NETWORK) {
-      throw new Error('SOLANA.NETWORK is required');
+    // Helper function to check nested properties
+    function validateNestedProperty(obj: any, path: string[]) {
+        if (!obj) {
+            errors.push({
+                path,
+                message: `${path.join('.')} configuration is missing`
+            });
+            return;
+        }
+
+        // Validate SOLANA config
+        if (path[0] === 'SOLANA') {
+            if (!obj.NETWORK) {
+                errors.push({
+                    path: [...path, 'NETWORK'],
+                    message: 'SOLANA.NETWORK is missing'
+                });
+            }
+            if (!obj.RPC_URL) {
+                errors.push({
+                    path: [...path, 'RPC_URL'],
+                    message: 'SOLANA.RPC_URL is missing'
+                });
+            }
+            if (!obj.PUBLIC_KEY) {
+                errors.push({
+                    path: [...path, 'PUBLIC_KEY'],
+                    message: 'SOLANA.PUBLIC_KEY is missing'
+                });
+            }
+            return;
+        }
+
+        // Validate AI config
+        if (path[0] === 'AI') {
+            if (!obj.GROQ?.MODEL) {
+                errors.push({
+                    path: [...path, 'GROQ', 'MODEL'],
+                    message: 'AI.GROQ.MODEL is missing'
+                });
+            }
+            return;
+        }
+
+        // Validate AUTOMATION config
+        if (path[0] === 'AUTOMATION') {
+            const requiredIntervals = [
+                'CONTENT_GENERATION_INTERVAL',
+                'MARKET_MONITORING_INTERVAL',
+                'COMMUNITY_ENGAGEMENT_INTERVAL',
+                'TWEET_INTERVAL'
+            ];
+
+            requiredIntervals.forEach(interval => {
+                if (typeof obj[interval] !== 'number' || obj[interval] <= 0) {
+                    errors.push({
+                        path: [...path, interval],
+                        message: `${path.join('.')}.${interval} must be a positive number`
+                    });
+                }
+            });
+            return;
+        }
     }
 
-    if (!config.RPC_URL) {
-      throw new Error('SOLANA.RPC_URL is required');
-    }
-
-    if (!config.PUBLIC_KEY || !isValidPublicKey(config.PUBLIC_KEY)) {
-      throw new Error('Invalid SOLANA.PUBLIC_KEY');
-    }
-
-    if (!config.PRIVATE_KEY) {
-      throw new Error('SOLANA.PRIVATE_KEY is required');
-    }
-
-    if (!config.helius?.API_KEY) {
-      throw new Error('SOLANA.helius.API_KEY is required');
-    }
-
-    return;
-  }
-
-  // Recursively validate nested objects
-  if (typeof config === 'object' && config !== null) {
-    Object.entries(config).forEach(([key, value]) => {
-      const newPath = path ? `${path}.${key}` : key;
-      validateConfig(value, newPath);
+    // Validate top-level sections
+    ['SOLANA', 'AI', 'AUTOMATION'].forEach(section => {
+        validateNestedProperty(config[section], [section]);
     });
-  }
+
+    // If any validation errors occurred, log them and throw
+    if (errors.length > 0) {
+        errors.forEach(error => {
+            logger.error(`Config validation error: ${error.message}`);
+        });
+
+        throw new Error(
+            `Configuration validation failed:\n${errors
+                .map(e => `- ${e.message}`)
+                .join('\n')}`
+        );
+    }
+
+    logger.info('Configuration validation successful');
 }

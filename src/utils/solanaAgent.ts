@@ -1,7 +1,7 @@
 import { SolanaAgentKit, createSolanaTools } from "solana-agent-kit";
 import { Connection, PublicKey, Keypair } from '@solana/web3.js';
 import { elizaLogger } from "@ai16z/eliza";
-import { CONFIG } from '@/config/settings.js';
+import { CONFIG } from '../config/settings.js';
 
 export const agentKit = new SolanaAgentKit(
   process.env.SOLANA_PRIVATE_KEY!,

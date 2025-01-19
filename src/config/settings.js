@@ -1,9 +1,10 @@
 // src/config/settings.ts
 import * as dotenv from 'dotenv';
-import { elizaLogger } from "@ai16z/eliza";
-import { validateConfig } from '@/utils/config-validator';
+
+//import { validateConfig } from '../utils/config-validator';
+
 dotenv.config();
-elizaLogger.info('Loaded .env file from:', process.cwd() + '/.env');
+
 /**
  * Get required environment variable with optional default value
  */
@@ -11,13 +12,13 @@ function getRequiredEnvVar(key, defaultValue) {
     const value = process.env[key];
     if (!value) {
         if (defaultValue !== undefined) {
-            elizaLogger.warn(`Environment variable ${key} not found, using default value`);
             return defaultValue;
         }
         throw new Error(`Required environment variable ${key} is not set`);
     }
     return value;
 }
+
 export const CONFIG = {
     SOLANA: {
         NETWORK: process.env.SOLANA_NETWORK,
@@ -239,6 +240,8 @@ Guide content creation.`
         }
     }
 };
+
 // Validate configuration
 validateConfig(CONFIG);
+
 export default CONFIG;
