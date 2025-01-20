@@ -1,9 +1,9 @@
-//Analysis.tsx
 import { useState, useEffect } from 'react';
 import parseTransaction from '@/tools/helius/helius_transaction_parsing';
 import { ScoringWalletKit } from '@/utils/scoringWallet';
 import { PublicKey } from '@solana/web3.js';
 import { SolanaAgentKit } from 'solana-agent-kit/dist/agent';
+import type  ChartConfig  from './Chart';
 
 interface AnalysisScore {
   category: string;
@@ -28,9 +28,39 @@ interface TransactionType {
 interface AnalysisProps {
   walletAddress?: string;
   onError?: (error: Error) => void;
+  updateChartConfig: (config: Partial<ChartConfig>) => void;
+  selectedToken: string;
+  onTokenSelect: (token: string) => void;
+  chartConfig: ChartConfig;
 }
 
-export default function Analysis({ walletAddress, onError }: AnalysisProps) {
+interface ChartData {
+  name: string;
+  uv: number;
+  pv: number;
+  amt: number;
+}
+
+export interface ChartConfig {
+  type: 'line' | 'area' | 'bar';
+  timeframe: '24h' | '7d' | '30d' | '1y';
+  metric: 'price' | 'volume' | 'marketCap';
+  data: Array<{
+    timestamp: number;
+    price: number;
+    volume: number;
+    marketCap: number;
+  }>;
+}
+
+const Analysis: React.FC<AnalysisProps> = ({
+  walletAddress,
+  onError,
+  updateChartConfig,
+  selectedToken,
+  onTokenSelect,
+  chartConfig
+}) => {
   const [scores, setScores] = useState<AnalysisScore[]>([]);
   const [metrics, setMetrics] = useState<WalletMetrics | null>(null);
   const [transactionTypes, setTransactionTypes] = useState<TransactionType[]>([]);
@@ -130,6 +160,14 @@ export default function Analysis({ walletAddress, onError }: AnalysisProps) {
     }
   };
 
+  const handleButtonClick = () => {
+    const newConfig: Partial<ChartConfig> = {
+      type: 'bar',
+      data: chartConfig.data // Keep the existing data
+    };
+    updateChartConfig(newConfig);
+  };
+
   if (!walletAddress) {
     return (
       <div className="text-center text-gray-600 dark:text-gray-400">
@@ -219,6 +257,12 @@ export default function Analysis({ walletAddress, onError }: AnalysisProps) {
           ))}
         </div>
       </div>
+
+      <div>
+        <button onClick={handleButtonClick}>Update Chart</button>
+      </div>
     </div>
   );
-}
+};
+
+export default Analysis;

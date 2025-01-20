@@ -1,7 +1,8 @@
 //SwapInterface.tsx
 import { useState, useEffect } from 'react';
 import { getSwapQuote, executeSwap } from '@/utils/jup'; // Correct import
-import { elizaLogger } from "@ai16z/eliza";
+import logger from '@/utils/logger';
+
 
 interface Token {
   address: string;
@@ -51,7 +52,7 @@ export default function SwapInterface({
           setOutputAmount(quote.outAmount);
         }
       } catch (error) {
-        elizaLogger.error('Error getting quote:', error);
+        logger.error('Error getting quote:', error);
         setOutputAmount('');
       } finally {
         setQuoteLoading(false);
@@ -71,7 +72,7 @@ export default function SwapInterface({
       setInputAmount('');
       setOutputAmount('');
     } catch (error) {
-      elizaLogger.error('Swap error:', error);
+      logger.error('Swap error:', error);
     }
   };
 

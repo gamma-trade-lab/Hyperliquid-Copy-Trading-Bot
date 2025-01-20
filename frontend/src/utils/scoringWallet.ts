@@ -4,7 +4,7 @@ import {
 	PublicKey,
 	ConnectionConfig 
   } from '@solana/web3.js';
-  import { elizaLogger } from "@ai16z/eliza";
+ 
   import { 
 	calc_dex_diversity,
 	calc_final_score,
@@ -15,6 +15,7 @@ import {
 	calc_vol,
 	fetch_tx,
   } from './helper';
+import logger from './logger';
   
   interface ScoringMetrics {
 	frequency: number;
@@ -70,7 +71,7 @@ import {
 		  ...config
 		});
 	  } catch (error) {
-		elizaLogger.error('Error initializing ScoringWalletKit:', error);
+		logger.error('Error initializing ScoringWalletKit:', error);
 		throw new Error('Failed to initialize wallet scoring connection');
 	  }
 	}
@@ -85,7 +86,7 @@ import {
 		await this.updateAllMetrics();
 		return count;
 	  } catch (error) {
-		elizaLogger.error('Error fetching transactions:', error);
+		logger.error('Error fetching transactions:', error);
 		throw new Error('Failed to fetch transactions');
 	  }
 	}
@@ -99,7 +100,7 @@ import {
 		this.metrics.frequency = calc_tx_freq(this);
 		return this.metrics.frequency;
 	  } catch (error) {
-		elizaLogger.error('Error calculating transaction frequency:', error);
+		logger.error('Error calculating transaction frequency:', error);
 		throw new Error('Failed to calculate transaction frequency');
 	  }
 	}
@@ -113,7 +114,7 @@ import {
 		this.metrics.volume = calc_vol(this);
 		return this.metrics.volume;
 	  } catch (error) {
-		elizaLogger.error('Error calculating volume:', error);
+		logger.error('Error calculating volume:', error);
 		throw new Error('Failed to calculate volume');
 	  }
 	}
@@ -127,7 +128,7 @@ import {
 		this.metrics.profitability = calc_profitability(this);
 		return this.metrics.profitability;
 	  } catch (error) {
-		elizaLogger.error('Error calculating profitability:', error);
+		logger.error('Error calculating profitability:', error);
 		throw new Error('Failed to calculate profitability');
 	  }
 	}
@@ -141,7 +142,7 @@ import {
 		this.metrics.dexDiversity = calc_dex_diversity(this);
 		return this.metrics.dexDiversity;
 	  } catch (error) {
-		elizaLogger.error('Error calculating DEX diversity:', error);
+		logger.error('Error calculating DEX diversity:', error);
 		throw new Error('Failed to calculate DEX diversity');
 	  }
 	}
@@ -155,7 +156,7 @@ import {
 		this.metrics.stablecoinActivity = calc_stabel_token_vol(this);
 		return this.metrics.stablecoinActivity;
 	  } catch (error) {
-		elizaLogger.error('Error calculating stable token volume:', error);
+		logger.error('Error calculating stable token volume:', error);
 		throw new Error('Failed to calculate stable token volume');
 	  }
 	}
@@ -169,7 +170,7 @@ import {
 		this.metrics.riskyContracts = calc_risky_contract(this);
 		return this.metrics.riskyContracts;
 	  } catch (error) {
-		elizaLogger.error('Error calculating risk contract score:', error);
+		logger.error('Error calculating risk contract score:', error);
 		throw new Error('Failed to calculate risk contract score');
 	  }
 	}
@@ -183,7 +184,7 @@ import {
 		this.metrics.finalScore = calc_final_score(this);
 		return this.metrics.finalScore;
 	  } catch (error) {
-		elizaLogger.error('Error calculating final score:', error);
+		logger.error('Error calculating final score:', error);
 		throw new Error('Failed to calculate final score');
 	  }
 	}
@@ -196,7 +197,7 @@ import {
 		this.validateState();
 		return { ...this.metrics };
 	  } catch (error) {
-		elizaLogger.error('Error getting metrics:', error);
+		logger.error('Error getting metrics:', error);
 		throw new Error('Failed to get metrics');
 	  }
 	}
@@ -214,7 +215,7 @@ import {
 		this.metrics.riskyContracts = this.calcRiskContract();
 		this.metrics.finalScore = this.calcFinalScore();
 	  } catch (error) {
-		elizaLogger.error('Error updating metrics:', error);
+		logger.error('Error updating metrics:', error);
 		throw new Error('Failed to update metrics');
 	  }
 	}

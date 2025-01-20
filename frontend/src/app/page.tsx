@@ -1,12 +1,12 @@
 'use client';
-import WalletConnect from '../components/WalletConnect';
+//import WalletConnect from '../components/WalletConnect';
 import { aiService } from '../ai/ai';
 
 import { useState, useEffect } from 'react';
 import { Suspense } from 'react';
 import { validateApiKey } from '@/utils/groq';
 import logger from '@/utils/logger';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet } from '@solana/wallet-adapter-react'; 
 
 // Components
 import ApiKeyModal from '@/components/ApiKeyModal';
@@ -149,10 +149,7 @@ export default function Home() {
           </div>
         </div>
 
-        <WalletConnect 
-          onConnect={handleWalletConnect}
-          onDisconnect={handleWalletDisconnect}
-        />
+        
 
         {walletAddress && (
           <div className="mt-8">

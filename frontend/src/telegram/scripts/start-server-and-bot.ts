@@ -27,4 +27,4 @@ setTimeout(() => {
 process.on('SIGINT', () => {
   nextServer.kill();
   process.exit();
-}); 
+});

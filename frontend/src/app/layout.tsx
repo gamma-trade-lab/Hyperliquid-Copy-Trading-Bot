@@ -4,7 +4,7 @@ import './globals.css';
 import ClientLayout from '../components/ClientLayout';
 
 const inter = Inter({ subsets: ['latin'] });
-
+ 
 export const metadata = {
   title: 'JENNA AI Trading Assistant',
   description: 'AI-powered Solana trading assistant and market analyzer',

@@ -1,7 +1,6 @@
 //Portfolio.tsx
 import { useState, useEffect } from 'react';
 import { PublicKey } from '@solana/web3.js';
-import { elizaLogger } from "@ai16z/eliza";
 import { SolanaTokenDataByTickerTool } from '@/tools/dexscreener/token_data_ticker';
 import { getPortfolio } from '@/utils/portfolio';
 import { Asset } from '@/types/portfolio';
@@ -11,7 +10,7 @@ interface TokenBalance {
   symbol: string;
   balance: number;
   value: number;
-  price: number;
+  price: number; 
   change24h: number;
 }
 
@@ -25,9 +24,10 @@ interface PortfolioStats {
 interface PortfolioProps {
   walletAddress?: string;
   onError?: (error: Error) => void;
+  assets: Asset[];
 }
 
-export default function Portfolio({ walletAddress, onError }: PortfolioProps) {
+export default function Portfolio({ walletAddress, onError, assets }: PortfolioProps) {
   const [tokens, setTokens] = useState<TokenBalance[]>([]);
   const [stats, setStats] = useState<PortfolioStats>({
     totalValue: 0,
@@ -42,7 +42,7 @@ export default function Portfolio({ walletAddress, onError }: PortfolioProps) {
     if (walletAddress) {
       loadPortfolio();
     }
-  }, [walletAddress]);
+  }, [walletAddress, assets]);
 
   const loadPortfolio = async () => {
     if (!walletAddress) return;
@@ -51,9 +51,9 @@ export default function Portfolio({ walletAddress, onError }: PortfolioProps) {
     setError(null);
 
     try {
-      // Get token balances
-      const balances = await getPortfolio(walletAddress);
-      
+      // Get token balances from assets prop
+      const balances = { assets };
+
       // Get price data for tokens
       const tokenDataArray = await Promise.all(
         balances.assets.map((balance: Asset) => 

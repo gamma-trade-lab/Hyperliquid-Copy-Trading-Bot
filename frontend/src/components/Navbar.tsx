@@ -5,7 +5,7 @@ import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 
 export default function Navbar() {
   const { connected } = useWallet();
-
+ 
   return (
     <nav className="bg-white shadow-lg dark:bg-gray-800">
       <div className="container mx-auto px-6 py-3">

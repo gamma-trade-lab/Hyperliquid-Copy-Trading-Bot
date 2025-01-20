@@ -1,6 +1,7 @@
 import { Connection, PublicKey, VersionedTransaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { agentWallet } from './wallet';
 import logger from './logger';
+import { Token } from '@lifi/sdk';
 
 
 // Constants
@@ -62,6 +63,7 @@ interface TokenMetadata {
   coingeckoData: any;
   coingeckoId: string;
   dailyVolume: number;
+  symbol: string; // Add this line
 }
 
 /**
@@ -81,7 +83,8 @@ export async function getTokenInfo(mintAddress: string): Promise<TokenMetadata |
     return {
       coingeckoData: null, // or fetch actual coingecko data if needed
       coingeckoId: data.extensions.coingeckoId,
-      dailyVolume: data.daily_volume
+      dailyVolume: data.daily_volume,
+      symbol: data.symbol // Add this line
     };
   } catch (error) {
     logger.error('Error fetching Jupiter token info:', error);
@@ -277,6 +280,28 @@ async function prepareSwapTransaction(
   } catch (error) {
     logger.error('Error preparing swap transaction:', error);
     return null;
+  }
+}
+
+/**
+ * Fetch additional tokens from Jupiter
+ */
+export async function fetchJupiterTokens(): Promise<Token[]> {
+  try {
+    const response = await fetch('https://tokens.jup.ag/all');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.map((token: any) => ({
+      address: token.address,
+      symbol: token.symbol,
+      decimals: token.decimals,
+      logoURI: token.logoURI
+    }));
+  } catch (error) {
+    logger.error('Error fetching Jupiter tokens:', error);
+    return [];
   }
 }
 

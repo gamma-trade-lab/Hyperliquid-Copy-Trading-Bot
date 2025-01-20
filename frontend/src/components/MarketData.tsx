@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { fetchPrice } from '@/tools/jupiter/fetch_price';
-import { elizaLogger } from "@ai16z/eliza";
+
 import { getSolanaPrice, getTrendingSolanaTokens } from '@/utils/coingecko';
 import { birdeyeTrendingAPI } from '@/tools/birdeye/birdeyeTrendingAPI';
 import { PublicKey } from '@solana/web3.js';
+import logger from '@/utils/logger';
 
 
 // Types
@@ -28,6 +29,8 @@ interface TrendingToken {
 interface MarketDataProps {
   onPriceUpdate?: (price: TokenPrice) => void;
   onError?: (error: Error) => void;
+  token: string; // Add this line
+  metric: 'price' | 'volume' | 'marketCap'; // Add this line
 }
 
 export default function MarketData({ onPriceUpdate, onError }: MarketDataProps) {
@@ -54,7 +57,7 @@ export default function MarketData({ onPriceUpdate, onError }: MarketDataProps) 
       onPriceUpdate?.(price);
       return price;
     } catch (error) {
-      elizaLogger.error('Error fetching Solana price:', error);
+      logger.error('Error fetching Solana price:', error);
       const e = error instanceof Error ? error : new Error('Price fetch failed');
       onError?.(e);
       throw e;
@@ -88,7 +91,7 @@ export default function MarketData({ onPriceUpdate, onError }: MarketDataProps) 
       setJennaPrice(price);
       return price;
     } catch (error) {
-      elizaLogger.error('Error fetching JENNA price:', error);
+      logger.error('Error fetching JENNA price:', error);
       throw error;
     }
   };
@@ -110,7 +113,7 @@ export default function MarketData({ onPriceUpdate, onError }: MarketDataProps) 
       setTrendingTokens(formattedTokens);
       return formattedTokens;
     } catch (error) {
-      elizaLogger.error('Error fetching trending tokens:', error);
+      logger.error('Error fetching trending tokens:', error);
       throw error;
     }
   };
