@@ -256,126 +256,6 @@ const useWalletBalance = () => {
   }, [publicKey]);
 };
 
-const useAiService = (input: string) => {
-  return useCallback(async () => {
-    try {
-      const response = await (aiService as unknown as AIService).processInput(input);
-      return response;
-    } catch (error) {
-      console.error('Error using AI service:', error);
-      return 'Unable to process input at the moment.';
-    }
-  }, [input]);
-};
-
-const handleTokenInfo = async (tokenMint: string) => {
-  const fetchTokenInfo = useFetchTokenInfo(tokenMint);
-  const info = await fetchTokenInfo();
-  postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: info }]);
-};
-
-const handleTokenSwap = async (amountInSol: number, outputMint: string) => {
-  const executeSwap = useExecuteSwap(amountInSol, outputMint);
-  const result = await executeSwap();
-  postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: result }]);
-};
-
-const handleTrendingTokens = async () => {
-  try {
-    const tokens = await getTrendingTokens();
-    const tokenInfo = tokens.map(token => 
-      `Token: ${token.name} (${token.symbol})
-Price: $${token.v24hUSD.toFixed(2)}
-24h Change: ${token.v24hChangePercent.toFixed(2)}%
-Market Cap: $${token.mc.toLocaleString()}
-Liquidity: $${token.liquidity.toLocaleString()}`
-    ).join('\n\n');
-    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: tokenInfo }]);
-  } catch (error) {
-    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: 'Unable to fetch trending tokens at the moment.' }]);
-  }
-};
-
-const handleBirdeyeTokenInfo = async (tokenMint: string) => {
-  try {
-    const tokenInfo = await getBirdeyeTokenInfo(tokenMint);
-    if (!tokenInfo) {
-      postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: `Token information for ${tokenMint} not found.` }]);
-      return;
-    }
-    const info = `Token: ${tokenInfo.name} (${tokenInfo.symbol})
-Price: $${tokenInfo.v24hUSD.toFixed(2)}
-24h Change: ${tokenInfo.v24hChangePercent.toFixed(2)}%
-Market Cap: $${tokenInfo.mc.toLocaleString()}
-Liquidity: $${tokenInfo.liquidity.toLocaleString()}`;
-    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: info }]);
-  } catch (error) {
-    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: 'Unable to fetch token information at the moment.' }]);
-  }
-};
-
-const handleWalletBalance = async () => {
-  const fetchWalletBalance = useWalletBalance();
-  const balanceInfo = await fetchWalletBalance();
-  postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: balanceInfo }]);
-};
-
-const handleSendSol = async (recipient: string, amount: number) => {
-  if (!validateSolanaAddress(recipient)) {
-    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: 'Invalid recipient address.' }]);
-    return;
-  }
-  const result = await sendSolToAddress(recipient, amount);
-  postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: result }]);
-};
-
-const fetchAssetsByOwner = async (ownerPublicKey: string, limit: number) => {
-  try {
-    const agent = new SolanaAgentKit(
-      process.env.NEXT_PUBLIC_PRIVATE_KEY || '',
-      process.env.NEXT_PUBLIC_RPC_URL || '',
-      'confirmed'
-    ); // Initialize SolanaAgentKit instance
-    const publicKey = new PublicKey(ownerPublicKey);
-    const assets = await getAssetsByOwner(agent, publicKey, limit);
-    return assets;
-  } catch (error) {
-    console.error('Error fetching assets by owner:', error);
-    return 'Unable to fetch assets at the moment.';
-  }
-};
-
-const handleAssetsByOwner = async (ownerPublicKey: string, limit: number) => {
-  const assets = await fetchAssetsByOwner(ownerPublicKey, limit);
-  postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: JSON.stringify(assets, null, 2) }]);
-};
-
-const handleFetchTokenPrice = async (tokenMint: string) => {
-  try {
-    const price = await fetchPrice(new PublicKey(tokenMint));
-    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: `Price of token ${tokenMint}: $${price}` }]);
-  } catch (error) {
-    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: 'Unable to fetch token price at the moment.' }]);
-  }
-};
-
-const handleCreatePortfolio = async (assets: Portfolio['assets']) => {
-  const portfolio: Portfolio = {
-    totalValueUSD: assets.reduce((acc, asset) => acc + asset.valueUSD, 0),
-    assets,
-    percentages: assets.reduce((acc, asset) => {
-      acc[asset.symbol] = ((asset.valueUSD / portfolio.totalValueUSD) * 100).toFixed(2) + '%';
-      return acc;
-    }, {} as Portfolio['percentages'])
-  };
-  postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: `Portfolio created: ${JSON.stringify(portfolio, null, 2)}` }]);
-};
-
-const handleDevnetAirdrop = async (address: string, amount?: number) => {
-  const result = await requestDevnetAirdrop(address, { amount });
-  postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: JSON.stringify(result, null, 2) }]);
-};
-
 export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -465,6 +345,20 @@ export default function Chat() {
     });
   }, []);
 
+  const useAiService = (input: string) => {
+    return useCallback(async () => {
+      try {
+        const response = await (aiService as unknown as AIService).processInput(input);
+        return response;
+      } catch (error) {
+        console.error('Error using AI service:', error);
+        return 'Unable to process input at the moment.';
+      }
+    }, [input]);
+  };
+
+  const aiService = useAiService(input);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -539,7 +433,6 @@ export default function Chat() {
           await handleDevnetAirdrop(address);
         }
       }
-      const aiService = useAiService(input);
       const aiResponse = await aiService();
       updateMessages(aiResponse);
     } catch (error) {
@@ -551,6 +444,114 @@ export default function Chat() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleTokenInfo = async (tokenMint: string) => {
+    const fetchTokenInfo = useFetchTokenInfo(tokenMint);
+    const info = await fetchTokenInfo();
+    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: info }]);
+  };
+
+  const handleTokenSwap = async (amountInSol: number, outputMint: string) => {
+    const executeSwap = useExecuteSwap(amountInSol, outputMint);
+    const result = await executeSwap();
+    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: result }]);
+  };
+
+  const handleTrendingTokens = async () => {
+    try {
+      const tokens = await getTrendingTokens();
+      const tokenInfo = tokens.map(token => 
+        `Token: ${token.name} (${token.symbol})
+Price: $${token.v24hUSD.toFixed(2)}
+24h Change: ${token.v24hChangePercent.toFixed(2)}%
+Market Cap: $${token.mc.toLocaleString()}
+Liquidity: $${token.liquidity.toLocaleString()}`
+      ).join('\n\n');
+      postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: tokenInfo }]);
+    } catch (error) {
+      postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: 'Unable to fetch trending tokens at the moment.' }]);
+    }
+  };
+
+  const handleBirdeyeTokenInfo = async (tokenMint: string) => {
+    try {
+      const tokenInfo = await getBirdeyeTokenInfo(tokenMint);
+      if (!tokenInfo) {
+        postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: `Token information for ${tokenMint} not found.` }]);
+        return;
+      }
+      const info = `Token: ${tokenInfo.name} (${tokenInfo.symbol})
+Price: $${tokenInfo.v24hUSD.toFixed(2)}
+24h Change: ${tokenInfo.v24hChangePercent.toFixed(2)}%
+Market Cap: $${tokenInfo.mc.toLocaleString()}
+Liquidity: $${tokenInfo.liquidity.toLocaleString()}`;
+      postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: info }]);
+    } catch (error) {
+      postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: 'Unable to fetch token information at the moment.' }]);
+    }
+  };
+
+  const handleWalletBalance = async () => {
+    const fetchWalletBalance = useWalletBalance();
+    const balanceInfo = await fetchWalletBalance();
+    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: balanceInfo }]);
+  };
+
+  const handleSendSol = async (recipient: string, amount: number) => {
+    if (!validateSolanaAddress(recipient)) {
+      postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: 'Invalid recipient address.' }]);
+      return;
+    }
+    const result = await sendSolToAddress(recipient, amount);
+    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: result }]);
+  };
+
+  const fetchAssetsByOwner = async (ownerPublicKey: string, limit: number) => {
+    try {
+      const agent = new SolanaAgentKit(
+        process.env.NEXT_PUBLIC_PRIVATE_KEY || '',
+        process.env.NEXT_PUBLIC_RPC_URL || '',
+        'confirmed'
+      ); // Initialize SolanaAgentKit instance
+      const publicKey = new PublicKey(ownerPublicKey);
+      const assets = await getAssetsByOwner(agent, publicKey, limit);
+      return assets;
+    } catch (error) {
+      console.error('Error fetching assets by owner:', error);
+      return 'Unable to fetch assets at the moment.';
+    }
+  };
+
+  const handleAssetsByOwner = async (ownerPublicKey: string, limit: number) => {
+    const assets = await fetchAssetsByOwner(ownerPublicKey, limit);
+    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: JSON.stringify(assets, null, 2) }]);
+  };
+
+  const handleFetchTokenPrice = async (tokenMint: string) => {
+    try {
+      const price = await fetchPrice(new PublicKey(tokenMint));
+      postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: `Price of token ${tokenMint}: $${price}` }]);
+    } catch (error) {
+      postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: 'Unable to fetch token price at the moment.' }]);
+    }
+  };
+
+  const handleCreatePortfolio = async (assets: Portfolio['assets']) => {
+    const portfolio: Portfolio = {
+      totalValueUSD: assets.reduce((acc, asset) => acc + asset.valueUSD, 0),
+      assets,
+      percentages: assets.reduce((acc, asset) => {
+        acc[asset.symbol] = ((asset.valueUSD / portfolio.totalValueUSD) * 100).toFixed(2) + '%';
+        return acc;
+      }, {} as Portfolio['percentages'])
+    };
+    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: `Portfolio created: ${JSON.stringify(portfolio, null, 2)}` }]);
+  };
+
+  const handleDevnetAirdrop = async (address: string, amount?: number) => {
+    const result = await requestDevnetAirdrop(address, { amount });
+    postMessage((prev: Message[]) => [...prev, { role: 'assistant', content: JSON.stringify(result, null, 2) }]);
   };
 
   return (

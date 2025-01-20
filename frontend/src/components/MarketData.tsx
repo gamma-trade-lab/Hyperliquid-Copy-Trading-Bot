@@ -65,15 +65,26 @@ const MarketData: React.FC<MarketDataProps> = ({
   // Initialize Raydium
   const initializeRaydium = async () => {
     try {
+      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || '';
+      if (!rpcUrl.startsWith('http:') && !rpcUrl.startsWith('https:')) {
+        throw new Error('Invalid RPC URL configuration');
+      }
+
+      const raydiumApiUrl = process.env.NEXT_PUBLIC_RAYDIUM_API_URL || 'https://api-v3.raydium.io/';
+      if (!raydiumApiUrl.startsWith('http:') && !raydiumApiUrl.startsWith('https:')) {
+        throw new Error('Invalid Raydium API endpoint configuration');
+      }
+
       const agent = new SolanaAgentKit(
         process.env.NEXT_PUBLIC_PRIVATE_KEY || '',
-        process.env.NEXT_PUBLIC_RPC_URL || '',
+        rpcUrl,
         'confirmed'
       );
 
       const raydium = await Raydium.load({
         owner: agent.wallet,
         connection: agent.connection,
+        //apiEndpoint: raydiumApiUrl
       });
 
       // Fetch account information using raydiumCreateAmmV4

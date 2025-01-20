@@ -23,10 +23,15 @@ export default function PortfolioPage() {
         setIsLoading(true);
         setError(null);
 
+        const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || '';
+        if (!rpcUrl.startsWith('http:') && !rpcUrl.startsWith('https:')) {
+          throw new Error('Invalid RPC URL configuration');
+        }
+
         // Initialize SolanaAgentKit
         const agent = new SolanaAgentKit(
           process.env.NEXT_PUBLIC_PRIVATE_KEY || '',
-          process.env.NEXT_PUBLIC_RPC_URL || '',
+          rpcUrl,
           'confirmed'
         );
 

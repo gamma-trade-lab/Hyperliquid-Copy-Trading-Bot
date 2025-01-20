@@ -1,10 +1,18 @@
 import { Connection, PublicKey, VersionedTransaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { agentWallet } from './wallet';
 import logger from './logger';
-import { Token } from '@lifi/sdk';
+import { Token, ChainId } from '@lifi/sdk';
 
 
 // Constants
+const JUPITER_API = {
+  TOKENS: 'https://tokens.jup.ag/tokens?tags=verified',
+  TOKEN_BY_MINT: 'https://tokens.jup.ag/token',
+  TRADABLE_TOKENS: 'https://tokens.jup.ag/tokens_with_markets',
+  PRICE: 'https://api.jup.ag/price/v2',
+  QUOTE: 'https://quote-api.jup.ag/v6'
+};
+
 const TOKENS = {
   USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   SOL: 'So11111111111111111111111111111111111111112',
@@ -71,7 +79,7 @@ interface TokenMetadata {
  */
 export async function getTokenInfo(mintAddress: string): Promise<TokenMetadata | null> {
   try {
-    const response = await fetch(`https://tokens.jup.ag/token/${mintAddress}`);
+    const response = await fetch(`${JUPITER_API.TOKEN_BY_MINT}/${mintAddress}`);
     
     if (!response.ok) {
       if (response.status === 404) return null;
@@ -115,7 +123,7 @@ export async function getSwapQuote(
     });
 
     // Get quote
-    const response = await fetch(`https://quote-api.jup.ag/v6/quote?${queryParams}`, {
+    const response = await fetch(`${JUPITER_API.QUOTE}/quote?${queryParams}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -256,7 +264,7 @@ async function prepareSwapTransaction(
   userPublicKey: string
 ): Promise<VersionedTransaction | null> {
   try {
-    const response = await fetch('https://quote-api.jup.ag/v6/swap', {
+    const response = await fetch(`${JUPITER_API.QUOTE}/swap`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -288,16 +296,19 @@ async function prepareSwapTransaction(
  */
 export async function fetchJupiterTokens(): Promise<Token[]> {
   try {
-    const response = await fetch('https://tokens.jup.ag/all');
+    const response = await fetch(JUPITER_API.TOKENS);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const data = await response.json();
-    return data.map((token: any) => ({
+    return Object.values(data).map((token: any) => ({
       address: token.address,
       symbol: token.symbol,
       decimals: token.decimals,
-      logoURI: token.logoURI
+      logoURI: token.logoURI,
+      priceUSD: token.price || '0',
+      name: token.name || token.symbol,
+      chainId: ChainId.SOL
     }));
   } catch (error) {
     logger.error('Error fetching Jupiter tokens:', error);
