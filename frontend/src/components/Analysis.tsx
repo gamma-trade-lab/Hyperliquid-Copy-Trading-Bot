@@ -18,7 +18,7 @@ interface WalletMetrics {
   profitability: number;
   avgTransactionSize: number;
 }
-
+ 
 interface TransactionType {
   type: string;
   count: number;

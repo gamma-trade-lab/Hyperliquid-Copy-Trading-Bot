@@ -1,3 +1,5 @@
+import { TokenPrice } from "@/utils/coingecko";
+
 // types/market.ts
 export type TimeFrame = '24h' | '7d' | '30d' | '1y';
 export type ChartType = 'line' | 'area' | 'bar';
@@ -32,4 +34,7 @@ export interface ChartProps {
 export interface MarketDataProps {
   token: string;
   metric: MetricType;
+  onPriceUpdate?: (price: TokenPrice) => void;
+  onError?: (error: Error) => void;
+  updateInterval?: number;
 }

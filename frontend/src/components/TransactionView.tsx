@@ -1,11 +1,12 @@
 // TransactionView.tsx
 import { useState, useEffect } from 'react';
 import { PublicKey } from '@solana/web3.js';
-import { elizaLogger } from "@ai16z/eliza";
+
 import { getAssetsByOwner } from '@/tools/helius/get_assets_by_owner';
 import * as validation from '@/utils/validation';
 import { SolanaAgentKit } from 'solana-agent-kit';
-import { getRecentTransactions } from '@/tools/helius/get_recent_transactions'; // Import the correct module
+import { getRecentTransactions } from '@/tools/helius/get_recent_transactions'; 
+import logger from '@/utils/logger';
 
 interface Transaction {
   signature: string;
@@ -92,7 +93,7 @@ export function TransactionView({
         tokenAccount: asset.tokenAccount
       }));
     } catch (error) {
-      elizaLogger.error('Error loading assets:', error);
+      logger.error('Error loading assets:', error);
       throw error;
     }
   };

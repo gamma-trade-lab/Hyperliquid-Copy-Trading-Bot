@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Analysis from '@/components/Analysis';
+import Analysis from '@/components/Analysis'; 
 import Chart from '@/components/Chart';
 import MarketData from '@/components/MarketData';
-import type { ChartConfig, MetricType, TimeFrame } from '@/types/market';
+import type { ChartConfig, MetricType, TimeFrame, MarketDataProps } from '@/types/market';
+
+
 
 export default function AnalysisPage() {
   // State for chart configuration

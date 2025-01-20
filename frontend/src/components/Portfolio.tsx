@@ -1,7 +1,7 @@
 //Portfolio.tsx
 import { useState, useEffect } from 'react';
 import { PublicKey } from '@solana/web3.js';
-import { SolanaTokenDataByTickerTool } from '@/tools/dexscreener/token_data_ticker';
+import { SolanaTokenDataByTickerTool, getTokenDataByTicker } from '@/tools/dexscreener/token_data_ticker';
 import { getPortfolio } from '@/utils/portfolio';
 import { Asset } from '@/types/portfolio';
 
@@ -57,7 +57,7 @@ export default function Portfolio({ walletAddress, onError, assets }: PortfolioP
       // Get price data for tokens
       const tokenDataArray = await Promise.all(
         balances.assets.map((balance: Asset) => 
-          SolanaTokenDataByTickerTool.getTokenPrice(balance.symbol)
+          getTokenDataByTicker(balance.symbol)
         )
       );
 

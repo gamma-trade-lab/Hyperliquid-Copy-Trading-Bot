@@ -52,7 +52,7 @@ export default function TradingPage() {
             const info = await getTokenInfo(address);
             if (info) {
               tokens.push({
-                address,
+                address, 
                 symbol: info.symbol, // Update this line
                 decimals: 9, // Default to 9 for SOL tokens
                 logoURI: undefined
