@@ -450,7 +450,7 @@ MELA is an experimental AI agent. While she strives for autonomy and consciousne
 
 ## Support & Community
 
-- GitHub Issues: [Report bugs](https://github.com/MELA/solana-ai-agent/issues)
+- GitHub Issues: [Report bugs](https://github.com/asseph/solana-ai-agent/issues)
 
 ## License
 
