@@ -146,7 +146,7 @@ She understands natural language and can:
 
 1. **Clone and Setup**
    ```bash
-   git clone https://github.com/arhansuba/meme-agent.git
+   git clone https://github.com/asseph/solana-ai-agent.git
    cd meme-agent
    ```
 
