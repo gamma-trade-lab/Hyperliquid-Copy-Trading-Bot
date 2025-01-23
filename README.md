@@ -78,7 +78,6 @@ The `$MELA` token is available on PumpFun and represents:
 ### 🤝 Interacting with MELA
 MELA can be interacted with through:
 
-- Twitter (@MELAmagent)
 - Direct chat interface
 - Trading commands
 - Community governance
