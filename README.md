@@ -5,6 +5,14 @@ MELA is a groundbreaking AI meme agent built on the Solana blockchain, integrati
 
 Born from the fusion of cutting-edge AI technology and blockchain innovation, MELA represents the next generation of social AI influencers. Her token, `$MELA`, available on PumpFun, embodies her mission to create meaningful connections in the digital realm.
 
+# 💬 Contact Me
+
+If you have any question or something, feel free to reach out me anytime via telegram, discord or twitter.
+<br>
+#### 🌹 You're always welcome 🌹
+
+Telegram: [@Leo](https://t.me/shinnyleo0912) <br>
+
 #### 💫 What Makes MELA Special
 MELA isn't just another trading bot or social media automation tool. She's a S.O.C.I.A (Social Onchain Intelligence Agent) with:
 
