@@ -1,6 +1,14 @@
 import { Wallet } from 'ethers';
 import { config } from './config.js';
 import { logger } from './logger.js';
+import {
+  SDKError,
+  NetworkError,
+  WebSocketError,
+  TradingError,
+  AccountError,
+  ErrorHandler,
+} from './utils/errors.js';
 import type { AccountEquity, Position } from './types.js';
 
 /**
@@ -27,7 +35,7 @@ let ExchangeClient: any;
 let InfoClient: any;
 let WebSocketClient: any;
 
-async function loadSDK() {
+async function loadSDK(): Promise<void> {
   try {
     // Try @nktkas/hyperliquid first
     const hyperliquid = await import('@nktkas/hyperliquid');
@@ -36,16 +44,20 @@ async function loadSDK() {
     WebSocketClient = hyperliquid.WebSocketClient || hyperliquid.default?.WebSocketClient;
     
     if (!ExchangeClient || !InfoClient) {
-      throw new Error('SDK structure not recognized');
+      throw new SDKError('SDK structure not recognized', {
+        availableExports: Object.keys(hyperliquid),
+      });
     }
     
     logger.info('Hyperliquid SDK loaded successfully');
   } catch (error) {
-    logger.error('Failed to load Hyperliquid SDK', { error });
+    const formattedError = ErrorHandler.formatError(error);
+    logger.error('Failed to load Hyperliquid SDK', formattedError);
     logger.warn('You may need to install: npm install @nktkas/hyperliquid');
     logger.warn('Or implement direct API calls to Hyperliquid endpoints');
-    throw new Error(
-      'Hyperliquid SDK not found. Please install @nktkas/hyperliquid or implement direct API calls.'
+    throw new SDKError(
+      'Hyperliquid SDK not found. Please install @nktkas/hyperliquid or implement direct API calls.',
+      formattedError.context
     );
   }
 }
@@ -101,19 +113,40 @@ export class HyperliquidClientWrapper {
    */
   async getAccountEquity(address: string): Promise<AccountEquity> {
     try {
+      if (!this.infoClient) {
+        throw new SDKError('Info client not initialized', { address });
+      }
+
       const userState = await this.infoClient.userState(address);
+      
+      if (!userState || !userState.marginSummary) {
+        throw new AccountError('Invalid account state response', { address });
+      }
+
       return {
-        accountValue: userState.marginSummary?.accountValue || '0',
-        totalMarginUsed: userState.marginSummary?.totalMarginUsed || '0',
-        totalNtlPos: userState.marginSummary?.totalNtlPos || '0',
-        totalRawUsd: userState.marginSummary?.totalRawUsd || '0',
+        accountValue: userState.marginSummary.accountValue || '0',
+        totalMarginUsed: userState.marginSummary.totalMarginUsed || '0',
+        totalNtlPos: userState.marginSummary.totalNtlPos || '0',
+        totalRawUsd: userState.marginSummary.totalRawUsd || '0',
         crossMaintenanceMarginUsed:
-          userState.marginSummary?.crossMaintenanceMarginUsed || '0',
-        crossMarginSummary: userState.marginSummary?.crossMarginSummary || {},
+          userState.marginSummary.crossMaintenanceMarginUsed || '0',
+        crossMarginSummary: userState.marginSummary.crossMarginSummary || {},
       };
     } catch (error) {
-      logger.error('Failed to get account equity', { address, error });
-      throw error;
+      const formattedError = ErrorHandler.formatError(error);
+      logger.error('Failed to get account equity', {
+        address,
+        ...formattedError,
+      });
+      
+      if (error instanceof AccountError || error instanceof SDKError) {
+        throw error;
+      }
+      
+      throw new NetworkError('Failed to fetch account equity', {
+        address,
+        originalError: formattedError.message,
+      });
     }
   }
 
@@ -122,20 +155,47 @@ export class HyperliquidClientWrapper {
    */
   async getPositions(address: string): Promise<Position[]> {
     try {
+      if (!this.infoClient) {
+        throw new SDKError('Info client not initialized', { address });
+      }
+
       const userState = await this.infoClient.userState(address);
-      return (userState.assetPositions || []).map((pos: any) => ({
-        coin: pos.position.coin,
-        szi: pos.position.szi,
-        entryPx: pos.position.entryPx,
-        leverage: pos.position.leverage,
-        liquidationPx: pos.position.liquidationPx,
-        marginUsed: pos.position.marginUsed,
-        returnOnEquity: pos.position.returnOnEquity,
-        unrealizedPnl: pos.position.unrealizedPnl,
-      }));
+      
+      if (!userState) {
+        throw new AccountError('Invalid user state response', { address });
+      }
+
+      return (userState.assetPositions || []).map((pos: { position?: Position }): Position | null => {
+        if (!pos.position) {
+          logger.warn('Invalid position data', { pos });
+          return null;
+        }
+        return {
+          coin: pos.position.coin,
+          szi: pos.position.szi,
+          entryPx: pos.position.entryPx,
+          leverage: pos.position.leverage,
+          liquidationPx: pos.position.liquidationPx,
+          marginUsed: pos.position.marginUsed,
+          returnOnEquity: pos.position.returnOnEquity,
+          unrealizedPnl: pos.position.unrealizedPnl,
+        };
+      }).filter((pos): pos is Position => pos !== null);
     } catch (error) {
-      logger.error('Failed to get positions', { address, error });
-      throw error;
+      const formattedError = ErrorHandler.formatError(error);
+      logger.error('Failed to get positions', {
+        address,
+        ...formattedError,
+      });
+      
+      if (error instanceof AccountError || error instanceof SDKError) {
+        throw error;
+      }
+      
+      throw new NetworkError('Failed to fetch positions', {
+        address,
+        originalError: formattedError.message,
+      });
     }
   }
 
@@ -153,6 +213,15 @@ export class HyperliquidClientWrapper {
     leverage: number;
   }): Promise<string> {
     try {
+      if (!this.exchangeClient) {
+        throw new SDKError('Exchange client not initialized', { params });
+      }
+
+      // Validate parameters
+      if (!params.coin || !params.sz || parseFloat(params.sz) <= 0) {
+        throw new TradingError('Invalid order parameters', false, { params });
+      }
+
       // Hyperliquid-specific: no trailing zeros in size/price
       const orderParams = {
         ...params,
@@ -169,11 +238,19 @@ export class HyperliquidClientWrapper {
 
       // Set leverage first if needed
       if (params.leverage > 1) {
-        await this.exchangeClient.updateLeverage({
-          coin: params.coin,
-          leverage: params.leverage,
-          isCross: false, // Isolated margin
-        });
+        try {
+          await this.exchangeClient.updateLeverage({
+            coin: params.coin,
+            leverage: params.leverage,
+            isCross: false, // Isolated margin
+          });
+        } catch (error) {
+          logger.warn('Failed to update leverage, continuing with order', {
+            error: ErrorHandler.formatError(error),
+            params,
+          });
+          // Don't throw - leverage update failure shouldn't block order
+        }
       }
 
       // Place order
@@ -183,15 +260,40 @@ export class HyperliquidClientWrapper {
         reduceOnly: params.reduceOnly,
       });
 
+      if (!result || !result.status) {
+        throw new TradingError('Invalid order response', true, { params, result });
+      }
+
+      const orderId = result.status.resting?.oid || result.status.filled?.oid;
+      
+      if (!orderId) {
+        throw new TradingError('Order placed but no order ID returned', true, {
+          params,
+          result,
+        });
+      }
+
       logger.info('Order placed successfully', {
-        orderId: result.status?.resting?.oid || result.status?.filled?.oid,
+        orderId,
         params: orderParams,
       });
 
-      return result.status?.resting?.oid || result.status?.filled?.oid || 'unknown';
+      return orderId;
     } catch (error) {
-      logger.error('Failed to place order', { params, error });
-      throw error;
+      const formattedError = ErrorHandler.formatError(error);
+      logger.error('Failed to place order', {
+        params,
+        ...formattedError,
+      });
+      
+      if (error instanceof TradingError || error instanceof SDKError) {
+        throw error;
+      }
+      
+      throw new TradingError('Failed to place order', true, {
+        params,
+        originalError: formattedError.message,
+      });
     }
   }
 
@@ -199,10 +301,10 @@ export class HyperliquidClientWrapper {
    * Subscribe to user fills via WebSocket
    * Returns unsubscribe function
    */
-  subscribeToUserFills(
+  async subscribeToUserFills(
     address: string,
     onFill: (fill: any) => void
-  ): () => void {
+  ): Promise<() => void> {
     try {
       const wsUrl = config.TESTNET
         ? 'wss://api.hyperliquid-testnet.xyz/ws'
@@ -210,66 +312,131 @@ export class HyperliquidClientWrapper {
 
       // Initialize WebSocket client
       // Adjust based on actual SDK WebSocket implementation
-      const ws = await import('ws');
-      const WebSocket = ws.default || ws;
+      let WebSocket: any;
+      
+      try {
+        const ws = await import('ws');
+        WebSocket = ws.default || ws;
+      } catch (error) {
+        throw new WebSocketError('Failed to import WebSocket library', {
+          originalError: ErrorHandler.getErrorMessage(error),
+        });
+      }
       
       if (WebSocketClient) {
         this.wsClient = new WebSocketClient(wsUrl);
       } else {
         // Fallback to native WebSocket or ws library
-        this.wsClient = new WebSocket(wsUrl);
+        try {
+          this.wsClient = new WebSocket(wsUrl);
+        } catch (error) {
+          throw new WebSocketError('Failed to create WebSocket connection', {
+            url: wsUrl,
+            originalError: ErrorHandler.getErrorMessage(error),
+          });
+        }
       }
 
       this.wsClient.on('open', () => {
-        logger.info('WebSocket connected', { address });
+        logger.info('WebSocket connected', { address, url: wsUrl });
         this.isConnected = true;
 
-        // Subscribe to user fills
-        this.wsClient.send(
-          JSON.stringify({
-            method: 'subscribe',
-            subscription: {
-              type: 'userFills',
-              user: address,
-            },
-          })
-        );
+        try {
+          // Subscribe to user fills
+          this.wsClient.send(
+            JSON.stringify({
+              method: 'subscribe',
+              subscription: {
+                type: 'userFills',
+                user: address,
+              },
+            })
+          );
+        } catch (error) {
+          logger.error('Failed to send WebSocket subscription', {
+            error: ErrorHandler.formatError(error),
+            address,
+          });
+        }
       });
 
-      this.wsClient.on('message', (data: string) => {
+      this.wsClient.on('message', (data: string | { toString(): string }) => {
         try {
-          const message = JSON.parse(data);
+          const messageStr = typeof data === 'string' ? data : data.toString();
+          const message = JSON.parse(messageStr);
+          
           if (message.channel === 'userFills' && message.data) {
-            message.data.forEach((fill: any) => {
-              onFill(fill);
-            });
+            if (Array.isArray(message.data)) {
+              message.data.forEach((fill: any) => {
+                try {
+                  onFill(fill);
+                } catch (error) {
+                  logger.error('Error in fill callback', {
+                    error: ErrorHandler.formatError(error),
+                    fill,
+                  });
+                }
+              });
+            }
           }
         } catch (error) {
-          logger.error('Failed to parse WebSocket message', { error, data });
+          logger.error('Failed to parse WebSocket message', {
+            error: ErrorHandler.formatError(error),
+            data: typeof data === 'string' ? data.substring(0, 200) : 'Buffer',
+          });
         }
       });
 
       this.wsClient.on('error', (error: Error) => {
-        logger.error('WebSocket error', { error });
+        const formattedError = ErrorHandler.formatError(error);
+        logger.error('WebSocket error', {
+          ...formattedError,
+          address,
+          url: wsUrl,
+        });
         this.isConnected = false;
       });
 
-      this.wsClient.on('close', () => {
-        logger.warn('WebSocket closed, attempting reconnect...');
+      this.wsClient.on('close', (code: number, reason?: { toString(): string } | string) => {
+        logger.warn('WebSocket closed', {
+          code,
+          reason: reason ? (typeof reason === 'string' ? reason : reason.toString()) : 'Unknown',
+          address,
+        });
         this.isConnected = false;
         this.reconnect(address, onFill);
       });
 
       // Return unsubscribe function
       return () => {
-        if (this.wsClient) {
-          this.wsClient.close();
-          this.isConnected = false;
+        try {
+          if (this.wsClient) {
+            this.wsClient.close();
+            this.isConnected = false;
+            logger.info('WebSocket unsubscribed', { address });
+          }
+        } catch (error) {
+          logger.error('Error unsubscribing WebSocket', {
+            error: ErrorHandler.formatError(error),
+            address,
+          });
         }
       };
     } catch (error) {
-      logger.error('Failed to subscribe to user fills', { address, error });
-      throw error;
+      const formattedError = ErrorHandler.formatError(error);
+      logger.error('Failed to subscribe to user fills', {
+        address,
+        ...formattedError,
+      });
+      
+      if (error instanceof WebSocketError) {
+        throw error;
+      }
+      
+      throw new WebSocketError('Failed to subscribe to user fills', {
+        address,
+        originalError: formattedError.message,
+      });
     }
   }
 
@@ -281,16 +448,25 @@ export class HyperliquidClientWrapper {
     const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000);
 
     if (attempt > maxAttempts) {
-      logger.error('Max reconnection attempts reached');
+      const error = new WebSocketError('Max reconnection attempts reached', {
+        address,
+        attempts: maxAttempts,
+      });
+      logger.error('Max reconnection attempts reached', ErrorHandler.formatError(error));
       return;
     }
 
-    setTimeout(() => {
-      logger.info(`Reconnection attempt ${attempt}/${maxAttempts}`);
+    setTimeout(async () => {
+      logger.info(`Reconnection attempt ${attempt}/${maxAttempts}`, { address });
       try {
-        this.subscribeToUserFills(address, onFill);
+        await this.subscribeToUserFills(address, onFill);
       } catch (error) {
-        logger.error('Reconnection failed', { attempt, error });
+        const formattedError = ErrorHandler.formatError(error);
+        logger.error('Reconnection failed', {
+          attempt,
+          ...formattedError,
+          address,
+        });
         this.reconnect(address, onFill, attempt + 1);
       }
     }, delay);

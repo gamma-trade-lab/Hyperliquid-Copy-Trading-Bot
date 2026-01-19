@@ -11,6 +11,7 @@ pnpm-lock.yaml
 # Build output
 dist/
 build/
+.next/
 *.tsbuildinfo
 
 # Logs

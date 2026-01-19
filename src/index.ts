@@ -13,6 +13,7 @@ import { HyperliquidClientWrapper } from './hyperliquidClient.js';
 import { CopyTrader } from './copyTrader.js';
 import { HealthChecker } from './utils/healthCheck.js';
 import { initTelegramBot, cleanupTelegramBot, sendErrorNotification } from './notifications/telegram.js';
+import { ErrorHandler, SDKError, AccountError, NetworkError } from './utils/errors.js';
 import { mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 
@@ -58,12 +59,21 @@ async function main(): Promise<void> {
         accountValue: ourEquity.accountValue,
       });
     } catch (error) {
-      logger.error('Failed to connect to account', { error });
-      await sendErrorNotification(
-        error instanceof Error ? error : new Error('Cannot connect to Hyperliquid account'),
-        { context: 'account_connection' }
+      const formattedError = ErrorHandler.formatError(error);
+      logger.error('Failed to connect to account', formattedError);
+      
+      const wrappedError = ErrorHandler.wrapError(
+        error,
+        'Cannot connect to Hyperliquid account',
+        'ACCOUNT_CONNECTION_ERROR'
       );
-      throw new Error('Cannot connect to Hyperliquid account');
+      
+      await sendErrorNotification(wrappedError, {
+        context: 'account_connection',
+        address: ourAddress,
+      });
+      
+      throw wrappedError;
     }
 
     // Initialize copy trader
@@ -106,8 +116,22 @@ async function main(): Promise<void> {
     });
 
     logger.info('Bot is running. Press Ctrl+C to stop.');
-        } catch (error) {
-    logger.error('Fatal error during startup', { error });
+  } catch (error) {
+    const formattedError = ErrorHandler.formatError(error);
+    logger.error('Fatal error during startup', formattedError);
+    
+    // Try to send error notification if Telegram is configured
+    try {
+      await sendErrorNotification(
+        ErrorHandler.wrapError(error, 'Fatal error during startup', 'STARTUP_ERROR'),
+        { phase: 'startup' }
+      );
+    } catch (notifError) {
+      logger.error('Failed to send startup error notification', {
+        error: ErrorHandler.formatError(notifError),
+      });
+    }
+    
     process.exit(1);
   }
 }

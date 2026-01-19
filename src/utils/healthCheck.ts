@@ -1,6 +1,7 @@
 import { HyperliquidClientWrapper } from '../hyperliquidClient.js';
 import { logger } from '../logger.js';
 import { config } from '../config.js';
+import { NetworkError, ErrorHandler } from '../utils/errors.js';
 import type { HealthCheckResult } from '../types.js';
 
 /**
@@ -150,8 +151,19 @@ export class HealthChecker {
 
       return result;
     } catch (error) {
-      logger.error('Health check failed', { error });
-      throw error;
+      const formattedError = ErrorHandler.formatError(error);
+      logger.error('Health check failed', formattedError);
+      
+      // Wrap and rethrow with better context
+      if (error instanceof NetworkError) {
+        throw error;
+      }
+      
+      throw new NetworkError('Health check failed', {
+        ourAddress: this.ourAddress,
+        targetAddress: this.targetAddress,
+        originalError: formattedError.message,
+      });
     }
   }
 
