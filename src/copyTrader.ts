@@ -101,7 +101,6 @@ export class CopyTrader {
       ]);
 
       const targetPosition = targetPositions.find((p) => p.coin === fill.coin);
-      const ourPosition = ourPositions.find((p) => p.coin === fill.coin);
 
       // Calculate trade parameters
       const tradeParams = await this.calculateTradeParams(
@@ -160,7 +159,6 @@ export class CopyTrader {
   ): Promise<CopyTradeParams | null> {
     const coin = fill.coin;
     const fillSize = parseFloat(fill.sz);
-    const fillPrice = parseFloat(fill.px);
 
     // Determine side: B = Buy (Long), A = Sell (Short/Close)
     let side: 'A' | 'B';
@@ -286,11 +284,10 @@ export class CopyTrader {
     params: CopyTradeParams,
     result: TradeResult
   ): Promise<void> {
-    // Implement Telegram notification if configured
-    // See src/notifications/telegram.ts
+    // Send Telegram notification if configured
     if (config.TELEGRAM_BOT_TOKEN && config.TELEGRAM_CHAT_ID) {
-      // Notification will be handled by notification service
-      logger.debug('Notification sent', { fill, params, result });
+      const { sendTradeNotification } = await import('./notifications/telegram.js');
+      await sendTradeNotification(fill, params, result);
     }
   }
 

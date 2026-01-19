@@ -1,7 +1,5 @@
 # Hyperliquid Copy Trading Bot
 
-> ⚠️ **Warning**: This project is for educational purposes only — trading involves high risk of loss. Use at your own risk.
-
 ## Overview
 
 A production-grade copy trading bot built in TypeScript (Node.js) that mirrors trades from a target Hyperliquid wallet in real-time. It listens for fills/trades, copies opens, reduces, and closes positions while applying configurable risk parameters, supports dry-run and testnet modes, and offers safety/resilience features.
@@ -173,7 +171,6 @@ hyperliquid-copy-bot/
    TESTNET=false
    DRY_RUN=false
    ```
-   ⚠️ **Only enable after thorough testing!**
 
 ### How It Works
 
@@ -213,7 +210,6 @@ The bot includes multiple safety layers:
 
 ### SDK Compatibility Note
 
-⚠️ **Important**: The Hyperliquid TypeScript SDK landscape is evolving. The code uses `@nktkas/hyperliquid` as the preferred SDK, but you may need to adjust imports based on the actual SDK structure.
 
 **Options**:
 1. **@nktkas/hyperliquid** (preferred) - Community SDK
@@ -268,39 +264,112 @@ The bot includes multiple safety layers:
 - Errors & retries
 - Health check results
 
-## Telegram Notifications (Bonus)
+## Telegram Notifications
 
-When enabled, sends notifications when trades are copied:
+The bot includes comprehensive Telegram notifications for real-time updates on trading activity, errors, and system status.
 
-```
-🔄 Trade Copied
+### Features
 
-📊 Target Trade:
-• Coin: BTC
-• Side: Open Long
-• Size: 0.1
-• Price: 50000
+- **Trade Notifications**: Real-time alerts when trades are copied (success/failure)
+- **Startup/Shutdown Alerts**: Notifications when bot starts or stops
+- **Error Notifications**: Critical errors sent immediately with context
+- **Health Check Alerts**: Warnings when position drift is detected
+- **Summary Reports**: Optional daily/weekly trading statistics
+- **Markdown Formatting**: Beautiful, readable messages with formatting
 
-📈 Our Trade:
-• Side: Long
-• Size: 0.05
-• Leverage: 10x
-• Reduce Only: No
+### Notification Types
 
-✅ Status: Success
-• Order ID: 12345
-```
+1. **Trade Copied** - Sent when a trade is executed
+   - Shows target trade details (coin, side, size, price)
+   - Shows our trade details (side, size, leverage, order type)
+   - Success/failure status with order ID or error message
+
+2. **Startup Notification** - Sent when bot starts
+   - Shows configuration summary
+   - Testnet/dry-run status
+   - Target wallet info
+
+3. **Shutdown Notification** - Sent when bot stops gracefully
+
+4. **Error Notifications** - Sent for critical errors
+   - Error message and stack trace (in debug mode)
+   - Context information
+
+5. **Health Check Alerts** - Sent when position drift detected
+   - Account equity comparison
+   - Position drift details
+   - Warning indicators
+
+6. **Summary Reports** - Optional statistics
+   - Total trades copied
+   - Success rate
+   - Active positions
+   - PnL (if available)
 
 ### Setup Telegram Notifications
 
-1. Create a Telegram bot via [@BotFather](https://t.me/botfather)
-2. Get your bot token
-3. Get your chat ID (send message to bot, then visit `https://api.telegram.org/bot<TOKEN>/getUpdates`)
-4. Add to `.env`:
+1. **Create a Telegram Bot**:
+   - Open Telegram and search for [@BotFather](https://t.me/botfather)
+   - Send `/newbot` command
+   - Follow instructions to create your bot
+   - Copy the bot token (e.g., `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+
+2. **Get Your Chat ID**:
+   - Start a conversation with your bot
+   - Send any message to the bot
+   - Visit: `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
+   - Look for `"chat":{"id":123456789}` - that's your chat ID
+
+3. **Configure in `.env`**:
    ```env
-   TELEGRAM_BOT_TOKEN=your_bot_token
-   TELEGRAM_CHAT_ID=your_chat_id
+   TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+   TELEGRAM_CHAT_ID=123456789
    ```
+
+4. **Restart the bot** - Notifications will be enabled automatically
+
+### Example Notifications
+
+**Trade Copied:**
+```
+✅ Trade Copied
+
+Target Trade:
+• Coin: `BTC`
+• Direction: Open Long
+• Size: `0.1`
+• Price: `50000`
+
+Our Trade:
+📈 Side: Long
+• Size: `0.05`
+• Leverage: `10x`
+• Reduce Only: No
+• Order Type: Market
+
+Status: Success
+• Order ID: `12345`
+
+Time: 1/19/2026, 2:00:00 PM
+```
+
+**Health Check Alert:**
+``
+
+Account Status:
+• Our Equity: `$5000.00`
+• Target Equity: `$10000.00`
+• Our Positions: 2
+• Target Positions: 2
+
+• BTC: Our `0.05` vs Target `0.1` (Diff: `0.05`)
+
+Checked: 1/19/2026, 2:00:00 PM
+```
+
+### Disabling Notifications
+
+To disable Telegram notifications, simply remove or comment out the `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` from your `.env` file.
 
 ## Health Checks
 
@@ -445,4 +514,3 @@ HEALTH_CHECK_INTERVAL=5
 
 ---
 
-**Remember**: This is for educational purposes — trading involves high risk of loss. Always test on testnet first!

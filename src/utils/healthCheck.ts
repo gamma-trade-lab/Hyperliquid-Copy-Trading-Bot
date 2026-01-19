@@ -1,6 +1,7 @@
 import { HyperliquidClientWrapper } from '../hyperliquidClient.js';
 import { logger } from '../logger.js';
-import type { HealthCheckResult, Position } from '../types.js';
+import { config } from '../config.js';
+import type { HealthCheckResult } from '../types.js';
 
 /**
  * Health check utility
@@ -11,7 +12,8 @@ export class HealthChecker {
   private client: HyperliquidClientWrapper;
   private ourAddress: string;
   private targetAddress: string;
-  private intervalId?: NodeJS.Timeout;
+  private intervalId?: ReturnType<typeof setInterval>;
+  private lastResult?: HealthCheckResult;
 
   constructor(
     client: HyperliquidClientWrapper,
@@ -50,9 +52,23 @@ export class HealthChecker {
   }
 
   /**
+   * Get last health check result
+   */
+  getLastResult(): HealthCheckResult | undefined {
+    return this.lastResult;
+  }
+
+  /**
+   * Manually trigger health check and return result
+   */
+  async runHealthCheck(): Promise<HealthCheckResult> {
+    return await this.checkHealthPublic();
+  }
+
+  /**
    * Perform health check
    */
-  private async checkHealth(): Promise<void> {
+  private async checkHealth(): Promise<HealthCheckResult> {
     try {
       const [ourPositions, targetPositions, ourEquityData, targetEquityData] =
         await Promise.all([
@@ -106,12 +122,24 @@ export class HealthChecker {
         drift,
       };
 
+      this.lastResult = result;
+
       if (Object.keys(drift).length > 0) {
         logger.warn('Health check detected position drift', {
           drift,
           ourEquity,
           targetEquity,
         });
+        
+        // Send Telegram notification if drift detected
+        if (config.TELEGRAM_BOT_TOKEN && config.TELEGRAM_CHAT_ID) {
+          try {
+            const { sendHealthCheckNotification } = await import('../notifications/telegram.js');
+            await sendHealthCheckNotification(result);
+          } catch (error) {
+            logger.error('Failed to send health check notification', { error });
+          }
+        }
       } else {
         logger.info('Health check passed', {
           ourEquity,
@@ -125,5 +153,12 @@ export class HealthChecker {
       logger.error('Health check failed', { error });
       throw error;
     }
+  }
+
+  /**
+   * Perform health check (public method)
+   */
+  async checkHealthPublic(): Promise<HealthCheckResult> {
+    return await this.checkHealth();
   }
 }

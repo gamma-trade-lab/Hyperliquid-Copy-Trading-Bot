@@ -12,7 +12,7 @@ import { logger } from './logger.js';
 import { HyperliquidClientWrapper } from './hyperliquidClient.js';
 import { CopyTrader } from './copyTrader.js';
 import { HealthChecker } from './utils/healthCheck.js';
-import { initTelegramBot } from './notifications/telegram.js';
+import { initTelegramBot, cleanupTelegramBot, sendErrorNotification } from './notifications/telegram.js';
 import { mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
 
     // Initialize Telegram bot if configured
     if (config.TELEGRAM_BOT_TOKEN && config.TELEGRAM_CHAT_ID) {
-      initTelegramBot();
+      await initTelegramBot();
     }
 
     // Initialize Hyperliquid client
@@ -59,6 +59,10 @@ async function main(): Promise<void> {
       });
     } catch (error) {
       logger.error('Failed to connect to account', { error });
+      await sendErrorNotification(
+        error instanceof Error ? error : new Error('Cannot connect to Hyperliquid account'),
+        { context: 'account_connection' }
+      );
       throw new Error('Cannot connect to Hyperliquid account');
     }
 
@@ -79,20 +83,26 @@ async function main(): Promise<void> {
       logger.info(`Received ${signal}, shutting down gracefully...`);
       copyTrader.stop();
       healthChecker.stop();
-        process.exit(0);
+      await cleanupTelegramBot();
+      process.exit(0);
     };
 
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
 
     // Handle uncaught errors
-    process.on('uncaughtException', (error) => {
+    process.on('uncaughtException', async (error) => {
       logger.error('Uncaught exception', { error });
-      shutdown('uncaughtException');
+      await sendErrorNotification(error, { type: 'uncaughtException' });
+      await shutdown('uncaughtException');
     });
 
-    process.on('unhandledRejection', (reason) => {
+    process.on('unhandledRejection', async (reason) => {
       logger.error('Unhandled rejection', { reason });
+      await sendErrorNotification(
+        reason instanceof Error ? reason : new Error(String(reason)),
+        { type: 'unhandledRejection' }
+      );
     });
 
     logger.info('Bot is running. Press Ctrl+C to stop.');
