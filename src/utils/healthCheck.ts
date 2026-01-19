@@ -1,5 +1,5 @@
 import { HyperliquidClientWrapper } from '../hyperliquidClient.js';
-import { logger } from '../logger.js';
+import { logger, loggerUtils } from '../logger.js';
 import { config } from '../config.js';
 import { NetworkError, ErrorHandler } from '../utils/errors.js';
 import type { HealthCheckResult } from '../types.js';
@@ -126,10 +126,12 @@ export class HealthChecker {
       this.lastResult = result;
 
       if (Object.keys(drift).length > 0) {
-        logger.warn('Health check detected position drift', {
+        loggerUtils.logHealthCheck('warning', 'Position drift detected', {
           drift,
           ourEquity,
           targetEquity,
+          ourPositions: ourPositions.length,
+          targetPositions: targetPositions.length,
         });
         
         // Send Telegram notification if drift detected
@@ -142,7 +144,7 @@ export class HealthChecker {
           }
         }
       } else {
-        logger.info('Health check passed', {
+        loggerUtils.logHealthCheck('healthy', 'Health check passed', {
           ourEquity,
           targetEquity,
           positionCount: ourPositions.length,

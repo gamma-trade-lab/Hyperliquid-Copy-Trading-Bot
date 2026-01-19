@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { logger } from './logger.js';
+import { logger, loggerUtils } from './logger.js';
 import { HyperliquidClientWrapper } from './hyperliquidClient.js';
 import {
   calculatePositionSize,
@@ -183,9 +183,12 @@ export class CopyTrader {
       const result = await this.executeTrade(tradeParams, fill.px, ourEquity);
 
       if (result.success) {
-        logger.info('Trade executed successfully', {
+        loggerUtils.logTrade('info', 'Trade executed successfully', {
           orderId: result.orderId,
           params: tradeParams,
+          fillHash: fill.hash,
+          coin: fill.coin,
+          action,
         });
 
         // Track active trade
@@ -198,9 +201,11 @@ export class CopyTrader {
         // Send notification if configured
         await this.sendNotification(fill, tradeParams, result);
       } else {
-        logger.error('Trade execution failed', {
+        loggerUtils.logTrade('error', 'Trade execution failed', {
           error: result.error,
           params: tradeParams,
+          fillHash: fill.hash,
+          coin: fill.coin,
         });
         await sendErrorNotification(
           new TradingError(result.error || 'Trade execution failed', false, {

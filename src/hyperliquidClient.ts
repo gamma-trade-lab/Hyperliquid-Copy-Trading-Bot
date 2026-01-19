@@ -1,6 +1,6 @@
 import { Wallet } from 'ethers';
 import { config } from './config.js';
-import { logger } from './logger.js';
+import { logger, loggerUtils } from './logger.js';
 import {
   SDKError,
   NetworkError,
@@ -229,10 +229,11 @@ export class HyperliquidClientWrapper {
         limitPx: params.limitPx?.replace(/\.?0+$/, ''),
       };
 
-      logger.info('Placing order', orderParams);
+      const startTime = Date.now();
+      loggerUtils.logTrade('info', 'Placing order', orderParams);
 
       if (config.DRY_RUN) {
-        logger.warn('DRY RUN: Order not placed', orderParams);
+        loggerUtils.logTrade('warn', 'DRY RUN: Order not placed', orderParams);
         return 'dry-run-order-id';
       }
 
@@ -273,10 +274,13 @@ export class HyperliquidClientWrapper {
         });
       }
 
-      logger.info('Order placed successfully', {
+      const duration = Date.now() - startTime;
+      loggerUtils.logTrade('info', 'Order placed successfully', {
         orderId,
         params: orderParams,
+        duration: `${duration}ms`,
       });
+      loggerUtils.logPerformance('placeOrder', duration, { coin: params.coin });
 
       return orderId;
     } catch (error) {
@@ -338,7 +342,7 @@ export class HyperliquidClientWrapper {
       }
 
       this.wsClient.on('open', () => {
-        logger.info('WebSocket connected', { address, url: wsUrl });
+        loggerUtils.logWebSocket('open', 'WebSocket connected', { address, url: wsUrl });
         this.isConnected = true;
 
         try {
@@ -413,7 +417,7 @@ export class HyperliquidClientWrapper {
           if (this.wsClient) {
             this.wsClient.close();
             this.isConnected = false;
-            logger.info('WebSocket unsubscribed', { address });
+            loggerUtils.logWebSocket('close', 'WebSocket unsubscribed', { address });
           }
         } catch (error) {
           logger.error('Error unsubscribing WebSocket', {
