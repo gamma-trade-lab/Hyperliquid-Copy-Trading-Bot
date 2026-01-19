@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es2018",
+    "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "node",
     "outDir": "./dist",
@@ -11,21 +11,15 @@
     "skipLibCheck": true,
     "declaration": true,
     "sourceMap": true,
-    "allowJs": true,
-    "checkJs": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "baseUrl": "./",
-    "paths": {
-      "@/*": ["src/*"],
-      "../../utils/spl-token/*": ["src/utils/spl-token/*"]
-    },
     "resolveJsonModule": true,
-    "types": ["node", "jest"],
-    "typeRoots": ["./node_modules/@types", "./src/types"],
-    "importHelpers": true,
-    "allowSyntheticDefaultImports": true
+    "types": ["node"],
+    "typeRoots": ["./node_modules/@types"],
+    "allowSyntheticDefaultImports": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

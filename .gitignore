@@ -1,15 +1,17 @@
 # Dependencies
 node_modules/
-.pnpm-store/
-
-# Build output
-dist/
-build/
+package-lock.json
+pnpm-lock.yaml
 
 # Environment variables
 .env
 .env.local
 .env.*.local
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
 
 # Logs
 logs/
@@ -17,38 +19,23 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
 
-# Editor directories and files
-.idea/
+# IDE
 .vscode/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+.idea/
+*.swp
+*.swo
+*~
 
-# Testing
-coverage/
-
-# TypeScript
-*.tsbuildinfo
-
-# System files
+# OS
 .DS_Store
 Thumbs.db
 
-# Prisma
-prisma/*.db
-prisma/migrations/
+# Test coverage
+coverage/
+.nyc_output/
 
-# Cache
-.cache/
-.temp/
-
-.env
-.env.test
-.env.local
-.env.*.local
-.env.development
-.env.production
+# Temporary files
+tmp/
+temp/
+*.tmp
