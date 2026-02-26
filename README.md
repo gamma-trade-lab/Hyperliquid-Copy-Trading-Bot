@@ -6,6 +6,8 @@ A production-grade copy trading bot built in TypeScript (Node.js) that mirrors t
 
 ## Features
 
+https://github.com/user-attachments/assets/8511f406-d7b3-4dc0-9f8f-4fe77739de43
+
 ### Core Functionality
 
 - **Real-time copying**: Monitors a target wallet (public or vault address) for new fills/trades via WebSocket subscriptions, and mirrors opens, reduces, closes of positions immediately.
