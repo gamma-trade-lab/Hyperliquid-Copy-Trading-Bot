@@ -4,6 +4,8 @@
 
 A production-grade copy trading bot built in TypeScript (Node.js) that mirrors trades from a target Hyperliquid wallet in real-time. It listens for fills/trades, copies opens, reduces, and closes positions while applying configurable risk parameters, supports dry-run and testnet modes, and offers safety/resilience features.
 
+Want to learn more or get setup help? Please connect with our techy team on Telegram: [gammatradelab](https://t.me/gammatradelab) 🚀
+
 ## Features
 
 https://github.com/user-attachments/assets/8511f406-d7b3-4dc0-9f8f-4fe77739de43
@@ -46,7 +48,6 @@ https://github.com/user-attachments/assets/8511f406-d7b3-4dc0-9f8f-4fe77739de43
 
 ### Bonus Features
 
-- **Telegram notifications**: Optional notifications when trades are copied (via `node-telegram-bot-api`)
 - **Basic PnL tracking**: Compare our account vs target
 - **Health checks**: Periodically verify our positions (every 5 minutes by default)
 
@@ -80,8 +81,6 @@ hyperliquid-copy-bot/
 │   ├── utils/
 │   │   ├── risk.ts              # Risk management utilities
 │   │   └── healthCheck.ts       # Health check utility
-│   └── notifications/
-│       └── telegram.ts          # Telegram notification service
 └── logs/                        # Log files (auto-created)
 ```
 
@@ -506,13 +505,17 @@ BLOCKED_ASSETS=BTC,ETH
 DRY_RUN=true
 LOG_LEVEL=info
 
-# Optional: Telegram Notifications
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
-
 # Optional: Health Check Interval (minutes)
 HEALTH_CHECK_INTERVAL=5
 ```
+
+---
+
+# 🔥 Contact Us
+
+Stay updated with new strategies, bots, and alpha.
+
+👉 Telegram: https://t.me/qntrade
 
 ---
 
