@@ -515,7 +515,7 @@ HEALTH_CHECK_INTERVAL=5
 
 Stay updated with new strategies, bots, and alpha.
 
-👉 Telegram: https://t.me/qntrade
+👉 Telegram: https://t.me/gammatradelab
 
 ---
 
