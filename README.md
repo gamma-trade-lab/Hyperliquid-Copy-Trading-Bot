@@ -1,521 +1,139 @@
 # Hyperliquid Copy Trading Bot
 
-## Overview
+A copy trading bot for Hyperliquid that automatically mirrors positions from a leader wallet.
 
-A production-grade copy trading bot built in TypeScript (Node.js) that mirrors trades from a target Hyperliquid wallet in real-time. It listens for fills/trades, copies opens, reduces, and closes positions while applying configurable risk parameters, supports dry-run and testnet modes, and offers safety/resilience features.
+## Prerequisites
 
-Want to learn more or get setup help? Please connect with our techy team on Telegram: [gammatradelab](https://t.me/gammatradelab) 🚀
+- Python 3.8 or higher
+- A Hyperliquid account with a funded wallet
+- The wallet address of the trader you want to copy
 
-## Features
+## Setup Instructions
 
-https://github.com/user-attachments/assets/8511f406-d7b3-4dc0-9f8f-4fe77739de43
+### 1. Install Python Dependencies
 
-### Core Functionality
-
-- **Real-time copying**: Monitors a target wallet (public or vault address) for new fills/trades via WebSocket subscriptions, and mirrors opens, reduces, closes of positions immediately.
-- **Smart risk management & sizing**:
-  - Position size = `(ourAccountEquity / targetWalletEquity) * targetPositionSize * SIZE_MULTIPLIER`
-  - Configurable multiplier (e.g. 0.5×, 1×, 2×)
-  - Minimum notional check (skip if too small) — Hyperliquid requires ~$10 per order
-  - Maximum position size cap (as % of our equity)
-  - Match leverage, but cap at MAX_LEVERAGE
-  - Blocked assets support (skip certain assets)
-  - Limit on max concurrent open trades
-
-### Safety & Resilience
-
-- **Dry-run / simulation mode**: Log actions without placing real orders
-- **Testnet support**: Toggleable via config
-- **Graceful reconnects**: Automatic WebSocket reconnection on disconnect with exponential backoff
-- **Rate limiting**: Respects API limits with extra safety layer
-- **Error handling & retries**: Automatic retry logic for failed orders
-
-### Configuration & Validation
-
-- `.env` + `zod` schema for strong typed config
-- Required: `PRIVATE_KEY`, `TARGET_WALLET`, `TESTNET` (boolean)
-- Optional: `SIZE_MULTIPLIER`, `MAX_LEVERAGE`, `BLOCKED_ASSETS` (array), `DRY_RUN`, `LOG_LEVEL`
-
-### Architecture & Code Quality
-
-- Modern TypeScript (ESM, strict mode)
-- Modular structure: separate modules for config, SDK init, monitoring, execution, logger, types, etc.
-- Async/await, concurrency where necessary
-- Comprehensive logging (info, warn, error) with timestamps via `winston`
-- Full type safety using SDK types
-- CLI script (e.g. `npm start`)
-- Comments & notes on Hyperliquid specifics (e.g. no trailing zeros in size/price, GTC orders, etc.)
-
-### Bonus Features
-
-- **Basic PnL tracking**: Compare our account vs target
-- **Health checks**: Periodically verify our positions (every 5 minutes by default)
-
-## Tech Stack & Dependencies
-
-- **Node.js** (ESM), **TypeScript** with `strict` enabled
-- **SDK**: `@nktkas/hyperliquid` (preferred community SDK)
-- **Other libs**:
-  - `dotenv` - Environment variable management
-  - `zod` - Config schema validation
-  - `winston` - Logging
-  - `ethers` - Wallet management
-  - `ws` - WebSocket support
-  - Optional: `node-telegram-bot-api` - Telegram notifications
-
-## Project Structure
-
-```
-hyperliquid-copy-bot/
-├── package.json
-├── tsconfig.json
-├── .env.example
-├── README.md
-├── src/
-│   ├── index.ts                 # Main entry point
-│   ├── config.ts                # Configuration with zod validation
-│   ├── hyperliquidClient.ts    # Hyperliquid SDK wrapper
-│   ├── copyTrader.ts            # Core copy trading logic
-│   ├── logger.ts                # Winston logger setup
-│   ├── types.ts                 # TypeScript type definitions
-│   ├── utils/
-│   │   ├── risk.ts              # Risk management utilities
-│   │   └── healthCheck.ts       # Health check utility
-└── logs/                        # Log files (auto-created)
+```bash
+pip install -r requirements.txt
 ```
 
-## Setup & Installation
-
-### Prerequisites
-
-- Node.js 18+ (ESM support)
-- npm or yarn
-- Hyperliquid account (testnet or mainnet)
-
-### Installation Steps
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd hyperliquid-copy-bot
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Configure environment variables**
-   ```bash
-   cp .env.example .env
-   ```
-   
-   Edit `.env` and fill in your values:
-   ```env
-   PRIVATE_KEY=0xYourPrivateKeyHere
-   TARGET_WALLET=0xTargetWalletAddressHere
-   TESTNET=true
-   SIZE_MULTIPLIER=1.0
-   MAX_LEVERAGE=20
-   DRY_RUN=true
-   ```
-
-4. **Build TypeScript** (optional, can run directly with tsx)
-   ```bash
-   npm run build
-   ```
-
-5. **Start the bot**
-   ```bash
-   npm start
-   ```
-
-## Configuration
-
-### Required Environment Variables
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `PRIVATE_KEY` | Your wallet private key (0x prefix) | `0x1234...` |
-| `TARGET_WALLET` | Target wallet address to copy | `0x5678...` |
-| `TESTNET` | Use testnet (true/false) | `true` |
-
-### Optional Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SIZE_MULTIPLIER` | Position size multiplier | `1.0` |
-| `MAX_LEVERAGE` | Maximum leverage cap | `20` |
-| `MAX_POSITION_SIZE_PERCENT` | Max position size as % of equity | `50` |
-| `MIN_NOTIONAL` | Minimum order size in USD | `10` |
-| `MAX_CONCURRENT_TRADES` | Max concurrent open positions | `10` |
-| `BLOCKED_ASSETS` | Comma-separated blocked assets | `` |
-| `DRY_RUN` | Simulation mode (true/false) | `false` |
-| `LOG_LEVEL` | Logging level (error/warn/info/debug) | `info` |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token (optional) | - |
-| `TELEGRAM_CHAT_ID` | Telegram chat ID (optional) | - |
-| `HEALTH_CHECK_INTERVAL` | Health check interval in minutes | `5` |
-
-## Usage
-
-### Basic Usage
-
-1. **Testnet Testing** (Recommended first)
-   ```env
-   TESTNET=true
-   DRY_RUN=true
-   ```
-   This allows you to test the bot without risking real funds.
-
-2. **Production Mode**
-   ```env
-   TESTNET=false
-   DRY_RUN=false
-   ```
-
-### How It Works
-
-1. **Initialization**: Bot loads config, initializes Hyperliquid client, connects to your wallet
-2. **Monitoring**: Subscribes to target wallet fills via WebSocket
-3. **On Fill Event**:
-   - Determines if it's opening, reducing, or closing a position
-   - Fetches our and target wallet equity
-   - Calculates position size: `(ourEquity / targetEquity) * targetSize * multiplier`
-   - Applies risk checks (min notional, max size, blocked assets, leverage cap)
-   - Executes trade (or logs in dry-run mode)
-4. **Health Checks**: Periodically compares our positions vs target positions
-5. **Notifications**: Sends Telegram notifications (if configured)
-
-### Position Sizing Example
-
-If:
-- Target wallet equity: $10,000
-- Our wallet equity: $5,000
-- Target opens $1,000 position
-- SIZE_MULTIPLIER: 1.0
-
-Then our position size = `(5000 / 10000) * 1000 * 1.0 = $500`
-
-### Risk Management
-
-The bot includes multiple safety layers:
-
-1. **Minimum Notional**: Skips trades below $10 (Hyperliquid requirement)
-2. **Maximum Position Size**: Caps position at configured % of equity
-3. **Leverage Cap**: Limits leverage to MAX_LEVERAGE
-4. **Blocked Assets**: Skips copying certain coins
-5. **Max Concurrent Trades**: Limits number of open positions
-6. **Dry-Run Mode**: Test without placing real orders
-
-## Hyperliquid SDK References
-
-### SDK Compatibility Note
-
-
-**Options**:
-1. **@nktkas/hyperliquid** (preferred) - Community SDK
-   - Install: `npm install @nktkas/hyperliquid`
-   - GitHub: https://github.com/nktkas/hyperliquid
-
-2. **nomeida/hyperliquid** (alternative) - Another community SDK
-   - Check npm for availability
-
-3. **Direct API calls** - If no SDK is available, implement direct HTTP/WebSocket calls
-   - Official API docs: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
-
-**If SDK import fails**: The code includes error handling and will guide you. You may need to:
-- Adjust import paths in `src/hyperliquidClient.ts`
-- Implement direct API calls using `fetch` or `axios` for HTTP
-- Use `ws` library for WebSocket connections
-
-- **Official Hyperliquid Docs**: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
-
-- **Testnet**:
-  - Chain ID: 998
-  - Faucet: https://app.hyperliquid-testnet.xyz/drip
-  - Testnet Explorer: https://explorer.hyperliquid-testnet.xyz
-
-### Important Hyperliquid Notes
-
-- **No trailing zeros**: Size and price must not have trailing zeros (e.g., `"1.5"` not `"1.50"`)
-- **GTC orders**: Orders are Good Till Cancel by default
-- **Minimum notional**: ~$10 minimum per order
-- **Leverage**: Must be set per coin before placing orders
-
-## Logging & Monitoring
-
-### Log Files
-
-- `logs/combined.log` - All logs
-- `logs/error.log` - Error logs only
-
-### Log Levels
-
-- `error` - Errors only
-- `warn` - Warnings and errors
-- `info` - Info, warnings, and errors (default)
-- `debug` - Verbose logging
-
-### Key Events Logged
-
-- Subscription start/stop
-- Detected fill events
-- Trade opened/reduced/closed
-- Skipped trades (due to filters)
-- Errors & retries
-- Health check results
-
-## Telegram Notifications
-
-The bot includes comprehensive Telegram notifications for real-time updates on trading activity, errors, and system status.
-
-### Features
-
-- **Trade Notifications**: Real-time alerts when trades are copied (success/failure)
-- **Startup/Shutdown Alerts**: Notifications when bot starts or stops
-- **Error Notifications**: Critical errors sent immediately with context
-- **Health Check Alerts**: Warnings when position drift is detected
-- **Summary Reports**: Optional daily/weekly trading statistics
-- **Markdown Formatting**: Beautiful, readable messages with formatting
-
-### Notification Types
-
-1. **Trade Copied** - Sent when a trade is executed
-   - Shows target trade details (coin, side, size, price)
-   - Shows our trade details (side, size, leverage, order type)
-   - Success/failure status with order ID or error message
-
-2. **Startup Notification** - Sent when bot starts
-   - Shows configuration summary
-   - Testnet/dry-run status
-   - Target wallet info
-
-3. **Shutdown Notification** - Sent when bot stops gracefully
-
-4. **Error Notifications** - Sent for critical errors
-   - Error message and stack trace (in debug mode)
-   - Context information
-
-5. **Health Check Alerts** - Sent when position drift detected
-   - Account equity comparison
-   - Position drift details
-   - Warning indicators
-
-6. **Summary Reports** - Optional statistics
-   - Total trades copied
-   - Success rate
-   - Active positions
-   - PnL (if available)
-
-### Setup Telegram Notifications
-
-1. **Create a Telegram Bot**:
-   - Open Telegram and search for [@BotFather](https://t.me/botfather)
-   - Send `/newbot` command
-   - Follow instructions to create your bot
-   - Copy the bot token (e.g., `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
-
-2. **Get Your Chat ID**:
-   - Start a conversation with your bot
-   - Send any message to the bot
-   - Visit: `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
-   - Look for `"chat":{"id":123456789}` - that's your chat ID
-
-3. **Configure in `.env`**:
-   ```env
-   TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
-   TELEGRAM_CHAT_ID=123456789
-   ```
-
-4. **Restart the bot** - Notifications will be enabled automatically
-
-### Example Notifications
-
-**Trade Copied:**
-```
-✅ Trade Copied
-
-Target Trade:
-• Coin: `BTC`
-• Direction: Open Long
-• Size: `0.1`
-• Price: `50000`
-
-Our Trade:
-📈 Side: Long
-• Size: `0.05`
-• Leverage: `10x`
-• Reduce Only: No
-• Order Type: Market
-
-Status: Success
-• Order ID: `12345`
-
-Time: 1/19/2026, 2:00:00 PM
+Or install individually:
+```bash
+pip install ccxt requests python-dotenv
 ```
 
-**Health Check Alert:**
-``
+### 2. Create Environment Variables File
 
-Account Status:
-• Our Equity: `$5000.00`
-• Target Equity: `$10000.00`
-• Our Positions: 2
-• Target Positions: 2
+Create a `.env` file in the project directory with your credentials:
 
-• BTC: Our `0.05` vs Target `0.1` (Diff: `0.05`)
+```env
+# Your account credentials (required for LIVE mode, optional for DRY mode)
+HYPERLIQUID_WALLET_ADDRESS=0xYourWalletAddress
+HYPERLIQUID_PRIVATE_KEY=0xYourPrivateKey
 
-Checked: 1/19/2026, 2:00:00 PM
+# Who to copy trade from
+LEADER_WALLET_ADDRESS=0xLeaderWalletAddress
+
+# Mode settings
+DRY_MODE=true  # Set to "false" to enable live trading
+
+# Trading settings
+POSITION_SIZE_MULTIPLIER=1.0
+LEVERAGE=1
+MARGIN_MODE=isolated
 ```
 
-### Disabling Notifications
+**Important:** Never commit your `.env` file to git! It contains sensitive information.
 
-To disable Telegram notifications, simply remove or comment out the `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` from your `.env` file.
+### 3. Run the Bot
 
-## Health Checks
+#### One-time execution:
+```bash
+python hyperliquid-trading-live-bot.py
+```
 
-The bot periodically checks positions:
+#### Continuous monitoring (using a loop):
+You can run it in a loop or schedule it with cron/task scheduler:
 
-- Compares our positions vs target positions
-- Detects drift (size differences)
-- Logs warnings if significant drift detected
-- Default interval: 5 minutes (configurable)
+**Windows (PowerShell):**
+```powershell
+while ($true) { python hyperliquid-trading-live-bot.py; Start-Sleep -Seconds 10 }
+```
+
+**Linux/Mac:**
+```bash
+while true; do python hyperliquid-trading-live-bot.py; sleep 10; done
+```
+
+**Or use cron (Linux/Mac) to run every minute:**
+```bash
+* * * * * cd /path/to/bot && /usr/bin/python3 hyperliquid-trading-live-bot.py
+```
+
+## Configuration Options
+
+### Required Environment Variables:
+- `LEADER_WALLET_ADDRESS` - Wallet address to copy from
+
+### Required for LIVE Mode (when DRY_MODE=false):
+- `HYPERLIQUID_WALLET_ADDRESS` - Your wallet address
+- `HYPERLIQUID_PRIVATE_KEY` - Your wallet's private key
+
+### Optional Environment Variables:
+- `DRY_MODE` - If "true", only tracks leader positions without executing trades (default: true)
+- `POSITION_SIZE_MULTIPLIER` - Position size multiplier (default: 1.0)
+- `LEVERAGE` - Leverage to use (default: 1)
+- `MARGIN_MODE` - "isolated" or "cross" (default: isolated)
+- `POLL_INTERVAL` - Seconds between checks (default: 10)
+- `MIN_POSITION_SIZE` - Minimum position size in USDC (default: 10.0)
+- `USE_TP_SL` - Copy take profit/stop loss (default: false)
+
+## How It Works
+
+1. **Fetches Leader Positions**: Queries the leader wallet's open positions via Hyperliquid API
+2. **Compares Positions**: Checks your current positions against the leader's (in LIVE mode)
+3. **Closes Mismatched Positions**: Closes any positions you have that the leader doesn't (LIVE mode only)
+4. **Opens New Positions**: Opens positions to match the leader proportionally (LIVE mode only)
+5. **Adjusts Sizes**: Adjusts position sizes when they differ from the leader (LIVE mode only)
+
+### Dry Mode vs Live Mode
+
+- **DRY_MODE=true** (default): Only tracks and displays what trades would be executed. No actual trades are placed. Perfect for testing and monitoring.
+- **DRY_MODE=false**: Executes actual trades to mirror the leader's positions. Requires valid wallet credentials.
+
+## Safety Features
+
+- Minimum position size filter (avoids dust positions)
+- Symbol blocking capability
+- Proportional position sizing
+- Error handling and logging
 
 ## Troubleshooting
 
-### Common Issues
+### Common Issues:
 
-1. **"Failed to import Hyperliquid SDK"**
-   - Run: `npm install @nktkas/hyperliquid`
-   - If package doesn't exist, check alternative SDKs or use official API
+1. **"LEADER_WALLET_ADDRESS must be set"**
+   - Make sure your `.env` file exists and contains `LEADER_WALLET_ADDRESS`
 
-2. **"Cannot connect to Hyperliquid account"**
-   - Verify `PRIVATE_KEY` is correct
-   - Check network connectivity
-   - Ensure testnet/mainnet matches your account
+2. **"Failed to initialize exchange"**
+   - Check that your `HYPERLIQUID_WALLET_ADDRESS` and `HYPERLIQUID_PRIVATE_KEY` are correct
+   - Ensure your wallet has funds
 
-3. **"WebSocket disconnected"**
-   - Bot will auto-reconnect with exponential backoff
-   - Check network stability
-   - Verify target wallet address is correct
+3. **"Failed to fetch wallet positions"**
+   - Check that `LEADER_WALLET_ADDRESS` is a valid Hyperliquid wallet
+   - Verify your internet connection
 
-4. **"Trade execution failed"**
-   - Check account balance
-   - Verify minimum notional requirements
-   - Check if asset is blocked
-   - Review leverage limits
+4. **Module not found errors**
+   - Run `pip install -r requirements.txt` to install dependencies
 
-### Debug Mode
+## Disclaimer
 
-Enable debug logging:
-```env
-LOG_LEVEL=debug
-```
-
-## Risks & Disclaimers
-
-⚠️ **IMPORTANT WARNINGS**:
-
-- **High Risk**: Trading derivatives involves significant risk of loss
-- **Leverage Risk**: Leverage amplifies both gains and losses
-- **Capital Loss**: You may lose your entire capital
-- **No Warranty**: This software is provided "as is" without warranty
-- **Educational Purpose**: This is for educational purposes only
-- **Test First**: Always test on testnet before using real funds
-- **Private Key Security**: Never share your private key. Store securely.
-
-## Development
-
-### Building
-
-```bash
-npm run build
-```
-
-### Development Mode
-
-```bash
-npm run dev
-```
-
-### Code Structure
-
-- **Modular design**: Each component in separate file
-- **Type safety**: Full TypeScript types throughout
-- **Error handling**: Comprehensive try-catch blocks
-- **Logging**: Structured logging at all levels
-
-## Contributing
-
-Contributions welcome! Please ensure:
-
-- TypeScript strict mode compliance
-- All tests pass
-- Code is well-documented
-- Follow existing code style
+⚠️ **Use at your own risk!** This bot executes real trades with real money. Always:
+- Test with small amounts first
+- Understand the risks of copy trading
+- Monitor the bot regularly
+- The leader trader may lose money, and you will copy those losses
 
 ## License
 
-MIT License — free to use, modify, but no warranty.
-
-## Support
-
-For issues, questions, or contributions:
-
-1. Check existing GitHub issues
-2. Review Hyperliquid documentation
-3. Test on testnet first
-4. Enable debug logging for troubleshooting
-
-## Getting Started with Testnet
-
-1. Visit https://app.hyperliquid-testnet.xyz/drip
-2. Get testnet tokens from faucet
-3. Set `TESTNET=true` in `.env`
-4. Set `DRY_RUN=true` for initial testing
-5. Start bot: `npm start`
-
-## CLI Commands
-
-```bash
-npm start          # Start the bot
-npm run build      # Build TypeScript
-npm run dev        # Development mode with watch
-```
-
-## Example .env File
-
-```env
-# Required
-PRIVATE_KEY=0xYourPrivateKeyHere
-TARGET_WALLET=0xTargetWalletAddressHere
-TESTNET=true
-
-# Position Sizing & Risk Management
-SIZE_MULTIPLIER=1.0
-MAX_LEVERAGE=20
-MAX_POSITION_SIZE_PERCENT=50
-MIN_NOTIONAL=10
-MAX_CONCURRENT_TRADES=10
-
-# Asset Filtering
-BLOCKED_ASSETS=BTC,ETH
-
-# Safety Features
-DRY_RUN=true
-LOG_LEVEL=info
-
-# Optional: Health Check Interval (minutes)
-HEALTH_CHECK_INTERVAL=5
-```
-
----
-
-# 🔥 Contact Us
-
-Stay updated with new strategies, bots, and alpha.
-
-👉 Telegram: https://t.me/gammatradelab
-
----
+This code is provided as-is for educational purposes.
 
