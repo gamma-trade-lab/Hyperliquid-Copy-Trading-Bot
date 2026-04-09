@@ -1,0 +1,24 @@
+# System files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+**/.env
+
+# Generated protobuf files
+*_pb2.py
+*_pb2_grpc.py
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
